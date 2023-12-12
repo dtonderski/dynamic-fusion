@@ -1,0 +1,215 @@
+###############################################################################
+# Example Simulation Configuration
+# This file lists all the possible parameters with their default values.
+# To use the EVS Emulator you only have to specify the parameters you actually
+# want to change. Also note that the configuration file must be explicitly
+# passed to run_evs_explorer_converter.py, like so:
+#
+#    run_evs_explorer_converter.py --sim_config sim_config.yml --sensor_config sensor_config.yml
+#
+# DO NOT COMMIT MODIFICATION TO THIS FILE! It is intended as documentation and
+# should always correspond to the default configuration.
+#
+# Rather, the recommended usage is to create a copy of this file (and
+# sensor_config.yml), delete all the parameters you are not interested in and
+# run the sensor with that file.
+###############################################################################
+
+version: 2.0.0 # EVS Explorer version. This field is used to ensure compatibility between the simulator and the configuration files used.
+
+sensor_model: davis_model # Sensor model to simulate. e.g. 'davis_model'.
+temperature_C: 25.0 # Ambient tempeature. Value in range: [-40.0; 125.0]
+contrast_unit: multiplicative # Units for contrast definition, values are 'percent' or 'multiplicative'
+
+###############################################################################
+# General Simulator Configuration Options
+###############################################################################
+
+input:
+    # Videofile name, path to frame folder or test stimulus name
+    # Or choose from: 'static','random','white_bar','black_bar','monotonic_lin',
+    # monotonic_log','flatstep_lin','triangular','sine'
+    source: SampleVideo.mp4
+    num_frames: null # -1 or Null is all
+    num_frames_skip: 0 # number of frames to skip before processing
+    crop: null # select region of interest (applied before downsampling)
+    # for example, to select column 10 to 310, starting at row 20:
+    # crop:
+    #    - x: 10
+    #    - y: 20
+    #    - width: 300
+
+    desired_width: null # desired width in pixels (or null if no downsampling)
+    fps: null # Overwrite frame-rate (or set null for automatic)
+    gstreamer_pipeline: null # if source is set to 'gstreamer', an arbitrary gstreamer pipeline can be instantiated here
+
+output:
+    csv: false # Save csv of event data
+    csv_grayscale_evt: false # variant of CSV output node for multi-bit events
+    hdf5: false # Save hdf5 of event data
+    video: false # Save screen video
+    bag: false # Save a rosbag of event data
+    matlab: false # Save a .mat of event data
+    image_files: false # Save PNGs of APS images
+    node_graph: false # Save a PDF with a block diagram of the pipeline (needs graphviz to be installed: `pip install graphviz`)
+    runtime: false #save runtime in csv (total, preprocessing, frames processing)
+    dir: ./output/   # Go to default
+    overwrite: true # Remove existing directory
+    progress_bar: true # Show progress bar while running
+    retrieve_events: false # EvsExplorer.update() results in an array with the estimated events
+    check_existing_output_dir: true # Check if output directory already exists. Set to false for batch processing to write multiple files to same folder.
+    src_images_passthrough: false # Passthrough all source images to output (rosbag, hdf5 and output images supported).
+
+    # ROS topic names of data in output bagfile (only relevant if output.bag = True)
+    rosbag:
+        event_topic_name: "/sim/events" # polarity events
+        special_events_topic_name: "/sim/special_events" # Topic name of special events (external input rising/falling edges)
+        gt_image_topic_name: "/sim/images_gt" # ground truth images from APS pipeline
+        blurred_image_topic_name: "/sim/images_blur" # output of APS pipeline (blurred, noisy frames)
+        src_image_topic_name: "/sim/images_src" # Topic name of source images (passthrough) in output bagfile
+
+render:
+    enabled: false # Enable rendering and display of simulator visualizer. Note: this has an impact on runtime performance.
+    plot_3D_event_stream: false # Plot a 3D time-window of the event stream. Note: this can have a significant impact on runtime performance for many events.
+    fullscale: 2 # How many ON events make a full white pixel (vice versa for OFF/black)
+    timeslice_ms: 2 # How many ms to display at a time in the graphs
+    fullscreen: false # Make the window full-screen (only works on Windows)
+    streamlit: false # Is the streamlit GUI active?
+
+gpu_accel:
+    gpu_use: true # False to disable gpu, otherwise uses GPU if available (if not available, run on CPU anyway)
+    gpu_device: '0' # Device number of GPU to be used ('0' uses 1st GPU, '1' uses 2nd GPU, etc)
+
+###############################################################################
+# Modelling Configuration Options
+###############################################################################
+
+gamma_correction:
+    enabled: false # Enable the gamma correction feature
+    gamma_model: 'normal' # Gamma implementation. Currently supported Gamma models: 'normal', 'sRGB'
+    gamma: 2.2 # Gamma value for 'normal' gamma mode
+    decoding_bitdepth: 8 # Bit depth of the gamma decoding stage
+    encoding_bitdepth: 10 # Bit depth of the gamma encoding stage
+
+optics:
+    enabled: true # Optics active (otherwise assume that the input is in W/m2), required for attenuation, vignetting and distortion
+    attenuation_enabled: true # Enables Attenuation (f-number, lens transmission coefficient)
+    vignetting_enabled: true # Enables Vignetting (radial attenuation)
+    distortion_enabled: false # Optical distortion (barrel distortion)
+    max_illuminance_lux: 500.0 # Illuminance for photometry (lux). Value in range: [0.001; 100000.0]
+    min_illuminance_lux: 15.0 # Illuminance for photometry (lux) 30000/32 looking at DAVIS biases. Value in range: [0.001; 100000.0]
+    f_number: 2.6 # F-number. Value in range: [1.0; 5.0]
+    lens_transm_coeff: 1.0 # Lens transmission coefficient. Value in range: [0.0; 1.0]
+    lens_to_screen_dist_m: 0.3 # Lens to screen distance. Value in range: [0.0 1.0]
+    screen_pixel_dim_m: 0.5e-3 # Assuming 20 inch monitor FHD (1920x1080) and 2x size. Value in range: [0.1e-3; 1e-3]
+    k1_distortion_coeff: 0.0 # +high +zoom. Value in range: [-10.0; 10.0]
+    k2_distortion_coeff: 0.0 # +high +zoom. Value in range: [-10.0; 10.0]
+    p1_distortion_coeff: 0.0 # Top-bottom. Value in range: [-10.0; 10.0]
+    p2_distortion_coeff: 0.0 # Left-right. Value in range: [-10.0; 10.0]
+    k3_distortion_coeff: 0.0 # +high +zoom. Value in range: [-10.0; 10.0]
+
+pixel_arrangement:
+    # The pixel mosaic is composed by 3 layers, which are represented by 3 letters.
+    # - color filter
+    #       Choose color filter: I (intensity, no color filter), R (red), G (green), B (blue)
+    # - pixel type
+    #       Choose pixel type: A (aps px), E (event px), D (DAVIS px)
+    # - group
+    #       Group connected pixels by setting equal number. Use '*' to automatically assign unique group.
+    #
+    # Note: The size of the mosaic pattern defines the resolution of the output events.
+    #       For each mosaic pattern, there will be one event location. All event pixels
+    #       belonging to the same group are 'connected', if there are multiple event
+    #       groups within one mosaic, there is 'binning' applied to these groups.
+    #
+    # E.g.
+    #         - [ 'RA02', 'IE00', 'GA03', 'GA04' ]
+    #         - [ 'RA05', 'IE00', 'GA06', 'GA07' ]
+    #         - [ 'GA08', 'GA09', 'IE01', 'BA10' ]
+    #         - [ 'GA11', 'GA12', 'IE01', 'BA13' ]
+    #
+    #       ...represents a 4x4 mosaic containing two event groups ('00', '01'). All the pixels
+    #       belonging to one event group are 'connected', i.e. the input values are being summed.
+    #       After this step, binning takes place: The two resulting connected values are being
+    #       averaged.
+
+    enabled: false # Enable sub-pixel arrangement
+    binning_mode: none
+
+    # Breguet reference design normal mode
+    pixel_config:
+        - [RA01, IE00, GA02, GA03]
+        - [RA04, IE00, GA05, GA06]
+        - [GA07, GA08, IE00, BA09]
+        - [GA10, GA11, IE00, BA12]
+
+    ## Breguet reference design binning mode
+    #pixel_config:
+    #    - [ 'RA04', 'IE00', 'GA05', 'GA06', 'RA07', 'IE01', 'GA08', 'GA09' ]
+    #    - [ 'RA10', 'IE00', 'GA11', 'GA12', 'RA13', 'IE01', 'GA14', 'GA15' ]
+    #    - [ 'GA16', 'GA17', 'IE00', 'BA18', 'GA19', 'GA20', 'IE01', 'BA21' ]
+    #    - [ 'GA22', 'GA23', 'IE00', 'BA24', 'GA25', 'GA26', 'IE01', 'BA27' ]
+    #    - [ 'RA28', 'IE02', 'GA29', 'GA30', 'RA31', 'IE03', 'GA32', 'GA33' ]
+    #    - [ 'RA34', 'IE02', 'GA35', 'GA36', 'RA37', 'IE03', 'GA38', 'GA39' ]
+    #    - [ 'GA40', 'GA41', 'IE02', 'BA42', 'GA43', 'GA44', 'IE03', 'BA45' ]
+    #    - [ 'GA46', 'GA47', 'IE02', 'BA48', 'GA49', 'GA50', 'IE03', 'BA51' ]
+
+    ## Breguet variant design normal mode
+    #pixel_config:
+    #    - [ 'RA01', 'IE00', 'GA02', 'GA03']
+    #    - [ 'RA04', 'IE00', 'GA05', 'GA06']
+    #    - [ 'GA07', 'GA08', 'BA09', 'BA10']
+    #    - [ 'GA11', 'GA12', 'BA13', 'BA14']
+
+    ## Breguet variant design binning mode
+    #pixel_config:
+    #    - [ 'RA04', 'IE00', 'GA05', 'GA06', 'RA07', 'IE01', 'GA08', 'GA09' ]
+    #    - [ 'RA10', 'IE00', 'GA11', 'GA12', 'RA13', 'IE01', 'GA14', 'GA15' ]
+    #    - [ 'GA16', 'GA17', 'BA18', 'BA19', 'GA20', 'GA21', 'BA22', 'BA23' ]
+    #    - [ 'GA24', 'GA25', 'BA26', 'BA27', 'GA28', 'GA29', 'BA30', 'BA31' ]
+    #    - [ 'RA32', 'IE02', 'GA33', 'GA34', 'RA35', 'IE03', 'GA36', 'GA37' ]
+    #    - [ 'RA38', 'IE02', 'GA39', 'GA40', 'RA41', 'IE03', 'GA42', 'GA43' ]
+    #    - [ 'GA44', 'GA45', 'BA46', 'BA47', 'GA48', 'GA49', 'BA50', 'BA51' ]
+    #    - [ 'GA52', 'GA53', 'BA54', 'BA55', 'GA56', 'GA57', 'BA68', 'BA59' ]
+
+input_interpolation:
+    enabled: false # Interpolate input frames using optical flow
+    path_flow: null # Optical flow for input interpolation (if null, estimation with OpenCV)
+    opencv_param: [0.5, 3, 15, 3, 5, 1.2, 0] # parameters for opencv flow estimation [pyr_scale,levels,winsize,iterations,poly_n,poly_sigma,flags]
+    scalar_tau: 10.0 # scalar (controls timestamp at which we assume the slowest low pass filter has reached the step response)
+    freq_noise_updates_Hz: 10.0 # frequency at which noise is sampled
+
+dead_pixel_filter:
+    enabled: False
+    percent: 0.0 # Value in range: [0.0; 1.0]
+
+aps_pipeline:
+    enabled: false
+    output_fps: 11
+    exposure_time_ms: 30 # Exposure time in miliseconds
+    output_offset_ms: 0 # Shifts the timestamps of the output frames in miliseconds
+    order_of_approximation: 0
+    aps_pix_pitch: 1.12e-6
+    aps_pix_fill_factor: 1.0
+    wavelength_m: 555.e-9
+    quantum_efficiency: 0.9
+    analog_gain: 1.0
+    adc_bitdepth: 10
+    adc_pedestal: 64
+    max_capacity: 7000
+    enable_shot_noise: true
+    scale_shot_noise: 1.0
+    enable_read_noise: true
+
+    adjust_output: null
+    adjust_ground_truth: null
+
+###############################################################################
+# Advanced
+###############################################################################
+
+debug:
+    plot_folded_hist: false # Plot folded histogram of event timing
+    plot_single_pix: false # Plot single pixel potential trend
+    Ypix_range: [0, 2] # Which pixels to plot separately in Y
+    Xpix_range: [0, 2] # Which pixels to plot separately in X

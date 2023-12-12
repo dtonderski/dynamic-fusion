@@ -1,0 +1,60 @@
+davis_model:
+    # used if contrast_unit set to 'multiplicative'
+    ONth_mul: 1.3 # ON threshold in multiplication factor. Value in range: (1.0; 1000.0]
+    OFFth_mul: 1.3 # OFF threshold in division factor. Value in range: (1.0; 1000.0]
+    # contrast_unit set to 'percent'
+    ONth_pct: 0.2 # ON threshold in percentage change. Value in range: [0.0; 1.0)
+    OFFth_pct: 0.2 # OFF threshold in percentage change. Value in range: [0.0; 1.0)
+
+    # Non-idealities
+    noise: true # Transistor noise
+    background_activity: false # Background activity
+    bandwidth_limit: true # Capacitance limiting
+    light_shot_noise: true # Light Poissonian noise
+    mismatch: true # Transistor mismatch
+    random_state: true # Random pixel state
+    real_refractory_period: true # Real refractory period calculation
+
+    wavelength_m: 555e-9 # Green is the central band (assume monochrome light). Value in range: [555e-10; 555e-8]
+    qe_at_wavelength: 0.25 # To be set. Value in range: [0.1; 1.0]
+    sensor_pixel_dim_m: 18.5e-6 # Pixel side dimension. Value in range: [1e-6; 40e-6]
+    fill_factor: 0.2 # Aphotodiode/Apixel. Value in range: (0.0; 1.0]. Value in range: [1e-6; 40e-6]
+    FWC: 25e3 # Full Well Capacitance (FWC) of the photodiode. Value in range: [1e3; 40e3]
+    i_dark_current_A: 1e-15 # To be modelled wrt temperature. Value in range: [1e-16, 1e-13]
+    FET_frontend_mismatch: 0.01 # Transistor mismatch.. Value in range: [0.001, 0.1]
+    C1_F: 150e-15 # Capacitor 1 in diff amp. Value in range: [1e-15, 150e-15]
+    C2_F: 10e-15 # Capacitor 2 in diff amp. Value in range: [1e-15, 150e-15]
+    VddA_fe_V: 3.3 # Analog front-end supply. Value in range: [0.9, 3.3]
+    VddA_V: 1.8 # Analog supply. Value in range: [0.9, 3.3]
+    VddD_V: 1.8 # Digital supply. Value in range: [0.9, 3.3]
+    t_ref_s: 1e-4 # 0.1/15 Refractory period in seconds. Value in range: [0.0, 10.0]
+    qe_rel_parasitic: 3e-4 # Parasitic quantum efficiency for signal dependent linear leak . Value in range: [1e-8, 1e-3]
+    fleak_roomtemp_Hz: 6e-2 # Background activity. Value in range: [0.0, 10.0]
+
+    process:
+        kn: 0.8 # kappa of nFET. Value in range: [0.5; 1.0]
+        kp: 0.7 # kappa of pFET. Value in range: [0.0; 1.0]
+        I0_A: 1e-18 # Preexponential current. Value in range: [1e-18; 1e-15]
+        early_V: 10.0 # Early voltage. Value in range: [1.0; 100.0]
+        gamma: 2.5 # Gamma factor. Value in range: [0.0; 1.0]
+        Ea_leak_eV: 0.8 # Average activation energy. Value in range: [0.5; 1.0]
+        KF_process: 1e-30 # KF process. Value in range: [1e-32; 1e-27]
+        Kshot: 0.9 # Kshot tunable shot. Value in range: [1e-2; 1e-5]
+        uCox_process: 100e-6 # uCox process. Value in range: [100e-8; 100e-5]
+        Cox_Fm2: 1.9e-3 # F/sqm Oxide capacitance. Value in range: [1e-4; 1e-2]
+        C_mismatch: 0.005 # 0.01/2 Capacitor mismatch. I assume this is 1 sigma range. Value in range: [0.001; 0.01]
+        W_m: 1e-6 # Transistor width (average). Value in range: [1e-9; 1e-3]
+        L_m: 1e-6 # Transistor length (average). Value in range: [1e-9; 1e-3]
+        FET_mismatch: 0.15 # 0.3/2 Transistor mismatch. I assume this is 1 sigma range. Value in range: [0.01; 0.3]
+
+    bias:
+        Ib_diff_A: 40e-9 # Differential amplifier bias. Value in range: [1e-18; 25e-6]
+        Ib_pr_A: 1e-11 # From DAVIS biases PrBp 2/58 = 1e-10. Value in range: [1e-18; 25e-6]
+        Ib_sf_A: 1e-11 # From DAVIS biases PrSfBp 1/16 = 1e-11. Value in range: [1e-18; 25e-6]
+        Ib_refr_A: 1e-8 # From DAVIS biases RefrBp 4/25 = 1e-8. Value in range: [1e-18; 25e-6]
+
+    readout:
+        enabled: False # Enables readout circuitry modeling, which affects event generation and introduces additional timestamp jitter to the output events.
+        readout_mode: scanning # Readout mode scheme, either 'scanning' or 'arbiter'.
+        f_scan_Hz: 1000 # Readout frequency in Hz, specific to 'scanning' readout mode.
+        t_aer_delay_s: 0.0001 # AER readout circuitry delay in seconds, specific to 'arbiter' readout mode.

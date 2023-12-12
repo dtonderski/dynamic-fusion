@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field, root_validator
 
@@ -110,6 +110,14 @@ class EventGeneratorConfiguration(BaseModel):
 class EventDiscretizerConfiguration(BaseModel):
     number_of_temporal_bins: int = Field(
         None, description="Number of temporal bins to use in discretizer."
+    )
+    number_of_temporal_sub_bins_per_bin: int = Field(
+        None, 
+        description = "Number of sub-bins to use per temporal bin. If one "
+        "discretized event statistic has shape T D H W, then this is the D "
+        "dimension.")
+    ground_truth_temporal_location_in_bin: Literal["center", "end"] = Field(
+        None, description="Location of ground truth image in the bin."
     )
 
 

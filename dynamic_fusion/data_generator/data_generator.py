@@ -2,7 +2,7 @@ import logging
 
 from tqdm import tqdm
 
-from on_the_fly.trainers.utils.seeds import set_seeds
+from dynamic_fusion.utils.seeds import set_seeds
 
 from .configuration import DataGeneratorConfiguration
 from .data_saver import DataSaver

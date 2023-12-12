@@ -3,15 +3,45 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 import evs_explorer
+import numpy as np
+import ruamel.yaml
 import torch
 from evs_explorer.configuration import ContrastStep
+from evs_explorer.configuration.utils import yaml
+from evs_explorer.pipeline import InputNode
 from numpy.random import uniform
 from tqdm import tqdm
 
-from on_the_fly.simulators.evs_explorer_interface import ImageGenerator
-from on_the_fly.trainers.utils.datatypes import Events, GrayVideo, GrayVideoTorch
+from dynamic_fusion.utils.datatypes import Events, GrayVideo, GrayVideoTorch
 
 from .configuration import EventGeneratorConfiguration, SharedConfiguration
+
+
+# This class is used as an input node which can read in a sequence of images
+# and then feed them into the simulator one-by-one at each timestep.
+@yaml.register_class
+class ImageGenerator(InputNode):
+    """
+    Modified version of evs_explorer.pipeline.GeneratorNode so that it can be
+    specified as an input node.
+    """
+
+    yaml_tag = u'!ImageGenerator'
+
+    def __init__(self, data: np.ndarray, fps: float, num_frames: int):
+        super().__init__(fps=fps, num_frames=num_frames, shape=data.shape[1:])
+
+        self.gen = data
+
+    @classmethod
+    def to_yaml(cls, representer: ruamel.yaml.Representer, data: 'ImageGenerator'):
+        return representer.represent_mapping(cls.yaml_tag, {
+            'fps': data.fps,
+            'num_frames': data.num_frames,
+        })
+
+    def run(self):
+        yield from self.gen
 
 
 class EventGenerator:

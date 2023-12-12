@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 import torch
 
-from on_the_fly.trainers.utils.datatypes import DiscretizedEventsStatistics
+from dynamic_fusion.utils.datatypes import DiscretizedEventsStatistics
 
 
 @dataclass
@@ -80,9 +80,3 @@ class DiscretizedEvents:
                 )
             ),
         )
-
-    def crop_tensors_in_time(self, start: int, end: int) -> None:
-        self.event_polarity_sum = self.event_polarity_sum[start:end]
-        self.timestamp_mean = self.timestamp_mean[start:end]
-        self.timestamp_std = self.timestamp_std[start:end]
-        self.event_count = self.event_count[start:end]

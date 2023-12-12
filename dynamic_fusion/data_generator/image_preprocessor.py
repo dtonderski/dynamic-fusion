@@ -7,7 +7,7 @@ from skimage.color import rgb2gray  # pylint: disable=no-name-in-module
 from skimage.transform import resize
 from tqdm import tqdm
 
-from on_the_fly.trainers.utils.datatypes import GrayImage, Image
+from dynamic_fusion.utils.datatypes import GrayImage, Image
 
 from .configuration import ImagePreprocessorConfiguration, SharedConfiguration
 from .utils.image import normalize

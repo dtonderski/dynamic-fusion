@@ -1,0 +1,50 @@
+shared: # used by more than one step in the pipeline
+  target_image_size: [180, 240] # imsz
+  fps: 100
+  number_of_images_to_generate_per_input: 2001 # N_high
+  seed: 0
+  overwrite: False
+
+image_loader:
+  dataset_dir: "./data/raw/coco/val2014/"
+  file_extension: "jpg"
+  number_of_input_images: 500 # Nimgs: 500 # number of images to use for generation
+
+image_preprocessor:
+  exponentiate_images: True # exp_images
+  exponentiation_range: [0.5, 2.5] # exp_range
+
+  downscale_probability: 0.7 # downscale_prob
+  downscale_range: [0.7, 0.85] # downscale_range
+
+video_generator:
+  # A knot is a defined value for a transformation. We generate up to max_knots knots,
+  # and then interpolate between to get a smooth transformation.
+  max_number_of_scale_knots: 6 # max_knots_scale
+  max_number_of_shift_knots: 6 # max_knots_shift
+  max_number_of_rotation_knots: 6 # max_knots_rot
+
+  max_scale_knot_value: 0.7 # max_val_scale
+  max_shift_knot_multiplier_value: 1.2 # max_val_shift_mul
+  max_rotation_knot_value: 1.7 # max_val_rot
+
+  use_pytorch: True # pytorch is almost an order of magnitude faster than scipy
+
+event_generator:
+  sensor_config_path: "configs/simulator/davis_model.yml"
+  simulator_config_path: "configs/simulator/evs_explorer.yml"
+
+  thresholds: [1.15, 1.4] #1.25, 1.4, 1.7, 2.2] # delta
+
+  min_illuminance_lux_range: [650., 850.] # lum_min_range
+  max_illuminance_lux_range: [5_100., 5_500.] # lum_max_range
+
+event_discretizer:
+  number_of_temporal_bins: 100 # N_low
+  number_of_temporal_sub_bins_per_bin: 2
+  ground_truth_temporal_location_in_bin: "center" # center or end
+
+data_saver:
+  output_dir: "./data/interim/coco/val2014_events"
+  save_events: True
+  h5_compression: 3

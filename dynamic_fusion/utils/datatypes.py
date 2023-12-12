@@ -33,10 +33,11 @@ EventTensors = Tuple[TimeStamps, Indices, Indices, Polarities]
 SensorState: TypeAlias = Dict[str, Any]
 VideoSensorData: TypeAlias = Tuple[List[Events], List[GrayImage]]
 
-DiscretizedEventsStatistics: TypeAlias = Float[torch.Tensor, "T H W"]
+DiscretizedEventsStatistics: TypeAlias = Float[torch.Tensor, "T D H W"]
 
 EventMask: TypeAlias = Bool[torch.Tensor, " N"]
 TemporalBinIndices: TypeAlias = Int64[torch.Tensor, " N"]
+TemporalSubBinIndices: TypeAlias = Int64[torch.Tensor, " N*D"]
 
 
 class Checkpoint(TypedDict):

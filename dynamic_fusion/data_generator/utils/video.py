@@ -1,6 +1,6 @@
 import numpy as np
 
-from on_the_fly.trainers.utils.datatypes import GrayVideo
+from dynamic_fusion.utils.datatypes import GrayVideo
 
 
 def normalize(video: GrayVideo) -> GrayVideo:

@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+include = ["dynamic_fusion"]  # package names should match these glob patterns (["*"] by default)
+exclude = []  # exclude packages matching these glob patterns (empty by default)
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
+
+[project]
+name = "dynamic-fusion"
+version = "0.1.0"
+authors = [{name="David Tonderski", email="dtonderski@gmail.com"}]
+readme = "README.md"
+# license = { file="license" }
+requires-python = "~=3.8"
+
+[project.urls]
+"Homepage" = "https://github.com/dtonderski/dynamic-fusion"
+"Bug Tracker" = "https://github.com/dtonderski/dynamic-fusion/issues"
+
+[tool.pylint.MASTER]
+extension-pkg-whitelist = ["pydantic", "pygame", "carla", "module"]
+disable = ["logging-fstring-interpolation", "missing-docstring", "too-few-public-methods", "fixme"]
+generated-members = ["torch.*", "carla.*"]
+
+[tool.pyright]
+exclude = ["**/data",
+    "**/finished",
+    "**/notebooks",
+    "**/output"
+]
+
+[tool.flake8]
+# E203 because black convention for slices is incompatible
+# F722 because it cannot handle jaxtyping
+# E501 is because we use B950 instead
+extend-ignore = ['E203', 'F722', 'E501']
+extend-select = ['B950']
+
+[tool.black]
+# 86 to be compliant with B950
+line-length = 86
+target-version = ['py38']
+preview = true
+
+[tool.mypy]
+python_version = "3.8"
+strict = true
+ignore_missing_imports = true
+enable_incomplete_feature = "Unpack, TypeVarTuple"
+# Below is incompatible with jaxtyping (e.g. Float[Array, " N"]).
+# Hopefully, other tools should catch undefined names.
+disable_error_code = "name-defined"
+
+[[tool.mypy.overrides]]
+module = "torch.*"
+allow_untyped_calls = true

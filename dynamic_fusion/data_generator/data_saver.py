@@ -5,8 +5,8 @@ from typing import Dict
 
 import h5py
 
-from on_the_fly.trainers.utils.datatypes import GrayVideo, GrayVideoTorch, Image
-from on_the_fly.trainers.utils.discretized_events import DiscretizedEvents
+from dynamic_fusion.utils.datatypes import GrayVideo, GrayVideoTorch, Image
+from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 
 from .configuration import DataSaverConfiguration
 

@@ -10,7 +10,7 @@ from scipy.ndimage import affine_transform  # pyright: ignore
 from torchvision.transforms.functional import affine
 from tqdm import tqdm
 
-from on_the_fly.trainers.utils.datatypes import GrayImage, GrayVideo
+from dynamic_fusion.utils.datatypes import GrayImage, GrayVideo
 
 from .configuration import SharedConfiguration, VideoGeneratorConfiguration
 from .utils.video import normalize

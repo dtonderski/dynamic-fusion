@@ -5,7 +5,7 @@ from typing import Generator, List, Tuple
 import imageio.v3 as iio
 import numpy as np
 
-from on_the_fly.trainers.utils.datatypes import Image
+from dynamic_fusion.utils.datatypes import Image
 
 from .configuration import ImageLoaderConfiguration
 

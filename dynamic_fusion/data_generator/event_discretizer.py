@@ -5,15 +5,16 @@ import torch
 from jaxtyping import Float64, Int64
 from tqdm import tqdm
 
-from on_the_fly.trainers.utils.datatypes import (
+from dynamic_fusion.utils.datatypes import (
     DiscretizedEventsStatistics,
     Events,
     EventTensors,
     GrayVideoTorch,
     TemporalBinIndices,
+    TemporalSubBinIndices,
     TimeStamps,
 )
-from on_the_fly.trainers.utils.discretized_events import DiscretizedEvents
+from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 
 from .configuration import EventDiscretizerConfiguration, SharedConfiguration
 
@@ -66,13 +67,13 @@ class EventDiscretizer:
 
         Examples:
 
-            1. 302 input video frames, 6 temporal bins gives:
-                301 intervals, discretized_frame_length = 50,
-                ground_truth_video_indices = [50, 100, 150, 200, 250, 300].
+            1. 301 input video frames, 6 temporal bins gives:
+                300 intervals, discretized_frame_length = 50,
+                ground_truth_video_indices = [49, 99, 149, 199, 249, 299].
 
-            2. 8 input video frames, 3 temporal bins gives:
-                7 intervals, discretized_frame_length = 2,
-                ground_truth_video_indices = [2, 4, 6].
+            2. 7 input video frames, 3 temporal bins gives:
+                6 intervals, discretized_frame_length = 2,
+                ground_truth_video_indices = [1, 3, 5].
         """
 
         # Edges of temporal bins must align frames.
@@ -109,27 +110,46 @@ class EventDiscretizer:
         temporal_bin_indices = self._calculate_temporal_bin_indices(
             timestamps, max_timestamp
         )
+        temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(
+            timestamps, max_timestamp
+        )
 
-        timestamps_in_bins = (
-            (timestamps / max_timestamp * self.config.number_of_temporal_bins)
-            - temporal_bin_indices
+        # Normalize so they lie between [0, n_bins*sub_bins_per_bin]
+        normalized_timestamps = (
+            timestamps
+            / max_timestamp
+            * self.config.number_of_temporal_bins
+            * self.config.number_of_temporal_sub_bins_per_bin
+        )
+
+        # Normalize so events in each sub-bin lie between [0, 1]
+        timestamps_in_sub_bins = (
+            normalized_timestamps
+            - temporal_sub_bin_indices
+            - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
         ).float()
 
         resolution = (
             self.config.number_of_temporal_bins,
+            self.config.number_of_temporal_sub_bins_per_bin,
             *self.shared_config.target_image_size,
         )
 
         event_polarity_sum: DiscretizedEventsStatistics = (
             self._calculate_event_polarity_sum(
-                events_torch, temporal_bin_indices, threshold, resolution
+                events_torch,
+                temporal_bin_indices,
+                temporal_sub_bin_indices,
+                threshold,
+                resolution,
             )
         )
 
         timestamp_mean, timestamp_std, event_count = self._calculate_statistics(
             events_torch,
-            timestamps_in_bins,
+            timestamps_in_sub_bins,
             temporal_bin_indices,
+            temporal_sub_bin_indices,
             resolution,
         )
 
@@ -140,9 +160,10 @@ class EventDiscretizer:
     def _calculate_statistics(
         self,
         events_torch: EventTensors,
-        timestamps_in_bins: TimeStamps,
+        timestamps_in_sub_bins: TimeStamps,
         temporal_bin_indices: TemporalBinIndices,
-        resolution: Tuple[int, ...],
+        temporal_sub_bin_indices: TemporalSubBinIndices,
+        resolution: Tuple[int, int, int, int],
     ) -> Tuple[
         DiscretizedEventsStatistics,
         DiscretizedEventsStatistics,
@@ -158,15 +179,26 @@ class EventDiscretizer:
         timestamp_std: DiscretizedEventsStatistics = torch.zeros(resolution)
 
         timestamp_sum.index_put_(
-            (temporal_bin_indices, y_s, x_s), timestamps_in_bins, accumulate=True
+            (temporal_bin_indices, temporal_sub_bin_indices, y_s, x_s),
+            timestamps_in_sub_bins,
+            accumulate=True,
         )
         timestamp_squared_sum.index_put_(
-            (temporal_bin_indices, y_s, x_s), timestamps_in_bins**2, accumulate=True
+            (temporal_bin_indices, temporal_sub_bin_indices, y_s, x_s),
+            timestamps_in_sub_bins**2,
+            accumulate=True,
         )
         timestamp_count.index_put_(
-            (temporal_bin_indices, y_s, x_s), ONE, accumulate=True
+            (temporal_bin_indices, temporal_sub_bin_indices, y_s, x_s),
+            ONE,
+            accumulate=True,
         )
-        event_count.index_put_((temporal_bin_indices, y_s, x_s), ONE, accumulate=True)
+        event_count.index_put_(
+            (temporal_bin_indices, temporal_sub_bin_indices, y_s, x_s),
+            ONE,
+            accumulate=True,
+        )
+
         indices_with_events = event_count > 0
         timestamp_mean[indices_with_events] = (
             timestamp_sum[indices_with_events] / event_count[indices_with_events]
@@ -188,20 +220,31 @@ class EventDiscretizer:
         self,
         events_torch: EventTensors,
         temporal_bin_indices: TemporalBinIndices,
+        temporal_sub_bin_indices: TemporalSubBinIndices,
         threshold: float,
-        resolution: Tuple[int, ...],
+        resolution: Tuple[int, int, int, int],  # T D H W
     ) -> DiscretizedEventsStatistics:
         _, x_s, y_s, polarities = events_torch
 
         event_polarity_sum: DiscretizedEventsStatistics = torch.zeros(resolution)
         event_polarity_sum.index_put_(
-            (temporal_bin_indices[polarities], y_s[polarities], x_s[polarities]),
+            (
+                temporal_bin_indices[polarities],
+                temporal_sub_bin_indices[polarities],
+                y_s[polarities],
+                x_s[polarities],
+            ),
             ONE,
             accumulate=True,
         )
 
         event_polarity_sum.index_put_(
-            (temporal_bin_indices[~polarities], y_s[~polarities], x_s[~polarities]),
+            (
+                temporal_bin_indices[~polarities],
+                temporal_sub_bin_indices[~polarities],
+                y_s[~polarities],
+                x_s[~polarities],
+            ),
             -ONE,
             accumulate=True,
         )
@@ -220,3 +263,23 @@ class EventDiscretizer:
         )
         temporal_bin_indices = temporal_bin_indices.long()
         return temporal_bin_indices
+
+    def _calculate_temporal_sub_bin_indices(
+        self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float
+    ) -> TemporalBinIndices:
+        total_sub_bin_indices = torch.floor(
+            timestamps
+            / max_timestamp
+            * self.config.number_of_temporal_bins
+            * self.config.number_of_temporal_sub_bins_per_bin
+        )
+
+        sub_bin_indices_in_bins = torch.remainder(
+            total_sub_bin_indices, self.config.number_of_temporal_sub_bins_per_bin
+        )
+        sub_bin_indices_in_bins = torch.clip(
+            sub_bin_indices_in_bins,
+            0,
+            self.config.number_of_temporal_sub_bins_per_bin - 1,
+        )
+        return sub_bin_indices_in_bins
