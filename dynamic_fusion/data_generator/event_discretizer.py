@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from jaxtyping import Float64, Int64
@@ -23,16 +23,29 @@ ONE = torch.tensor(1.0, dtype=torch.float32)
 
 class EventDiscretizer:
     config: EventDiscretizerConfiguration
-    shared_config: SharedConfiguration
+    number_of_images_to_generate_per_input: int
+    fps: int
+    target_image_size: int
     logger: logging.Logger
 
     def __init__(
         self,
         config: EventDiscretizerConfiguration,
-        shared_config: SharedConfiguration,
+        shared_config: Optional[SharedConfiguration] = None,
+        number_of_images_to_generate_per_input: Optional[int] = None,
+        fps: Optional[int] = None,
+        target_image_size: List[int] = None
     ) -> None:
         self.config = config
-        self.shared_config = shared_config
+        if shared_config is not None:
+            self.number_of_images_to_generate_per_input = shared_config.number_of_images_to_generate_per_input
+            self.fps = shared_config.fps
+            self.target_image_size = shared_config.target_image_size
+        else:
+            self.number_of_images_to_generate_per_input = number_of_images_to_generate_per_input
+            self.fps = fps
+            self.target_image_size = target_image_size
+
         self.logger = logging.getLogger("EventDiscretizer")
 
     def run(
@@ -78,16 +91,16 @@ class EventDiscretizer:
 
         # Edges of temporal bins must align frames.
         assert (
-            self.shared_config.number_of_images_to_generate_per_input - 1
+            self.number_of_images_to_generate_per_input - 1
         ) % self.config.number_of_temporal_bins == 0
 
         discretized_frame_length = (
-            self.shared_config.number_of_images_to_generate_per_input - 1
+            self.number_of_images_to_generate_per_input - 1
         ) // self.config.number_of_temporal_bins
 
         return torch.arange(
             discretized_frame_length - 1,
-            self.shared_config.number_of_images_to_generate_per_input - 1,
+            self.number_of_images_to_generate_per_input - 1,
             discretized_frame_length,
             dtype=torch.int64,
         )
@@ -96,8 +109,8 @@ class EventDiscretizer:
         self, events: Events, threshold: float
     ) -> DiscretizedEvents:
         max_timestamp = (
-            self.shared_config.number_of_images_to_generate_per_input - 1
-        ) / self.shared_config.fps
+            self.number_of_images_to_generate_per_input - 1
+        ) / self.fps
         timestamps: TimeStamps = torch.tensor(events.timestamp.values.astype(float))
 
         events_torch: EventTensors = (
@@ -132,7 +145,7 @@ class EventDiscretizer:
         resolution = (
             self.config.number_of_temporal_bins,
             self.config.number_of_temporal_sub_bins_per_bin,
-            *self.shared_config.target_image_size,
+            *self.target_image_size,
         )
 
         event_polarity_sum: DiscretizedEventsStatistics = (
@@ -282,4 +295,5 @@ class EventDiscretizer:
             0,
             self.config.number_of_temporal_sub_bins_per_bin - 1,
         )
+        sub_bin_indices_in_bins = sub_bin_indices_in_bins.long()
         return sub_bin_indices_in_bins
