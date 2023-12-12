@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Dict, List, Literal
+from typing import Dict, List
 
 from pydantic import BaseModel, Field, root_validator
+from pydantic.typing import Literal
 
 
 class SharedConfiguration(BaseModel):
