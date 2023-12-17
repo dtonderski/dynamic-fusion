@@ -45,8 +45,6 @@ class ImagePreprocessor:
         if not self._validate_contrast(image):
             raise ValueError("Skipping image - low contrast.")
         image = normalize(image)
-        image = self._exponentiate(image)
-
         return image
 
     def _validate_size(self, image: Image) -> bool:
@@ -79,16 +77,3 @@ class ImagePreprocessor:
 
     def _validate_contrast(self, image: GrayImage) -> bool:
         return bool(np.max(image) - np.min(image) > 1.0 / 125)
-
-    def _exponentiate(self, image: GrayImage) -> GrayImage:
-        if self.config.exponentiate_images:
-            self.logger.debug("Exponentiating image")
-            exponentiation_multiplier = float(
-                uniform(
-                    low=self.config.exponentiation_range[0],
-                    high=self.config.exponentiation_range[1],
-                )
-            )
-            image = np.exp(image * exponentiation_multiplier)
-            image = normalize(image)
-        return image
