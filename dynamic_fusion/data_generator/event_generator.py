@@ -1,18 +1,16 @@
-import copy
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import evs_explorer
 import numpy as np
 import ruamel.yaml
-import torch
 from evs_explorer.configuration import ContrastStep
 from evs_explorer.configuration.utils import yaml
 from evs_explorer.pipeline import InputNode
 from numpy.random import uniform
 from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import Events, GrayVideo, GrayVideoTorch
+from dynamic_fusion.utils.datatypes import Events, GrayVideo
 
 from .configuration import EventGeneratorConfiguration, SharedConfiguration
 
@@ -65,7 +63,7 @@ class EventGenerator:
 
     def run(
         self, video: GrayVideo, progress_bar: Optional[tqdm] = None
-    ) -> Tuple[Dict[float, Events], GrayVideoTorch]:
+    ) -> Dict[float, Events]:
         if progress_bar:
             progress_bar.set_postfix_str("Generating events")
         else:
@@ -81,13 +79,11 @@ class EventGenerator:
         )
 
         self.evs_config.input.source = image_generator
-        self.logger.info("Generating ground truth images...")
-        logarithmic_video = self._generate_logarithmic_video()
 
         for threshold in self.config.thresholds:
             self.logger.info(f"Generating events for threshold {threshold}...")
             sensor_data[threshold] = self._run_one_threshold(threshold)
-        return sensor_data, logarithmic_video
+        return sensor_data
 
     def _update_config(self) -> None:
         min_illuminance_lux, max_illuminance_lux = self._generate_luminance()
@@ -130,22 +126,3 @@ class EventGenerator:
             self.evs_config.sensor.set_sensor_event_sensitivity(  # pyright: ignore
                 ContrastStep(threshold)
             )
-
-    def _generate_logarithmic_video(self) -> GrayVideoTorch:
-        self._set_threshold(5.0)
-        clean_evs_config = copy.deepcopy(self.evs_config)
-        clean_evs_config.optics.enabled = True
-        clean_evs_config.sensor.noise = False
-        clean_evs_config.sensor.background_activity = False
-        clean_evs_config.sensor.light_shot_noise = False
-        clean_evs_config.sensor.mismatch = False
-        clean_evs_config.sensor.random_state = False
-
-        evs = evs_explorer.EvsExplorer(clean_evs_config)
-
-        sensor_states: List[Dict[str, torch.Tensor]] = evs.run(  # pyright: ignore
-            evs.sensor_node.output("sensor_state")
-        )
-        voltages = [sensor_state["vpr_prev_V"] for sensor_state in sensor_states]
-
-        return torch.stack(voltages)

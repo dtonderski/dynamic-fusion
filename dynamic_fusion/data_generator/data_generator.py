@@ -48,7 +48,6 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
         self.data_saver = DataSaver(config.data_saver)
 
     def run(self) -> None:
-        # Pseudocode
         image_generator = iter(self.image_loader.run())
 
         print("-------------------------------------")
@@ -76,17 +75,20 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
 
                 video = self.video_generator.run(preprocessed_image)
 
-                event_dict, logarithmic_video = self.event_generator.run(video)
+                event_dict = self.event_generator.run(video)
 
-                discretized_event_dict, synchronized_logarithmic_video = (
-                    self.event_discretizer.run(event_dict, logarithmic_video)
+                discretized_event_dict, indices_of_label_frames = (
+                    self.event_discretizer.run(event_dict, video)
                 )
+
+                ground_truth_video = video[indices_of_label_frames, :, :]
+
 
                 self.data_saver.run(
                     image_path,
                     image,
                     video,
                     discretized_event_dict,
-                    synchronized_logarithmic_video,
+                    ground_truth_video,
                 )
                 print("-------------------------------------")
