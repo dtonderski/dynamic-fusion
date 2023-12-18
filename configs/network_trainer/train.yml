@@ -4,13 +4,14 @@ shared:
   resume: false
 
 data_handler:
-  batch_size: 4
+  batch_size: 3
+  num_workers: 4
   transform:
     network_image_size: [96, 96]
 
   dataset:
     dataset_directory: "data/interim/coco/val2014_events"
-    threshold: 1.15 # 1.4
+    threshold: 1.4 # 1.4
     transform_tries: 2
     video_tries: 5
     min_allowed_max_of_mean_polarities_over_times: 0.01
@@ -33,5 +34,5 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/reconstruction/example_run/pretraining"
+  run_directory: "runs/initial_run"
   event_colors: [[255, 0, 0], [0, 255, 0]]

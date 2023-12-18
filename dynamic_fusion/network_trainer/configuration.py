@@ -53,6 +53,7 @@ class DataHandlerConfiguration(BaseModel):
     transform: TransformsConfiguration = Field(...)  # pyright: ignore
     dataset: DatasetConfiguration = Field(...)  # pyright: ignore
     batch_size: int = Field(..., description="Batch size used in training.")
+    num_workers: int = Field(..., description="Workers used by DataLoader")
 
 
 class ReconstructionNetworkConfiguration(BaseModel):

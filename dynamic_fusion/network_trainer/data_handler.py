@@ -74,11 +74,11 @@ class CocoTransform:
 
     def _extract_part_of_tensor(
         self,
-        tensor: Float32[torch.Tensor, "Time Threshold X Y"],
+        tensor: Float32[torch.Tensor, "Time SubBin X Y"],
         t_start: int,
         x_start: int,
         y_start: int,
-    ) -> Float32[torch.Tensor, "Time Threshold X Y"]:
+    ) -> Float32[torch.Tensor, "Time SubBin X Y"]:
         return tensor[
             t_start : t_start + self.shared_config.sequence_length,
             :,
@@ -103,4 +103,4 @@ class DataHandler:
         )
 
     def run(self) -> DataLoader:  # type: ignore
-        return DataLoader(self.dataset, self.config.batch_size)
+        return DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers)

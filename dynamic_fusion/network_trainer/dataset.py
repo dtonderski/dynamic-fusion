@@ -125,7 +125,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
 
         max_of_mean_polarities_over_times = einops.reduce(
             (sample.event_polarity_sums != 0).to(torch.float32),
-            "Time 1 X Y -> Time",
+            "Time D X Y -> Time",
             "mean",
         ).max()
 

@@ -87,20 +87,22 @@ class NetworkFitter:
         reconstruction_network.reset_states()
 
         with Timer() as timer_batch:
-            event_polarity_sum, _, _, _, video = network_data_to_device(
+            event_polarity_sums, _, _, _, video = network_data_to_device(
                 next(data_loader_iterator),
                 self.device,
                 self.shared_config.use_mean_and_std,
             )
 
-        image_loss = torch.tensor(0.0).to(event_polarity_sum)
+        image_loss = torch.tensor(0.0).to(event_polarity_sums)
 
         forward_start = time.time()
 
         visualize = iteration % self.config.visualization_frequency == 0
-        event_polarity_sums, images, predictions = [], [], []
+        event_polarity_sum_list, images, predictions = [], [], []
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
+            event_polarity_sum = event_polarity_sums[:, t]
+
             prediction = reconstruction_network(event_polarity_sum)
 
             if t >= self.config.skip_first_timesteps:
@@ -110,14 +112,14 @@ class NetworkFitter:
                     ).mean()
                 )
             if visualize:
-                event_polarity_sums.append(to_numpy(event_polarity_sum))
+                event_polarity_sum_list.append(to_numpy(event_polarity_sum))
                 images.append(to_numpy(video[:, t, ...]))
                 predictions.append(to_numpy(prediction))
 
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
-            image_loss.backward()
+            image_loss.backward()  # type: ignore
             reconstruction_optimizer.step()
 
         time_batch, time_backward = timer_batch.interval, timer_backward.interval
@@ -129,7 +131,7 @@ class NetworkFitter:
         self.monitor.on_reconstruction(image_loss.item(), iteration)
         if visualize:
             self.monitor.visualize(
-                np.stack(event_polarity_sums, 1),
+                np.stack(event_polarity_sum_list, 1),
                 np.stack(images, 1),
                 np.stack(predictions, 1),
                 iteration,

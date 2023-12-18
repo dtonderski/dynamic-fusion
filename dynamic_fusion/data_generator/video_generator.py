@@ -14,8 +14,8 @@ from dynamic_fusion.utils.datatypes import (
     GrayImage,
     GrayVideoFloat,
     GrayVideoInt,
-    TransformDefinition,
 )
+from dynamic_fusion.utils.transform import TransformDefinition
 
 from .configuration import SharedConfiguration, VideoGeneratorConfiguration
 from .utils.video import normalize
@@ -45,23 +45,93 @@ class VideoGenerator:
 
         transform_definition = self._define_transforms()
 
-        shifts, rotations, scales = self._generate_transforms(transform_definition)
+        video_frame_times = np.linspace(
+            0, 1, self.shared_config.number_of_images_to_generate_per_input
+        )
 
-        if self.config.use_pytorch:
-            translates, angles, scales_torch = self._transforms_to_torch(
+        video = self.get_video(
+            image,
+            transform_definition,
+            video_frame_times,
+            self.shared_config.target_image_size,
+            self.shared_config.number_of_images_to_generate_per_input
+        )
+        return video, transform_definition
+
+    @classmethod
+    def get_video(
+        cls,
+        image: GrayImage,
+        transform_definition: TransformDefinition,
+        timestamps: Float[np.ndarray, " T"],
+        target_image_size: Tuple[int, int],
+        number_of_images_to_generate_per_input: Optional[int] = None,
+        use_pytorch: bool = True
+    ) -> GrayVideoFloat:
+        """Used to generate images at arbitrary timestamps from an initial
+        image and a transform definition. Note that the time of the video
+        is assumed to be in [0, 1], where 0 is the timestamp of the first
+        frame and 1 is the last frame. Also note that timestamps[0] must be
+        0, because when calculating the final transforms, we subtract the 
+        initial one so that we begin from the start image.
+
+        Args:
+            image (GrayImage): _description_
+            transform_definition (TransformDefinition): _description_
+            timestamps (Float[np.ndarray, " T"]): _description_
+
+        Returns:
+            GrayVideoFloat: _description_
+        """
+        if (timestamps[0] != 0):
+            raise ValueError("The first timestamp must always be 0!")
+        shifts, rotations, scales = cls._interpolate_transforms(
+            transform_definition, timestamps
+        )
+        video = cls._generate_video(
+            image,
+            shifts,
+            rotations,
+            scales,
+            target_image_size,
+            number_of_images_to_generate_per_input,
+            use_pytorch
+        )
+        return video
+
+    @classmethod
+    def _generate_video(
+        cls,
+        image: GrayImage,
+        shifts: Float[np.ndarray, "T 2"],
+        rotations: Float[np.ndarray, "T 1"],
+        scales: Float[np.ndarray, "T 2"],
+        target_image_size: Tuple[int, int],
+        number_of_images_to_generate_per_input: Optional[int] = None,
+        use_pytorch: bool = True,
+    ) -> GrayVideoFloat:
+        if use_pytorch:
+            translates, angles, scales_torch = cls._transforms_to_torch(
                 shifts, rotations, scales
             )
-            video = self._generate_video_torch(
-                image, angles, translates, scales_torch
-            )
+            video = cls._generate_video_torch(image, angles, translates, scales_torch)
         else:
-            transformation_matrices = self._transforms_to_matrices(
-                image, shifts, rotations, scales
+            if number_of_images_to_generate_per_input is None:
+                raise ValueError(
+                    "number_of_images_to_generate_per_input must be set if not using"
+                    " pytorch!"
+                )
+            transformation_matrices = cls._transforms_to_matrices(
+                image,
+                shifts,
+                rotations,
+                scales,
+                number_of_images_to_generate_per_input,
             )
-            video = self._generate_video_scipy(image, transformation_matrices)
+            video = cls._generate_video_scipy(image, transformation_matrices)
         video = normalize(video)
-        video = self.crop_video(video, self.shared_config.target_image_size)
-        return video, transform_definition
+        video = cls.crop_video(video, target_image_size)
+        return video
 
     def _define_transforms(self) -> TransformDefinition:
         shift_knots, rotation_knots, scale_knots = self._generate_knots()
@@ -118,38 +188,44 @@ class VideoGenerator:
     def _generate_interpolation_type(self) -> Literal["linear", "cubic"]:
         return "linear" if uniform() > 0.5 else "cubic"
 
-    def _generate_transforms(self, definition: TransformDefinition) -> Tuple[
+    @classmethod
+    def _interpolate_transforms(
+        cls,
+        definition: TransformDefinition,
+        points_to_interpolate: Float[np.ndarray, "T"],
+    ) -> Tuple[
         Float[np.ndarray, "T 2"],
         Float[np.ndarray, "T 1"],
         Float[np.ndarray, "T 2"],
     ]:
-        r"""Generates shifts, rotations, and scales based on knot values and interpolation.
-
-        Returns:
-            Tuple[Shifts, Rotations, Scales]: generated transforms for each
-            timestep.
-        """
-
-        shifts = self._upsample_knot_values(
-            definition.shift_knots, definition.shift_interpolation
+        shifts = cls._upsample_knot_values(
+            definition.shift_knots,
+            points_to_interpolate,
+            definition.shift_interpolation,
         )
         shifts -= shifts[0:1, ...]
 
-        rotations = self._upsample_knot_values(
-            definition.rotation_knots, definition.rotation_interpolation
+        rotations = cls._upsample_knot_values(
+            definition.rotation_knots,
+            points_to_interpolate,
+            definition.rotation_interpolation,
         )
         rotations -= rotations[0:1, ...]
 
-        scales = self._upsample_knot_values(
-            definition.scale_knots, definition.scale_interpolation
+        scales = cls._upsample_knot_values(
+            definition.scale_knots,
+            points_to_interpolate,
+            definition.scale_interpolation,
         )
         scales = scales - scales[0:1, ...] + 1.0
 
         return shifts, rotations, scales
 
+    @classmethod
     def _upsample_knot_values(
-        self,
+        cls,
         knot_values: Float[np.ndarray, "NKnots Values"],
+        points_to_interpolate: Float[np.ndarray, "T"],
         interpolation_type: Literal["random", "linear", "cubic"] = "random",
     ) -> Float[np.ndarray, "T Values"]:
         r"""This function is used to upsample knot transformation values by
@@ -179,13 +255,10 @@ class VideoGenerator:
             x_knots, knot_values, kind=interpolation_type, axis=0
         )
 
-        x_for_interpolation = np.linspace(
-            0, 1, self.shared_config.number_of_images_to_generate_per_input
-        )
-        return interpolation(x_for_interpolation)
+        return interpolation(points_to_interpolate)
 
+    @staticmethod
     def _transforms_to_torch(
-        self,
         shifts: Float[np.ndarray, "T 2"],
         rotations: Float[np.ndarray, "T 1"],
         scales: Float[np.ndarray, "T 2"],
@@ -195,12 +268,13 @@ class VideoGenerator:
         torch_scales = [scale[0] for scale in scales]
         return translates, angles, torch_scales  # type: ignore
 
+    @staticmethod
     def _transforms_to_matrices(  # pylint: disable=R0913,R0914
-        self,
         image: GrayImage,
         shifts: Float[np.ndarray, "T 2"],
         rotations: Float[np.ndarray, "T 1"],
         scales: Float[np.ndarray, "T 2"],
+        number_of_images_to_generate_per_input: int,
         rotate_around_center: bool = True,
     ) -> Float[np.ndarray, "T 3 3"]:
         x_size, y_size = image.shape
@@ -214,11 +288,11 @@ class VideoGenerator:
         )
 
         transformation_matrices = np.zeros(
-            (self.shared_config.number_of_images_to_generate_per_input, 3, 3),
+            (number_of_images_to_generate_per_input, 3, 3),
             dtype=np.float32,
         )
 
-        for step in range(self.shared_config.number_of_images_to_generate_per_input):
+        for step in range(number_of_images_to_generate_per_input):
             theta = rotations[step, 0]
             scale = scales[step, :]
             shift = shifts[step, :]
@@ -256,8 +330,9 @@ class VideoGenerator:
 
         return transformation_matrices
 
+    @staticmethod
     def _generate_video_scipy(
-        self, image: GrayImage, transformation_matrices: Float[np.ndarray, "T 3 3"]
+        image: GrayImage, transformation_matrices: Float[np.ndarray, "T 3 3"]
     ) -> GrayVideoInt:
         video = np.zeros(
             (transformation_matrices.shape[0], image.shape[0], image.shape[1]),
@@ -272,8 +347,8 @@ class VideoGenerator:
 
         return video
 
+    @staticmethod
     def _generate_video_torch(
-        self,
         image: GrayImage,
         angles: List[float],
         translates: List[Tuple[int, int]],
@@ -296,7 +371,9 @@ class VideoGenerator:
         return videos.cpu().numpy()
 
     @staticmethod
-    def crop_video(video: GrayVideoInt, target_image_size: Tuple[int, int]) -> GrayVideoInt:
+    def crop_video(
+        video: GrayVideoFloat, target_image_size: Tuple[int, int]
+    ) -> GrayVideoFloat:
         cropped_video_border = (video.shape[1:] - np.array(target_image_size)) // 2
 
         cropped_video = video[

@@ -7,12 +7,13 @@ from typing import Dict
 import h5py
 
 from dynamic_fusion.utils.datatypes import (
+    GrayImage,
     GrayVideoFloat,
     GrayVideoInt,
     Image,
-    TransformDefinition,
 )
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
+from dynamic_fusion.utils.transform import TransformDefinition
 
 from .configuration import DataSaverConfiguration
 
@@ -30,6 +31,7 @@ class DataSaver:
         image_path: Path,
         image: Image,
         video: GrayVideoInt,
+        preprocessed_image: GrayImage,
         transform_definition: TransformDefinition,
         discretized_events_dict: Dict[float, DiscretizedEvents],
         synchronized_video: GrayVideoFloat,
@@ -61,14 +63,13 @@ class DataSaver:
                     compression_opts=self.config.h5_compression,
                 )
 
-                transform_definition_group = file.create_group("transforms_definition")
+                file.create_dataset(
+                    "/preprocessed_image",
+                    data=preprocessed_image,
+                )
 
-                for key, value in asdict(transform_definition).items():
-                    # No need for compression, it just introduces code complication
-                    transform_definition_group.create_dataset(
-                        key,
-                        data=value,
-                    )
+                transform_definition.save_to_file(file)
+
 
             with h5py.File(output_dir / "ground_truth.h5", "w") as file:
                 file.create_dataset(

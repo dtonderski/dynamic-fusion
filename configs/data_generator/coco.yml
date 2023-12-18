@@ -31,10 +31,10 @@ video_generator:
   use_pytorch: True # pytorch is almost an order of magnitude faster than scipy
 
 event_generator:
-  sensor_config_path: "configs/simulator/davis_model.yml"
-  simulator_config_path: "configs/simulator/evs_explorer.yml"
+  sensor_config_path: "configs/data_generator/simulator/davis_model.yml"
+  simulator_config_path: "configs/data_generator/simulator/evs_explorer.yml"
 
-  thresholds: [1.15, 1.4] #1.25, 1.4, 1.7, 2.2] # delta
+  thresholds: [1.4] #1.25, 1.4, 1.7, 2.2] # delta
 
   min_illuminance_lux_range: [650., 850.] # lum_min_range
   max_illuminance_lux_range: [5_100., 5_500.] # lum_max_range

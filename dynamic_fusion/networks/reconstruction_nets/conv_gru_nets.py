@@ -66,7 +66,6 @@ class ConvGruNetV1(nn.Module):
     def forward(self, d: torch.Tensor) -> torch.Tensor:
         """
         d: B C X Y
-        masks: B D X Y
         """
         batch_size, _, imsz0, imsz1 = d.shape
         if self.state1 is None:
