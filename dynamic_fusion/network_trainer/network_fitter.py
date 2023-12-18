@@ -115,7 +115,7 @@ class NetworkFitter:
                 event_polarity_sum_list.append(to_numpy(event_polarity_sum))
                 images.append(to_numpy(video[:, t, ...]))
                 predictions.append(to_numpy(prediction))
-
+        image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
@@ -125,7 +125,7 @@ class NetworkFitter:
         time_batch, time_backward = timer_batch.interval, timer_backward.interval
         self.logger.info(
             f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f},"
-            f" {time_backward=:.2f}, {image_loss=:.2f} (reconstruction)"
+            f" {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)"
         )
 
         self.monitor.on_reconstruction(image_loss.item(), iteration)
