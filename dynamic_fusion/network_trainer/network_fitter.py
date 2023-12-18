@@ -37,9 +37,6 @@ class NetworkFitter:
         self.shared_config = shared_config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.reconstruction_loss_function = self._get_reconstruction_loss()
-        self.log_temperature = torch.tensor(
-            self.config.log_temperature, dtype=torch.float
-        ).to(self.device)
         self.logger = logging.getLogger("NetworkFitter")
         self.monitor = monitor
 
@@ -52,7 +49,7 @@ class NetworkFitter:
             reconstruction_network.parameters(), lr=self.config.lr_reconstruction
         )
 
-        start_iteration, self.log_temperature = self.monitor.initialize(
+        start_iteration = self.monitor.initialize(
             data_loader,
             reconstruction_network,
             reconstruction_optimizer,
@@ -71,15 +68,6 @@ class NetworkFitter:
                 reconstruction_optimizer,
                 iteration,
             )
-
-            if self.shared_config.use_random_control:
-                if iteration % self.config.network_saving_frequency == 0:
-                    self.monitor.save_checkpoint(
-                        reconstruction_network=reconstruction_network,
-                        reconstruction_optimizer=reconstruction_optimizer,
-                        iteration=iteration,
-                    )
-                continue
 
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(
@@ -109,11 +97,7 @@ class NetworkFitter:
 
         forward_start = time.time()
 
-        visualize = (
-            self.shared_config.use_random_control
-            and iteration > 0
-            and iteration % self.config.visualization_frequency == 0
-        )
+        visualize = iteration % self.config.visualization_frequency == 0
         event_polarity_sums, images, predictions = [], [], []
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103

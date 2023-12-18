@@ -33,10 +33,10 @@ class CocoTransform:
         self, network_data: ReconstructionSample
     ) -> ReconstructionSample:
         max_x_start = (
-            network_data.video.shape[2] - self.shared_config.network_image_size[0]
+            network_data.video.shape[2] - self.config.network_image_size[0]
         )
         max_y_start = (
-            network_data.video.shape[3] - self.shared_config.network_image_size[1]
+            network_data.video.shape[3] - self.config.network_image_size[1]
         )
 
         x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
@@ -56,8 +56,8 @@ class CocoTransform:
         network_data.video = network_data.video[
             t_start : t_start + self.shared_config.sequence_length,
             :,
-            x_start : x_start + self.shared_config.network_image_size[0],
-            y_start : y_start + self.shared_config.network_image_size[1],
+            x_start : x_start + self.config.network_image_size[0],
+            y_start : y_start + self.config.network_image_size[1],
         ]
 
         if not self.shared_config.use_mean_and_std:
@@ -82,8 +82,8 @@ class CocoTransform:
         return tensor[
             t_start : t_start + self.shared_config.sequence_length,
             :,
-            x_start : x_start + self.shared_config.network_image_size[0],
-            y_start : y_start + self.shared_config.network_image_size[1],
+            x_start : x_start + self.config.network_image_size[0],
+            y_start : y_start + self.config.network_image_size[1],
         ]
 
 
@@ -99,8 +99,8 @@ class DataHandler:
         self.shared_config = shared_config
         transform = CocoTransform(config.transform, shared_config)
         self.dataset = CocoIterableDataset(
-            config.dataset, shared_config, transform
+            config.dataset, transform
         )
 
     def run(self) -> DataLoader:  # type: ignore
-        return DataLoader(self.dataset, self.shared_config.batch_size)
+        return DataLoader(self.dataset, self.config.batch_size)

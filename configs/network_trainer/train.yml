@@ -1,0 +1,37 @@
+shared:
+  use_mean_and_std: false
+  sequence_length: 48
+  resume: false
+
+data_handler:
+  batch_size: 4
+  transform:
+    network_image_size: [96, 96]
+
+  dataset:
+    dataset_directory: "data/interim/coco/val2014_events"
+    threshold: 1.15 # 1.4
+    transform_tries: 2
+    video_tries: 5
+    min_allowed_max_of_mean_polarities_over_times: 0.01
+
+network_loader:
+  reconstruction:
+    input_size: 2 # should be 1 + len(thresholds)
+    hidden_size: 24
+    output_size: 1
+    kernel_size: 3
+  reconstruction_checkpoint_path: null
+
+network_fitter:
+  lr_reconstruction: 0.0005
+  number_of_training_iterations: 15_000
+  reconstruction_loss_name: "LPIPS"
+  skip_first_timesteps: 4
+  network_saving_frequency: 10
+  visualization_frequency: 200
+
+# TODO: validate that len(event_colors) == len(thresholds)
+training_monitor:
+  run_directory: "runs/reconstruction/example_run/pretraining"
+  event_colors: [[255, 0, 0], [0, 255, 0]]

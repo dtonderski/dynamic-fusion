@@ -18,7 +18,6 @@ from .utils.datatypes import ReconstructionSample
 
 class CocoIterableDataset(IterableDataset):  # type: ignore
     config: DatasetConfiguration
-    shared_config: SharedConfiguration
     directory_list: List[Path]
     transform: Optional[Callable[[ReconstructionSample], ReconstructionSample]]
     logger: logging.Logger
@@ -26,14 +25,12 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
     def __init__(
         self,
         config: DatasetConfiguration,
-        shared_config: SharedConfiguration,
         transform: Optional[Callable[[ReconstructionSample], ReconstructionSample]],
     ) -> None:
         self.directory_list = [
             path for path in config.dataset_directory.glob("**/*") if path.is_dir()
         ]
         self.config = config
-        self.shared_config = shared_config
         self.transform = transform
         self.logger = logging.getLogger("CocoDataset")
 
@@ -59,7 +56,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             index = np.random.randint(0, len(self.directory_list))
 
             threshold_path = (
-                self.directory_list[index] / f"discretized_events_{self.shared_config.threshold}.h5"
+                self.directory_list[index] / f"discretized_events_{self.config.threshold}.h5"
             )
             with h5py.File(threshold_path, "r") as file:
                 discretized_events = DiscretizedEvents.load_from_file(file)

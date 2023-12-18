@@ -17,7 +17,6 @@ from dynamic_fusion.utils.datatypes import Checkpoint
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
 
 from .configuration import (
-    NetworkFitterConfiguration,
     SharedConfiguration,
     TrainerConfiguration,
 )
@@ -33,7 +32,6 @@ class TrainingMonitor:
     writer: SummaryWriter
     sample_batch: Batch
     device: torch.device
-    fitter_config: NetworkFitterConfiguration
     shared_config: SharedConfiguration
     logger: logging.Logger
     subrun_directory: Path
@@ -42,7 +40,6 @@ class TrainingMonitor:
         self.training_config = training_config
         self.config = training_config.training_monitor
         self.shared_config = training_config.shared
-        self.fitter_config = training_config.network_fitter
         self.logger = logging.getLogger("TrainingMonitor")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -51,7 +48,7 @@ class TrainingMonitor:
         data_loader: DataLoader,  # type: ignore
         reconstruction_network: nn.Module,
         reconstruction_optimizer: torch.optim.Optimizer,
-    ) -> Tuple[int, Float32[torch.Tensor, " 1"]]:
+    ) -> int:
         previous_subrun_directory, self.subrun_directory = (
             self._get_previous_and_current_subrun_directories()
         )
@@ -60,10 +57,7 @@ class TrainingMonitor:
         self._save_config()
 
         iteration = 0
-        log_temperature = torch.tensor(
-            self.fitter_config.log_temperature, dtype=torch.float32
-        )
-        if self.fitter_config.resume and previous_subrun_directory:
+        if self.shared_config.resume and previous_subrun_directory:
             try:
                 iteration = self._load_checkpoint(
                     previous_subrun_directory,
@@ -75,10 +69,8 @@ class TrainingMonitor:
 
         self.writer = SummaryWriter(self.subrun_directory)  # type: ignore[no-untyped-call]
         self.sample_batch = next(iter(data_loader))
-        self.logger.info(
-            f"Starting at iteration {iteration} and log_temperature {log_temperature}"
-        )
-        return iteration, log_temperature
+        self.logger.info(f"Starting at iteration {iteration}")
+        return iteration
 
     def _save_config(self) -> None:
         json_config = self.training_config.json(indent=4)
