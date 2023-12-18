@@ -3,6 +3,7 @@
 output/
 /runs/
 .vscode/
+/papers/
 #/notebooks/
 /carla_recording/
 /finished/
