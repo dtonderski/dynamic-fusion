@@ -10,7 +10,7 @@ from scipy.ndimage import affine_transform  # pyright: ignore
 from torchvision.transforms.functional import affine
 from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import GrayImage, GrayVideo
+from dynamic_fusion.utils.datatypes import GrayImage, GrayVideo, GrayVideoTorch, TransformDefinition
 
 from .configuration import SharedConfiguration, VideoGeneratorConfiguration
 from .utils.video import normalize
@@ -30,43 +30,51 @@ class VideoGenerator:
         self.shared_config = shared_config
         self.logger = logging.getLogger("VideoGenerator")
 
-    def run(self, image: GrayImage, progress_bar: Optional[tqdm] = None) -> GrayVideo:
+    def run(self, image: GrayImage, progress_bar: Optional[tqdm] = None) -> Tuple[GrayVideoTorch, TransformDefinition]:
         if progress_bar:
             progress_bar.set_postfix_str("Generating video")
         else:
             self.logger.info("Generating video...")
-        shifts, rotations, scales = self._generate_transforms()
+
+        transform_definition = self._define_transforms()
+
+        shifts, rotations, scales = self._generate_transforms(transform_definition)
+
         if self.config.use_pytorch:
-            angles, translates, scales = self._transforms_to_torch(
+            translates, angles, scales_torch = self._transforms_to_torch(
                 shifts, rotations, scales
             )
-            video = self._generate_video_torch(image, angles, translates, scales)
+            video = self._generate_video_torch(
+                image, angles, translates, scales_torch
+            )
         else:
             transformation_matrices = self._transforms_to_matrices(
                 image, shifts, rotations, scales
             )
             video = self._generate_video_scipy(image, transformation_matrices)
         video = normalize(video)
-        video = self._crop_video(video)
-        return video
+        video = self.crop_video(video, self.shared_config.target_image_size)
+        return video, transform_definition
 
-    def _generate_transforms(
-        self,
-    ) -> Tuple[
-        Float[np.ndarray, "T 2"],
-        Float[np.ndarray, "T 1"],
-        Float[np.ndarray, "T 2"],
+    def _define_transforms(self) -> TransformDefinition:
+        shift_knots, rotation_knots, scale_knots = self._generate_knots()
+        shift_interpolation, rotation_interpolation, scale_interpolation = (
+            self._generate_interpolation_type() for _ in range(3)
+        )
+        return TransformDefinition(
+            shift_knots,
+            rotation_knots,
+            scale_knots,
+            shift_interpolation,
+            rotation_interpolation,
+            scale_interpolation,
+        )
+
+    def _generate_knots(self) -> Tuple[
+        Float[np.ndarray, "NShiftKnots 2"],
+        Float[np.ndarray, "NRotKnots 1"],
+        Float[np.ndarray, "NScaleKnots 2"],
     ]:
-        r"""Generates shifts, rotations, and scales.
-
-        Args:
-            image (GrayImage): The image to generate transforms for. Needed
-            because we need the image shape.
-
-        Returns:
-            Tuple[Shifts, Rotations, Scales]: generated transforms for each
-            timestep.
-        """
         number_of_shift_knots = randint(
             low=2, high=self.config.max_number_of_shift_knots, dtype=np.int32
         )
@@ -98,13 +106,36 @@ class VideoGenerator:
             * uniform()
         )
 
-        shifts = self._upsample_knot_values(shift_knot_values)
+        return shift_knot_values, rotation_knot_values, scale_knot_values
+
+    def _generate_interpolation_type(self) -> Literal["linear", "cubic"]:
+        return "linear" if uniform() > 0.5 else "cubic"
+
+    def _generate_transforms(self, definition: TransformDefinition) -> Tuple[
+        Float[np.ndarray, "T 2"],
+        Float[np.ndarray, "T 1"],
+        Float[np.ndarray, "T 2"],
+    ]:
+        r"""Generates shifts, rotations, and scales based on knot values and interpolation.
+
+        Returns:
+            Tuple[Shifts, Rotations, Scales]: generated transforms for each
+            timestep.
+        """
+
+        shifts = self._upsample_knot_values(
+            definition.shift_knots, definition.shift_interpolation
+        )
         shifts -= shifts[0:1, ...]
 
-        rotations = self._upsample_knot_values(rotation_knot_values)
+        rotations = self._upsample_knot_values(
+            definition.rotation_knots, definition.rotation_interpolation
+        )
         rotations -= rotations[0:1, ...]
 
-        scales = self._upsample_knot_values(scale_knot_values)
+        scales = self._upsample_knot_values(
+            definition.scale_knots, definition.scale_interpolation
+        )
         scales = scales - scales[0:1, ...] + 1.0
 
         return shifts, rotations, scales
@@ -151,11 +182,11 @@ class VideoGenerator:
         shifts: Float[np.ndarray, "T 2"],
         rotations: Float[np.ndarray, "T 1"],
         scales: Float[np.ndarray, "T 2"],
-    ) -> Tuple[List[float], List[List[int]], List[float]]:
+    ) -> Tuple[List[List[int]], List[float], List[float]]:
         angles = [float(rotation) * 180 / np.pi for rotation in rotations]
         translates = [[int(x) for x in shift] for shift in shifts]
         torch_scales = [scale[0] for scale in scales]
-        return angles, translates, torch_scales
+        return translates, angles, torch_scales
 
     def _transforms_to_matrices(  # pylint: disable=R0913,R0914
         self,
@@ -257,16 +288,13 @@ class VideoGenerator:
 
         return videos.cpu().numpy()
 
-    def _crop_video(self, video: GrayVideo) -> GrayVideo:
-        cropped_video_border = (
-            video.shape[1:] - np.array(self.shared_config.target_image_size)
-        ) // 2
+    @staticmethod
+    def crop_video(video: GrayVideo, target_image_size: Tuple[int, int]) -> GrayVideo:
+        cropped_video_border = (video.shape[1:] - np.array(target_image_size)) // 2
 
         cropped_video = video[
             :,
-            cropped_video_border[0] : cropped_video_border[0]
-            + self.shared_config.target_image_size[0],
-            cropped_video_border[1] : cropped_video_border[1]
-            + self.shared_config.target_image_size[1],
+            cropped_video_border[0] : cropped_video_border[0] + target_image_size[0],
+            cropped_video_border[1] : cropped_video_border[1] + target_image_size[1],
         ]
         return cropped_video

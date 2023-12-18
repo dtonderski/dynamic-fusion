@@ -1,6 +1,8 @@
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from dataclasses import dataclass
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 import pandera as pa
 import torch
 from jaxtyping import Bool, Float, Float32, Int, Int64, UInt8
@@ -14,6 +16,16 @@ GrayVideo: TypeAlias = UInt8[np.ndarray, "T H W"]
 GrayVideoTorch: TypeAlias = Float[torch.Tensor, "T H W"]
 
 SegmentationMask: TypeAlias = UInt8[np.ndarray, "H W"]
+
+
+@dataclass
+class TransformDefinition:
+    shift_knots: Float[np.ndarray, "NShiftKnots 2"]
+    rotation_knots: Float[np.ndarray, "NRotKnots 1"]
+    scale_knots: Float[np.ndarray, "NScaleKnots 2"]
+    shift_interpolation: Literal["linear", "cubic"]
+    rotation_interpolation: Literal["linear", "cubic"]
+    scale_interpolation: Literal["linear", "cubic"]
 
 
 class EventSchema(pa.DataFrameModel):
