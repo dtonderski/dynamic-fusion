@@ -182,11 +182,11 @@ class VideoGenerator:
         shifts: Float[np.ndarray, "T 2"],
         rotations: Float[np.ndarray, "T 1"],
         scales: Float[np.ndarray, "T 2"],
-    ) -> Tuple[List[List[int]], List[float], List[float]]:
+    ) -> Tuple[List[Tuple[int, int]], List[float], List[float]]:
         angles = [float(rotation) * 180 / np.pi for rotation in rotations]
-        translates = [[int(x) for x in shift] for shift in shifts]
+        translates = [tuple(int(x) for x in shift) for shift in shifts]
         torch_scales = [scale[0] for scale in scales]
-        return translates, angles, torch_scales
+        return translates, angles, torch_scales  # type: ignore
 
     def _transforms_to_matrices(  # pylint: disable=R0913,R0914
         self,
@@ -269,7 +269,7 @@ class VideoGenerator:
         self,
         image: GrayImage,
         angles: List[float],
-        translates: List[List[int]],
+        translates: List[Tuple[int, int]],
         scales: List[float],
     ) -> GrayVideo:
         videos = torch.zeros(len(angles), *image.shape).cuda()
