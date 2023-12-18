@@ -32,4 +32,4 @@ from typing_extensions import TypeAlias
 GrayVideo: TypeAlias = UInt8[np.ndarray, "T H W"]
 VideoSensorData: TypeAlias = Tuple[List[GrayVideo]]
 ```
-fails with `jaxtyping==0.2.19` but works with `jaxtyping==0.2.20`. Since `jaxtyping==0.2.20` is compatible with `python>=3.9`, that is what is needed for `mypy` to properly work with `on-the-fly`.
+fails with `jaxtyping==0.2.19` but works with `jaxtyping==0.2.20`. Since `jaxtyping==0.2.20` is compatible with `python>=3.9`, that is what is needed for `mypy` to properly work with this project.

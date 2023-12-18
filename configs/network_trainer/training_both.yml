@@ -1,0 +1,59 @@
+shared:
+  use_mean_and_std: false
+  control_evaluation_frequency: 4
+  thresholds: [1.15, 1.4] # [1.15, 1.25, 1.4, 1.7, 2.2]
+  batch_size: 4
+  network_image_size: [96, 96]
+  sequence_length: 48
+  use_random_control: false
+
+data_handler:
+  transform:
+    placeholder: null
+
+  dataset:
+    dataset_directory: "data/interim/coco/val2014_events"
+    transform_tries: 2
+    video_tries: 5
+    min_allowed_max_of_mean_polarities_over_times_and_thresholds: 0.01
+    min_allowed_max_of_mean_polarities_over_thresholds: 0.01
+
+  use_iterable_dataset: true
+
+network_loader:
+  reconstruction:
+    input_size: 3 # should be 1 + len(thresholds)
+    hidden_size: 24
+    output_size: 1
+    kernel_size: 3
+  reconstruction_checkpoint_path: "runs/reconstruction/example_run/pretraining/subrun_00/latest_checkpoint.pt"
+
+  control:
+    conditioned_control: true
+    kernel_size: 3
+    number_of_hidden_channels: 24
+    count_normalizer: 30.0
+    sampling_type: "dirichlet_interp"
+  control_checkpoint_path: null
+
+network_fitter:
+  lr_reconstruction: 0.0005
+  lr_control: 0.0005
+  number_of_training_iterations: 15_000
+  reconstruction_loss_name: "LPIPS"
+  skip_first_timesteps: 4
+  normalize_bandwidth_loss: true
+  log_temperature: -0.5
+  count_loss_weight: 0.2
+  network_saving_frequency: 10
+  soft_mask_mode: "gumbel"
+  hard_mask_mode: "gumbel"
+  train_reconstruction_only: true
+  min_log_temperature: -0.5
+  visualization_frequency: 200
+  resume: false
+
+# TODO: validate that len(event_colors) == len(thresholds)
+training_monitor:
+  run_directory: "runs/reconstruction/example_run/both"
+  event_colors: [[255, 0, 0], [0, 255, 0]]
