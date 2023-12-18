@@ -25,7 +25,7 @@ class EventDiscretizer:
     config: EventDiscretizerConfiguration
     number_of_images_to_generate_per_input: int
     fps: int
-    target_image_size: int
+    target_image_size: Tuple[int, int]
     logger: logging.Logger
 
     def __init__(
@@ -34,26 +34,27 @@ class EventDiscretizer:
         shared_config: Optional[SharedConfiguration] = None,
         number_of_images_to_generate_per_input: Optional[int] = None,
         fps: Optional[int] = None,
-        target_image_size: List[int] = None
+        target_image_size: Optional[Tuple[int, int]] = None
     ) -> None:
         self.config = config
         if shared_config is not None:
             self.number_of_images_to_generate_per_input = shared_config.number_of_images_to_generate_per_input
             self.fps = shared_config.fps
             self.target_image_size = shared_config.target_image_size
-        else:
+        elif number_of_images_to_generate_per_input is not None and fps is not None and target_image_size is not None:
             self.number_of_images_to_generate_per_input = number_of_images_to_generate_per_input
             self.fps = fps
             self.target_image_size = target_image_size
+        else:
+            raise ValueError("Invalid arguments to EventDiscretizer")
 
         self.logger = logging.getLogger("EventDiscretizer")
 
     def run(
         self,
         events_dict: Dict[float, Events],
-        logarithmic_video: GrayVideoTorch,
         progress_bar: Optional[tqdm] = None,
-    ) -> Tuple[Dict[float, DiscretizedEvents], GrayVideoTorch]:
+    ) -> Tuple[Dict[float, DiscretizedEvents], Int64[torch.Tensor, " N"]]:
         if progress_bar:
             progress_bar.set_postfix_str("Discretizing events")
         else:
@@ -67,8 +68,7 @@ class EventDiscretizer:
 
         indices_of_label_frames = self._calculate_indices_of_label_frames()
 
-        ground_truth = logarithmic_video[indices_of_label_frames, :, :]
-        return discretized_events_dict, ground_truth
+        return discretized_events_dict, indices_of_label_frames
 
     def _calculate_indices_of_label_frames(self) -> Int64[torch.Tensor, " N"]:
         r"""This function calculates the indices of the video frames that are

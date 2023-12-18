@@ -73,7 +73,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
 
                 preprocessed_image = self.image_preprocessor.run(image)
 
-                video = self.video_generator.run(preprocessed_image)
+                video, transform_definition = self.video_generator.run(preprocessed_image)
 
                 event_dict = self.event_generator.run(video)
 
@@ -82,7 +82,6 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                 )
 
                 ground_truth_video = video[indices_of_label_frames, :, :]
-
 
                 self.data_saver.run(
                     image_path,

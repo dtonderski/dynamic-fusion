@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Generator, Optional, Tuple
 
 import evs_explorer
 import numpy as np
@@ -7,6 +7,7 @@ import ruamel.yaml
 from evs_explorer.configuration import ContrastStep
 from evs_explorer.configuration.utils import yaml
 from evs_explorer.pipeline import InputNode
+from jaxtyping import UInt8
 from numpy.random import uniform
 from tqdm import tqdm
 
@@ -18,27 +19,30 @@ from .configuration import EventGeneratorConfiguration, SharedConfiguration
 # This class is used as an input node which can read in a sequence of images
 # and then feed them into the simulator one-by-one at each timestep.
 @yaml.register_class
-class ImageGenerator(InputNode):
+class ImageGenerator(InputNode):  # type: ignore
     """
     Modified version of evs_explorer.pipeline.GeneratorNode so that it can be
     specified as an input node.
     """
 
-    yaml_tag = u'!ImageGenerator'
+    yaml_tag = "!ImageGenerator"
 
-    def __init__(self, data: np.ndarray, fps: float, num_frames: int):
+    def __init__(self, data: UInt8[np.ndarray, "T H W"], fps: float, num_frames: int):
         super().__init__(fps=fps, num_frames=num_frames, shape=data.shape[1:])
 
         self.gen = data
 
     @classmethod
-    def to_yaml(cls, representer: ruamel.yaml.Representer, data: 'ImageGenerator'):
-        return representer.represent_mapping(cls.yaml_tag, {
-            'fps': data.fps,
-            'num_frames': data.num_frames,
-        })
+    def to_yaml(cls, representer: ruamel.yaml.Representer, data: "ImageGenerator"):  # type: ignore
+        return representer.represent_mapping(
+            cls.yaml_tag,
+            {
+                "fps": data.fps,
+                "num_frames": data.num_frames,
+            },
+        )
 
-    def run(self):
+    def run(self) -> Generator[UInt8[np.ndarray, "H W"], None, None]:
         yield from self.gen
 
 
