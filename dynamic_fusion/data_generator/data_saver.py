@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import logging
 import shutil
 from pathlib import Path
@@ -5,7 +6,12 @@ from typing import Dict
 
 import h5py
 
-from dynamic_fusion.utils.datatypes import GrayVideo, GrayVideoTorch, Image
+from dynamic_fusion.utils.datatypes import (
+    GrayVideoFloat,
+    GrayVideoInt,
+    Image,
+    TransformDefinition,
+)
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 
 from .configuration import DataSaverConfiguration
@@ -23,9 +29,10 @@ class DataSaver:
         self,
         image_path: Path,
         image: Image,
-        video: GrayVideo,
+        video: GrayVideoInt,
+        transform_definition: TransformDefinition,
         discretized_events_dict: Dict[float, DiscretizedEvents],
-        synchronized_logarithmic_video: GrayVideoTorch,
+        synchronized_video: GrayVideoFloat,
     ) -> None:
         self.logger.info("Saving data...")
 
@@ -54,10 +61,19 @@ class DataSaver:
                     compression_opts=self.config.h5_compression,
                 )
 
+                transform_definition_group = file.create_group("transforms_definition")
+
+                for key, value in asdict(transform_definition).items():
+                    # No need for compression, it just introduces code complication
+                    transform_definition_group.create_dataset(
+                        key,
+                        data=value,
+                    )
+
             with h5py.File(output_dir / "ground_truth.h5", "w") as file:
                 file.create_dataset(
                     "/synchronized_video",
-                    data=synchronized_logarithmic_video.cpu(),
+                    data=synchronized_video,
                     compression="gzip",
                     compression_opts=self.config.h5_compression,
                 )
