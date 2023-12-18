@@ -14,7 +14,7 @@ version = "0.1.0"
 authors = [{name="David Tonderski", email="dtonderski@gmail.com"}]
 readme = "README.md"
 # license = { file="license" }
-requires-python = "~=3.8"
+requires-python = "~=3.9"
 
 [project.urls]
 "Homepage" = "https://github.com/dtonderski/dynamic-fusion"
@@ -42,18 +42,26 @@ extend-select = ['B950']
 [tool.black]
 # 86 to be compliant with B950
 line-length = 86
-target-version = ['py38']
+target-version = ['py39']
 preview = true
 
 [tool.mypy]
+# If this is set to 3.9, mypy fails on jaxtyping + ndarray for some reason
 python_version = "3.8"
 strict = true
 ignore_missing_imports = true
-enable_incomplete_feature = "Unpack, TypeVarTuple"
 # Below is incompatible with jaxtyping (e.g. Float[Array, " N"]).
 # Hopefully, other tools should catch undefined names.
-disable_error_code = "name-defined"
+disable_error_code = ["name-defined", "var-annotated"]
+plugins = [
+  "pydantic.mypy",
+]
 
 [[tool.mypy.overrides]]
 module = "torch.*"
 allow_untyped_calls = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
