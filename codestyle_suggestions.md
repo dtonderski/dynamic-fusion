@@ -1,3 +1,5 @@
+Using `mypy==1.7.1`, `jaxtyping==0.2.25` and `pydantic==1.10.13` seems to work.
+
 ## --- DEPRECATED - need to look at this ----
 ## Linting and style enforcing
 For linting and style enforcing, we use a combination of `flake8`, `mypy`, `pylint`, and `black`. The configurations of these packages are defined in `pyproject.toml`. All code should be run through black before being merged into main. The required packages are listed `requirements-dev.txt` and can be installed by
