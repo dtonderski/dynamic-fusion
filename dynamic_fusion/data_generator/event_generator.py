@@ -11,7 +11,7 @@ from jaxtyping import UInt8
 from numpy.random import uniform
 from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import Events, GrayVideo
+from dynamic_fusion.utils.datatypes import Events, GrayVideoFloat
 
 from .configuration import EventGeneratorConfiguration, SharedConfiguration
 
@@ -66,7 +66,7 @@ class EventGenerator:
         self.logger = logging.getLogger("EventGenerator")
 
     def run(
-        self, video: GrayVideo, progress_bar: Optional[tqdm] = None
+        self, video: GrayVideoFloat, progress_bar: Optional[tqdm] = None
     ) -> Dict[float, Events]:
         if progress_bar:
             progress_bar.set_postfix_str("Generating events")

@@ -10,7 +10,12 @@ from scipy.ndimage import affine_transform  # pyright: ignore
 from torchvision.transforms.functional import affine
 from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import GrayImage, GrayVideo, GrayVideoTorch, TransformDefinition
+from dynamic_fusion.utils.datatypes import (
+    GrayImage,
+    GrayVideoFloat,
+    GrayVideoInt,
+    TransformDefinition,
+)
 
 from .configuration import SharedConfiguration, VideoGeneratorConfiguration
 from .utils.video import normalize
@@ -30,7 +35,9 @@ class VideoGenerator:
         self.shared_config = shared_config
         self.logger = logging.getLogger("VideoGenerator")
 
-    def run(self, image: GrayImage, progress_bar: Optional[tqdm] = None) -> Tuple[GrayVideoTorch, TransformDefinition]:
+    def run(
+        self, image: GrayImage, progress_bar: Optional[tqdm] = None
+    ) -> Tuple[GrayVideoFloat, TransformDefinition]:
         if progress_bar:
             progress_bar.set_postfix_str("Generating video")
         else:
@@ -251,7 +258,7 @@ class VideoGenerator:
 
     def _generate_video_scipy(
         self, image: GrayImage, transformation_matrices: Float[np.ndarray, "T 3 3"]
-    ) -> GrayVideo:
+    ) -> GrayVideoInt:
         video = np.zeros(
             (transformation_matrices.shape[0], image.shape[0], image.shape[1]),
             dtype=np.float32,
@@ -271,7 +278,7 @@ class VideoGenerator:
         angles: List[float],
         translates: List[Tuple[int, int]],
         scales: List[float],
-    ) -> GrayVideo:
+    ) -> GrayVideoFloat:
         videos = torch.zeros(len(angles), *image.shape).cuda()
         image_tensor = torch.tensor(image)[None, ...].cuda()
 
@@ -289,7 +296,7 @@ class VideoGenerator:
         return videos.cpu().numpy()
 
     @staticmethod
-    def crop_video(video: GrayVideo, target_image_size: Tuple[int, int]) -> GrayVideo:
+    def crop_video(video: GrayVideoInt, target_image_size: Tuple[int, int]) -> GrayVideoInt:
         cropped_video_border = (video.shape[1:] - np.array(target_image_size)) // 2
 
         cropped_video = video[

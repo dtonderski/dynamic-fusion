@@ -1,8 +1,7 @@
 import numpy as np
+from jaxtyping import Shaped
 
-from dynamic_fusion.utils.datatypes import GrayVideo
 
-
-def normalize(video: GrayVideo) -> GrayVideo:
-    video = video - np.min(video)
-    return video / np.max(video)
+def normalize(data: Shaped[np.ndarray, "..."]) -> Shaped[np.ndarray, "..."]:
+    data = data - np.min(data)
+    return data / np.max(data)

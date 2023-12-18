@@ -2,6 +2,7 @@ import logging
 
 from tqdm import tqdm
 
+from dynamic_fusion.utils.datatypes import GrayVideoFloat
 from dynamic_fusion.utils.seeds import set_seeds
 
 from .configuration import DataGeneratorConfiguration
@@ -78,15 +79,16 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                 event_dict = self.event_generator.run(video)
 
                 discretized_event_dict, indices_of_label_frames = (
-                    self.event_discretizer.run(event_dict, video)
+                    self.event_discretizer.run(event_dict)
                 )
 
-                ground_truth_video = video[indices_of_label_frames, :, :]
+                ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
 
                 self.data_saver.run(
                     image_path,
                     image,
                     video,
+                    transform_definition,
                     discretized_event_dict,
                     ground_truth_video,
                 )

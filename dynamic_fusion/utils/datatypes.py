@@ -12,7 +12,8 @@ from typing_extensions import TypeAlias
 Image: TypeAlias = UInt8[np.ndarray, "H W 3"]
 GrayImage: TypeAlias = UInt8[np.ndarray, "H W"]
 GrayImageFloat: TypeAlias = Float[np.ndarray, "H W"]
-GrayVideo: TypeAlias = UInt8[np.ndarray, "T H W"]
+GrayVideoInt: TypeAlias = UInt8[np.ndarray, "T H W"]
+GrayVideoFloat: TypeAlias = Float[np.ndarray, "T H W"]
 GrayVideoTorch: TypeAlias = Float[torch.Tensor, "T H W"]
 
 SegmentationMask: TypeAlias = UInt8[np.ndarray, "H W"]
@@ -26,7 +27,6 @@ class TransformDefinition:
     shift_interpolation: Literal["linear", "cubic"]
     rotation_interpolation: Literal["linear", "cubic"]
     scale_interpolation: Literal["linear", "cubic"]
-
 
 class EventSchema(pa.DataFrameModel):
     timestamp: Series[np.float64]  # [s]
