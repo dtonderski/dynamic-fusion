@@ -53,6 +53,13 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         None,
     ]:
         while True:
+            # TODO: add continuous time here
+            # Reconstruction sample should also include times of frames in bin
+            # Generating it before cropping the tensor in time is inefficient, but it shouldn't
+            # matter with num_workers = 4 - batch generation should not be a bottleneck. 
+            # to be verified, though. Can use len(discretized_events) to calculate
+            # timestamps I think. First, generate len(discretized_events) samples from U[0,1], 
+            # then get the size of each bin by 1/len(discretized_events) 
             index = np.random.randint(0, len(self.directory_list))
 
             threshold_path = (
