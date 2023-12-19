@@ -34,5 +34,5 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/initial_run"
+  run_directory: "runs/180_images"
   event_colors: [[255, 0, 0], [0, 255, 0]]
