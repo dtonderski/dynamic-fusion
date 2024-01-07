@@ -33,7 +33,7 @@ network_loader:
 
 network_fitter:
   lr_reconstruction: 0.0005
-  lr_reconstruction: 0.0005
+  lr_decoding: 0.0005
   number_of_training_iterations: 10_000
   reconstruction_loss_name: "LPIPS"
   skip_first_timesteps: 4
@@ -42,5 +42,5 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/mean_std_count_test/test"
+  run_directory: "runs/continuous/test"
   event_colors: [[255, 0, 0], [0, 255, 0]]
