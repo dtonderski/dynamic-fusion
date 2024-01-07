@@ -14,16 +14,22 @@ class ReconstructionSample:
     event_counts: Float32[torch.Tensor, "Time SubBin X Y"]
     video: Float32[torch.Tensor, "Time 1 X Y"]
 
-
 @dataclass
-class TransformedReconstructionSample:
-    sample: ReconstructionSample
+class CropDefinition:
     x_start: int
     y_start: int
     t_start: int
-    # total_video_length is for convenience, used to calculate time indices
+    x_size: int
+    y_size: int
+    t_size: int
+    # total_number_of_bins is for convenience, used to calculate time
     # for continuous time training
-    total_video_length: int
+    total_number_of_bins: int
+
+@dataclass
+class CroppedReconstructionSample:
+    sample: ReconstructionSample
+    transformation: CropDefinition
 
 
 Batch: TypeAlias = Tuple[
