@@ -14,6 +14,7 @@ class ReconstructionSample:
     event_counts: Float32[torch.Tensor, "Time SubBin X Y"]
     video: Float32[torch.Tensor, "Time 1 X Y"]
 
+
 @dataclass
 class CropDefinition:
     x_start: int
@@ -25,6 +26,7 @@ class CropDefinition:
     # total_number_of_bins is for convenience, used to calculate time
     # for continuous time training
     total_number_of_bins: int
+
 
 @dataclass
 class CroppedReconstructionSample:
@@ -38,4 +40,6 @@ Batch: TypeAlias = Tuple[
     Float32[torch.Tensor, "batch Time SubBin X Y"],  # STD
     Float32[torch.Tensor, "batch Time SubBin X Y"],  # Counts
     Float32[torch.Tensor, "batch Time 1 X Y"],  # Video
+    Float32[torch.Tensor, "batch Time 1"],  # Continuous timestamps
+    Float32[torch.Tensor, "batch Time 1 X Y"],  # Continuous timestamp frames
 ]
