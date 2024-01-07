@@ -1,15 +1,13 @@
 from pathlib import Path
+from typing import Tuple
 
 import torch
 from torch import nn
+from dynamic_fusion.networks.decoding_nets.mlp import MLP
 
 from dynamic_fusion.networks.reconstruction_nets import ConvGruNetV1
 
-from .configuration import (
-    NetworkLoaderConfiguration,
-    ReconstructionNetworkConfiguration,
-    SharedConfiguration,
-)
+from .configuration import NetworkLoaderConfiguration, SharedConfiguration
 
 
 class NetworkLoader:
@@ -22,16 +20,13 @@ class NetworkLoader:
         self.config = config
         self.shared_config = shared_config
 
-    def run(self) -> nn.Module:
-        reconstruction_network = self._load_reconstruction_network()
-        return reconstruction_network
+    def run(self) -> Tuple[nn.Module, nn.Module]:
+        reconstruction_network, decoding_network = self._load_reconstruction_network()
+        return reconstruction_network, decoding_network
 
-    def _load_reconstruction_network(self) -> nn.Module:
-        network_config: ReconstructionNetworkConfiguration = (
-            self.config.reconstruction
-        )
+    def _load_reconstruction_network(self) -> Tuple[nn.Module, nn.Module]:
 
-        total_input_shape = network_config.input_size * (
+        total_input_shape = self.config.reconstruction.input_size * (
             1
             + self.shared_config.use_mean
             + self.shared_config.use_std
@@ -40,14 +35,25 @@ class NetworkLoader:
 
         reconstruction_network = ConvGruNetV1(
             input_size=total_input_shape,
-            hidden_size=network_config.hidden_size,
-            out_size=network_config.output_size,
-            kernel_size=network_config.kernel_size,
+            hidden_size=self.config.reconstruction.hidden_size,
+            out_size=self.config.reconstruction.output_size,
+            kernel_size=self.config.reconstruction.kernel_size,
         )
+        
         if self.config.reconstruction_checkpoint_path:
-            checkpoint = torch.load(Path(self.config.reconstruction_checkpoint_path))
+            checkpoint = torch.load(self.config.reconstruction_checkpoint_path)
             reconstruction_network.load_state_dict(
                 checkpoint["reconstruction_state_dict"]
             )
 
-        return reconstruction_network
+        decoding_network = MLP(
+            input_size=self.config.decoding.input_size,
+            hidden_size=self.config.decoding.hidden_size,
+            hidden_layers=self.config.decoding.hidden_layers,
+        )
+
+        if self.config.decoding_checkpoint_path:
+            checkpoint = torch.load(self.config.decoding_checkpoint_path)
+            decoding_network.load_state_dict(checkpoint["decoding_state_dict"])
+
+        return reconstruction_network, decoding_network

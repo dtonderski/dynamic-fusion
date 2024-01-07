@@ -22,5 +22,5 @@ class Trainer:
 
     def run(self) -> None:
         data_loader = self.data_handler.run()
-        reconstruction_network = self.network_loader.run()
-        self.network_fitter.run(data_loader, reconstruction_network)
+        reconstruction_network, decoding_network = self.network_loader.run()
+        self.network_fitter.run(data_loader, reconstruction_network, decoding_network)

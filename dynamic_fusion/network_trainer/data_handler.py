@@ -11,7 +11,11 @@ from .configuration import (
     TransformsConfiguration,
 )
 from .dataset import CocoIterableDataset
-from .utils.datatypes import ReconstructionSample
+from .utils.datatypes import (
+    ReconstructionSample,
+    CropDefinition,
+    CroppedReconstructionSample,
+)
 
 
 class CocoTransform:
@@ -24,52 +28,14 @@ class CocoTransform:
         self.config = config
         self.shared_config = shared_config
 
-    def __call__(self, network_data: ReconstructionSample) -> ReconstructionSample:
-        network_data.video = scale_video_to_quantiles(network_data.video)
-        network_data = self._crop_tensors(network_data)
-        return network_data
-
-    def _crop_tensors(
+    def __call__(
         self, network_data: ReconstructionSample
-    ) -> ReconstructionSample:
-        max_x_start = network_data.video.shape[2] - self.config.network_image_size[0]
-        max_y_start = network_data.video.shape[3] - self.config.network_image_size[1]
+    ) -> CroppedReconstructionSample:
+        network_data.video = scale_video_to_quantiles(network_data.video)
+        transformed_network_data = self._crop_tensors(network_data)
+        return transformed_network_data
 
-        x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
-        t_start = np.random.randint(
-            low=0,
-            high=network_data.video.shape[0] - self.shared_config.sequence_length,
-        )
-
-        network_data.event_polarity_sums = self._extract_part_of_tensor(
-            network_data.event_polarity_sums, t_start, x_start, y_start
-        )
-
-        if self.shared_config.use_mean:
-            network_data.timestamp_means = self._extract_part_of_tensor(
-                network_data.timestamp_means, t_start, x_start, y_start
-            )
-
-        if self.shared_config.use_std:
-            network_data.timestamp_stds = self._extract_part_of_tensor(
-                network_data.timestamp_stds, t_start, x_start, y_start
-            )
-
-        if self.shared_config.use_count:
-            network_data.event_counts = self._extract_part_of_tensor(
-                network_data.event_counts, t_start, x_start, y_start
-            )
-
-        network_data.video = network_data.video[
-            t_start : t_start + self.shared_config.sequence_length,
-            :,
-            x_start : x_start + self.config.network_image_size[0],
-            y_start : y_start + self.config.network_image_size[1],
-        ]
-
-        return network_data
-
-    def _extract_part_of_tensor(
+    def extract_part_of_tensor(
         self,
         tensor: Float32[torch.Tensor, "Time SubBin X Y"],
         t_start: int,
@@ -83,6 +49,57 @@ class CocoTransform:
             y_start : y_start + self.config.network_image_size[1],
         ]
 
+    def _crop_tensors(
+        self, network_data: ReconstructionSample
+    ) -> CroppedReconstructionSample:
+        max_x_start = network_data.video.shape[2] - self.config.network_image_size[0]
+        max_y_start = network_data.video.shape[3] - self.config.network_image_size[1]
+
+        x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
+        total_number_of_bins = network_data.video.shape[0]
+
+        t_start = np.random.randint(
+            low=0,
+            high=total_number_of_bins - self.shared_config.sequence_length,
+        )
+
+        network_data.event_polarity_sums = self.extract_part_of_tensor(
+            network_data.event_polarity_sums, t_start, x_start, y_start
+        )
+
+        if self.shared_config.use_mean:
+            network_data.timestamp_means = self.extract_part_of_tensor(
+                network_data.timestamp_means, t_start, x_start, y_start
+            )
+
+        if self.shared_config.use_std:
+            network_data.timestamp_stds = self.extract_part_of_tensor(
+                network_data.timestamp_stds, t_start, x_start, y_start
+            )
+
+        if self.shared_config.use_count:
+            network_data.event_counts = self.extract_part_of_tensor(
+                network_data.event_counts, t_start, x_start, y_start
+            )
+
+        network_data.video = network_data.video[
+            t_start : t_start + self.shared_config.sequence_length,
+            :,
+            x_start : x_start + self.config.network_image_size[0],
+            y_start : y_start + self.config.network_image_size[1],
+        ]
+
+        crop_definition = CropDefinition(
+            x_start,
+            y_start,
+            t_start,
+            *self.config.network_image_size,
+            self.shared_config.sequence_length,
+            total_number_of_bins,
+        )
+
+        return CroppedReconstructionSample(network_data, crop_definition)
+
 
 class DataHandler:
     config: DataHandlerConfiguration
@@ -95,7 +112,7 @@ class DataHandler:
         self.config = config
         self.shared_config = shared_config
         transform = CocoTransform(config.transform, shared_config)
-        self.dataset = CocoIterableDataset(config.dataset, transform)
+        self.dataset = CocoIterableDataset(transform, config.dataset, shared_config)
 
     def run(self) -> DataLoader:  # type: ignore
         return DataLoader(
