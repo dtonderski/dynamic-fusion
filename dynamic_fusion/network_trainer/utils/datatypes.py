@@ -40,6 +40,6 @@ Batch: TypeAlias = Tuple[
     Float32[torch.Tensor, "batch Time SubBin X Y"],  # STD
     Float32[torch.Tensor, "batch Time SubBin X Y"],  # Counts
     Float32[torch.Tensor, "batch Time 1 X Y"],  # Video
-    Float32[torch.Tensor, "batch Time 1"],  # Continuous timestamps
+    Float32[torch.Tensor, "batch Time"],  # Continuous timestamps
     Float32[torch.Tensor, "batch Time 1 X Y"],  # Continuous timestamp frames
 ]

@@ -47,9 +47,8 @@ class TrainingMonitor:
         self,
         data_loader: DataLoader,  # type: ignore
         reconstruction_network: nn.Module,
-        reconstruction_optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer,
         decoding_network: nn.Module,
-        decoding_optimizer: torch.optim.Optimizer
     ) -> int:
         previous_subrun_directory, self.subrun_directory = (
             self._get_previous_and_current_subrun_directories()
@@ -64,9 +63,8 @@ class TrainingMonitor:
                 iteration = self._load_checkpoint(
                     previous_subrun_directory,
                     reconstruction_network,
-                    reconstruction_optimizer,
+                    optimizer,
                     decoding_network,
-                    decoding_optimizer
                 )
             except ValueError as ex:
                 self.logger.warning(ex)
@@ -87,7 +85,6 @@ class TrainingMonitor:
         reconstruction_network: nn.Module,
         reconstruction_optimizer: torch.optim.Optimizer,
         decoding_network: nn.Module,
-        decoding_optimizer: torch.optim.Optimizer
     ) -> int:
         checkpoint_path = previous_subrun_directory / LATEST_CHECKPOINT_FILENAME
         if not checkpoint_path.exists():
@@ -112,14 +109,7 @@ class TrainingMonitor:
             decoding_network.load_state_dict(
                 checkpoint["decoding_state_dict"]
             )
-            decoding_network.to(self.device)
-
-        if checkpoint["decoding_optimizer_state_dict"]:
-            self.logger.info("Loading decoding_optimizer_state_dict.")
-            decoding_optimizer.load_state_dict(
-                checkpoint["decoding_optimizer_state_dict"]
-            )
-        
+            decoding_network.to(self.device)        
 
         if checkpoint["iteration"]:
             iteration = checkpoint["iteration"]
@@ -134,7 +124,6 @@ class TrainingMonitor:
         reconstruction_network: Optional[nn.Module] = None,
         reconstruction_optimizer: Optional[torch.optim.Optimizer] = None,
         decoding_network: Optional[nn.Module] = None,
-        decoding_optimizer: Optional[torch.optim.Optimizer] = None,
         iteration: Optional[int] = None,
     ) -> None:
         checkpoint_path = self.subrun_directory / LATEST_CHECKPOINT_FILENAME
@@ -152,11 +141,6 @@ class TrainingMonitor:
             "decoding_state_dict": (
                 decoding_network.state_dict()
                 if decoding_network
-                else None
-            ),
-            "decoding_optimizer_state_dict": (
-                decoding_optimizer.state_dict()
-                if decoding_optimizer
                 else None
             ),
             "iteration": iteration,

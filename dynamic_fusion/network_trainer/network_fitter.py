@@ -47,20 +47,16 @@ class NetworkFitter:
         reconstruction_network: nn.Module,
         decoding_network: nn.Module,
     ) -> None:
-        reconstruction_optimizer = Adam(
-            reconstruction_network.parameters(), lr=self.config.lr_reconstruction
+        params = list(reconstruction_network.parameters()) + list(
+            decoding_network.parameters()
         )
-
-        decoding_optimizer = Adam(
-            decoding_network.parameters(), lr=self.config.lr_decoding
-        )
+        optimizer = Adam(params, lr=self.config.lr_reconstruction)
 
         start_iteration = self.monitor.initialize(
             data_loader,
             reconstruction_network,
-            reconstruction_optimizer,
+            optimizer,
             decoding_network,
-            decoding_optimizer,
         )
 
         reconstruction_network.to(self.device)
@@ -73,18 +69,16 @@ class NetworkFitter:
             self._reconstruction_step(
                 data_loader_iterator,
                 reconstruction_network,
-                reconstruction_optimizer,
+                optimizer,
                 decoding_network,
-                decoding_optimizer,
                 iteration,
             )
 
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(
                     reconstruction_network,
-                    reconstruction_optimizer,
+                    optimizer,
                     decoding_network,
-                    decoding_optimizer,
                     iteration,
                 )
 
@@ -94,7 +88,6 @@ class NetworkFitter:
         reconstruction_network: nn.Module,
         reconstruction_optimizer: Optimizer,
         decoding_network: nn.Module,
-        decoding_optimizer: Optimizer,
         iteration: int,
     ) -> None:
         reconstruction_optimizer.zero_grad()

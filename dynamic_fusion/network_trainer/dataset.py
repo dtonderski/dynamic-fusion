@@ -60,7 +60,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             Float32[
                 torch.Tensor, "Time 1 X Y"
             ],  # frame at end of bin, unused for continuous
-            Float32[torch.Tensor, "Time 1"],  # continuous timestamps
+            Float32[torch.Tensor, "Time"],  # continuous timestamps
             Float32[torch.Tensor, "Time 1 X Y"],  # frame at continuous timestamps
         ],
         None,
@@ -118,7 +118,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
 
                 if self._validate(transformed_network_data.sample):
                     continuous_timestamps_in_bins = torch.rand(
-                        self.shared_config.sequence_length, 1
+                        self.shared_config.sequence_length
                     )
                     # TODO: video frames at the timestamps
                     video_at_continuous_timestamps = (
@@ -181,7 +181,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
 
     def _generate_frames_at_continuous_timestamps(
         self,
-        continuous_timestamps_in_bins: Float32[np.ndarray, "T 1"],
+        continuous_timestamps_in_bins: Float32[np.ndarray, " T"],
         preprocessed_image: GrayImageFloat,
         transform_definition: TransformDefinition,
         crop_definition: CropDefinition,
