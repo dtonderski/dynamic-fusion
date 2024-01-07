@@ -94,7 +94,7 @@ class NetworkFitter:
         reconstruction_network: nn.Module,
         reconstruction_optimizer: Optimizer,
         decoding_network: nn.Module,
-        decoding_optimizer: nn.Module,
+        decoding_optimizer: Optimizer,
         iteration: int,
     ) -> None:
         reconstruction_optimizer.zero_grad()
