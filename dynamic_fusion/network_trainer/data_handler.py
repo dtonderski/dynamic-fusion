@@ -11,7 +11,7 @@ from .configuration import (
     TransformsConfiguration,
 )
 from .dataset import CocoIterableDataset
-from .utils.datatypes import ReconstructionSample
+from .utils.datatypes import ReconstructionSample, TransformedReconstructionSample
 
 
 class CocoTransform:
@@ -24,21 +24,24 @@ class CocoTransform:
         self.config = config
         self.shared_config = shared_config
 
-    def __call__(self, network_data: ReconstructionSample) -> ReconstructionSample:
+    def __call__(
+        self, network_data: ReconstructionSample
+    ) -> TransformedReconstructionSample:
         network_data.video = scale_video_to_quantiles(network_data.video)
-        network_data = self._crop_tensors(network_data)
-        return network_data
+        transformed_network_data = self._crop_tensors(network_data)
+        return transformed_network_data
 
     def _crop_tensors(
         self, network_data: ReconstructionSample
-    ) -> ReconstructionSample:
+    ) -> TransformedReconstructionSample:
         max_x_start = network_data.video.shape[2] - self.config.network_image_size[0]
         max_y_start = network_data.video.shape[3] - self.config.network_image_size[1]
 
         x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
+        total_video_length = network_data.video.shape[0]
         t_start = np.random.randint(
             low=0,
-            high=network_data.video.shape[0] - self.shared_config.sequence_length,
+            high=total_video_length - self.shared_config.sequence_length,
         )
 
         network_data.event_polarity_sums = self._extract_part_of_tensor(
@@ -67,7 +70,9 @@ class CocoTransform:
             y_start : y_start + self.config.network_image_size[1],
         ]
 
-        return network_data
+        return TransformedReconstructionSample(
+            network_data, x_start, y_start, t_start, total_video_length
+        )
 
     def _extract_part_of_tensor(
         self,

@@ -15,10 +15,21 @@ class ReconstructionSample:
     video: Float32[torch.Tensor, "Time 1 X Y"]
 
 
+@dataclass
+class TransformedReconstructionSample:
+    sample: ReconstructionSample
+    x_start: int
+    y_start: int
+    t_start: int
+    # total_video_length is for convenience, used to calculate time indices
+    # for continuous time training
+    total_video_length: int
+
+
 Batch: TypeAlias = Tuple[
-    Float32[torch.Tensor, "batch Time SubBin X Y"], # EPS
-    Float32[torch.Tensor, "batch Time SubBin X Y"], # Means
-    Float32[torch.Tensor, "batch Time SubBin X Y"], # STD
-    Float32[torch.Tensor, "batch Time SubBin X Y"], # Counts
-    Float32[torch.Tensor, "batch Time 1 X Y"],      # Video
+    Float32[torch.Tensor, "batch Time SubBin X Y"],  # EPS
+    Float32[torch.Tensor, "batch Time SubBin X Y"],  # Means
+    Float32[torch.Tensor, "batch Time SubBin X Y"],  # STD
+    Float32[torch.Tensor, "batch Time SubBin X Y"],  # Counts
+    Float32[torch.Tensor, "batch Time 1 X Y"],  # Video
 ]

@@ -13,19 +13,19 @@ from torch.utils.data import Dataset, IterableDataset
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 
 from .configuration import DatasetConfiguration, SharedConfiguration
-from .utils.datatypes import ReconstructionSample
+from .utils.datatypes import ReconstructionSample, TransformedReconstructionSample
 
 
 class CocoIterableDataset(IterableDataset):  # type: ignore
     config: DatasetConfiguration
     directory_list: List[Path]
-    transform: Optional[Callable[[ReconstructionSample], ReconstructionSample]]
+    transform: Optional[Callable[[ReconstructionSample], TransformedReconstructionSample]]
     logger: logging.Logger
 
     def __init__(
         self,
         config: DatasetConfiguration,
-        transform: Optional[Callable[[ReconstructionSample], ReconstructionSample]],
+        transform: Optional[Callable[[ReconstructionSample], TransformedReconstructionSample]],
     ) -> None:
         self.directory_list = [
             path for path in config.dataset_directory.glob("**/*") if path.is_dir()
@@ -88,14 +88,14 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             for _ in range(self.config.transform_tries):
                 if self.transform:
                     try:
-                        network_data = self.transform(network_data)
+                        transformed_network_data = self.transform(network_data)
                     except ValueError as ex:
                         self.logger.warning(
                             f"Encountered error {ex} when trying to transform"
                             f" {self.directory_list[index]}, retrying transforms."
                         )
 
-                if self._validate(network_data):
+                if self._validate(transformed_network_data.sample):
                     yield (
                         network_data.event_polarity_sums,
                         network_data.timestamp_means,
