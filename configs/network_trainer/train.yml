@@ -20,13 +20,19 @@ data_handler:
 
 network_loader:
   reconstruction:
-    input_size: 2 # should be subbins
+    input_size: 2 # should equal to be subbins
     hidden_size: 24
-    output_size: 1
+    output_size: 64
     kernel_size: 3
   reconstruction_checkpoint_path: null
+  decoding:
+    input_size: 64 # should be subbins
+    hidden_size: 128
+    hidden_layers: 4
+  decoding_checkpoint_path: null
 
 network_fitter:
+  lr_reconstruction: 0.0005
   lr_reconstruction: 0.0005
   number_of_training_iterations: 10_000
   reconstruction_loss_name: "LPIPS"
