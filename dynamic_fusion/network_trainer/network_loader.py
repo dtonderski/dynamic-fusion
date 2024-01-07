@@ -31,8 +31,15 @@ class NetworkLoader:
             self.config.reconstruction
         )
 
+        total_input_shape = network_config.input_size * (
+            1
+            + self.shared_config.use_mean
+            + self.shared_config.use_std
+            + self.shared_config.use_count
+        )
+
         reconstruction_network = ConvGruNetV1(
-            input_size=network_config.input_size,
+            input_size=total_input_shape,
             hidden_size=network_config.hidden_size,
             out_size=network_config.output_size,
             kernel_size=network_config.kernel_size,

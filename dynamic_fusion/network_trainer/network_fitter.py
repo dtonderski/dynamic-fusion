@@ -87,10 +87,18 @@ class NetworkFitter:
         reconstruction_network.reset_states()
 
         with Timer() as timer_batch:
-            event_polarity_sums, _, _, _, video = network_data_to_device(
+            (
+                event_polarity_sums,
+                timestamp_means,
+                timestamp_stds,
+                event_counts,
+                video,
+            ) = network_data_to_device(
                 next(data_loader_iterator),
                 self.device,
-                self.shared_config.use_mean_and_std,
+                self.shared_config.use_mean,
+                self.shared_config.use_std,
+                self.shared_config.use_count,
             )
 
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
@@ -103,7 +111,12 @@ class NetworkFitter:
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
 
-            prediction = reconstruction_network(event_polarity_sum)
+            prediction = reconstruction_network(
+                event_polarity_sum,
+                timestamp_means[:, t] if self.shared_config.use_mean else None,
+                timestamp_stds[:, t] if self.shared_config.use_std else None,
+                event_counts[:, t] if self.shared_config.use_count else None,
+            )
 
             if t >= self.config.skip_first_timesteps:
                 image_loss += (

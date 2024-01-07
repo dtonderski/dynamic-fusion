@@ -63,9 +63,10 @@ class ConvGruNetV1(nn.Module):
         self.state1 = None
         self.state2 = None
 
-    def forward(self, d: torch.Tensor) -> torch.Tensor:
+    def forward(self, d: torch.Tensor, *args: Optional[torch.Tensor]) -> torch.Tensor:
         """
         d: B C X Y
+        args: [B C X Y]
         """
         batch_size, _, imsz0, imsz1 = d.shape
         if self.state1 is None:
@@ -75,7 +76,11 @@ class ConvGruNetV1(nn.Module):
 
         d_nrm = self.input_normalizer(d)
         time_to_prev = self.time_to_prev_ev(d)
-        x_input = torch.concat([d_nrm, time_to_prev], dim=1)
+
+        x_input = torch.concat(
+            [d_nrm, time_to_prev, *[tensor for tensor in args if tensor is not None]],
+            dim=1,
+        )
 
         x0 = self.head(x_input)
         x0 = F.elu(self.nrm_head(x0))

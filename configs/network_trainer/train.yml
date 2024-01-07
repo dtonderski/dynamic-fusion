@@ -1,16 +1,18 @@
 shared:
-  use_mean_and_std: false
   sequence_length: 48
-  resume: false
+  resume: true
+  use_mean: true
+  use_std: true
+  use_count: true
 
 data_handler:
-  batch_size: 3
-  num_workers: 4
+  batch_size: 2
+  num_workers: 3
   transform:
     network_image_size: [96, 96]
 
   dataset:
-    dataset_directory: "data/interim/coco/val2014_events"
+    dataset_directory: "data/interim/coco/2subbins"
     threshold: 1.4 # 1.4
     transform_tries: 2
     video_tries: 5
@@ -18,7 +20,7 @@ data_handler:
 
 network_loader:
   reconstruction:
-    input_size: 2 # should be 1 + len(thresholds)
+    input_size: 2 # should be subbins
     hidden_size: 24
     output_size: 1
     kernel_size: 3
@@ -26,13 +28,13 @@ network_loader:
 
 network_fitter:
   lr_reconstruction: 0.0005
-  number_of_training_iterations: 15_000
+  number_of_training_iterations: 10_000
   reconstruction_loss_name: "LPIPS"
   skip_first_timesteps: 4
-  network_saving_frequency: 10
+  network_saving_frequency: 100
   visualization_frequency: 200
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/180_images"
+  run_directory: "runs/mean_std_count_test/test"
   event_colors: [[255, 0, 0], [0, 255, 0]]

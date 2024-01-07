@@ -5,10 +5,6 @@ from pydantic import BaseModel, Field, validator
 
 
 class SharedConfiguration(BaseModel):
-    use_mean_and_std: bool = Field(
-        ...,
-        description="Determines whether mean and std will be used by the network.",
-    )
     sequence_length: int = Field(
         ..., description="Length of the sequence used in training."
     )
@@ -16,6 +12,10 @@ class SharedConfiguration(BaseModel):
         ...,
         description="If set, resumes training from latest subrun in run directory.",
     )
+
+    use_mean: bool = Field(...)
+    use_std: bool = Field(...)
+    use_count: bool = Field(...)
 
 class TransformsConfiguration(BaseModel):
     network_image_size: Tuple[int, int] = Field(

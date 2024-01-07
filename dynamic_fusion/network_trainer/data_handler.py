@@ -32,12 +32,8 @@ class CocoTransform:
     def _crop_tensors(
         self, network_data: ReconstructionSample
     ) -> ReconstructionSample:
-        max_x_start = (
-            network_data.video.shape[2] - self.config.network_image_size[0]
-        )
-        max_y_start = (
-            network_data.video.shape[3] - self.config.network_image_size[1]
-        )
+        max_x_start = network_data.video.shape[2] - self.config.network_image_size[0]
+        max_y_start = network_data.video.shape[3] - self.config.network_image_size[1]
 
         x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
         t_start = np.random.randint(
@@ -49,9 +45,20 @@ class CocoTransform:
             network_data.event_polarity_sums, t_start, x_start, y_start
         )
 
-        network_data.event_counts = self._extract_part_of_tensor(
-            network_data.event_counts, t_start, x_start, y_start
-        )
+        if self.shared_config.use_mean:
+            network_data.timestamp_means = self._extract_part_of_tensor(
+                network_data.timestamp_means, t_start, x_start, y_start
+            )
+
+        if self.shared_config.use_std:
+            network_data.timestamp_stds = self._extract_part_of_tensor(
+                network_data.timestamp_stds, t_start, x_start, y_start
+            )
+
+        if self.shared_config.use_count:
+            network_data.event_counts = self._extract_part_of_tensor(
+                network_data.event_counts, t_start, x_start, y_start
+            )
 
         network_data.video = network_data.video[
             t_start : t_start + self.shared_config.sequence_length,
@@ -59,16 +66,6 @@ class CocoTransform:
             x_start : x_start + self.config.network_image_size[0],
             y_start : y_start + self.config.network_image_size[1],
         ]
-
-        if not self.shared_config.use_mean_and_std:
-            return network_data
-
-        network_data.timestamp_means = self._extract_part_of_tensor(
-            network_data.timestamp_means, t_start, x_start, y_start
-        )
-        network_data.timestamp_stds = self._extract_part_of_tensor(
-            network_data.timestamp_stds, t_start, x_start, y_start
-        )
 
         return network_data
 
@@ -98,9 +95,9 @@ class DataHandler:
         self.config = config
         self.shared_config = shared_config
         transform = CocoTransform(config.transform, shared_config)
-        self.dataset = CocoIterableDataset(
-            config.dataset, transform
-        )
+        self.dataset = CocoIterableDataset(config.dataset, transform)
 
     def run(self) -> DataLoader:  # type: ignore
-        return DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers)
+        return DataLoader(
+            self.dataset, self.config.batch_size, num_workers=self.config.num_workers
+        )
