@@ -63,13 +63,23 @@ class ReconstructionNetworkConfiguration(BaseModel):
     kernel_size: int = Field(...)
 
 
+class DecodingNetworkConfiguration(BaseModel):
+    input_size: int = Field(...)
+    hidden_size: int = Field(...)
+    hidden_layers: int = Field(...)
+
+
 class NetworkLoaderConfiguration(BaseModel):
     reconstruction: ReconstructionNetworkConfiguration = Field(...)
-    reconstruction_checkpoint_path: Optional[str] = Field(...)
+    reconstruction_checkpoint_path: Optional[Path] = Field(...)
+
+    decoding: DecodingNetworkConfiguration = Field(...)
+    decoding_checkpoint_path: Optional[Path] = Field(...)
 
 
 class NetworkFitterConfiguration(BaseModel):
     lr_reconstruction: float = Field(...)
+    lr_decoding: float = Field(...)
     number_of_training_iterations: int = Field(...)
     reconstruction_loss_name: str = Field(...)
     skip_first_timesteps: int = Field(
@@ -81,6 +91,7 @@ class NetworkFitterConfiguration(BaseModel):
 
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
+
 
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)
