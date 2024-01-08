@@ -48,6 +48,10 @@ class DatasetConfiguration(BaseModel):
         ),
     )
 
+    data_generator_target_image_size: Tuple[int, int] = Field(
+        ..., description="Image size that was used in data generation."
+    )
+
 
 class DataHandlerConfiguration(BaseModel):
     transform: TransformsConfiguration = Field(...)  # pyright: ignore

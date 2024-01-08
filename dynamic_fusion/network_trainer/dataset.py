@@ -203,11 +203,26 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             / crop_definition.total_number_of_bins
         )
 
-        frames = VideoGenerator.get_video(
-            preprocessed_image,
-            transform_definition,
-            continuous_timestamps_using_video_time,
-            (crop_definition.x_size, crop_definition.y_size),
+        timestamps_and_zero = torch.concatenate(
+            [torch.zeros(1), continuous_timestamps_using_video_time]
         )
 
-        return einops.rearrange(torch.tensor(frames), "Time X Y -> Time 1 X Y")
+        frames_and_zero = VideoGenerator.get_video(
+            preprocessed_image,
+            transform_definition,
+            timestamps_and_zero,
+            self.config.data_generator_target_image_size,
+            device=torch.device("cpu"),
+        )
+
+        cropped_frames = frames_and_zero[
+            1:,
+            crop_definition.x_start : crop_definition.x_start
+            + crop_definition.x_size,
+            crop_definition.y_start : crop_definition.y_start
+            + crop_definition.y_size,
+        ]
+
+        return einops.rearrange(
+            torch.tensor(cropped_frames), "Time X Y -> Time 1 X Y"
+        )
