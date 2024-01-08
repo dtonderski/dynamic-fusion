@@ -7,7 +7,7 @@ shared:
 
 data_handler:
   batch_size: 2
-  num_workers: 3
+  num_workers: 1
   transform:
     network_image_size: [96, 96]
 
@@ -17,6 +17,7 @@ data_handler:
     transform_tries: 2
     video_tries: 5
     min_allowed_max_of_mean_polarities_over_times: 0.01
+    data_generator_target_image_size: [180, 240]
 
 network_loader:
   reconstruction:
@@ -26,7 +27,7 @@ network_loader:
     kernel_size: 3
   reconstruction_checkpoint_path: null
   decoding:
-    input_size: 64 # should be subbins
+    input_size: 65 # should be output of reconstruction+1
     hidden_size: 128
     hidden_layers: 4
   decoding_checkpoint_path: null
