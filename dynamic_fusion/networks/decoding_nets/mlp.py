@@ -22,5 +22,6 @@ class MLP(nn.Module):
 
     def forward(self, x: Float[torch.Tensor, "*batch C"]) -> torch.Tensor:
         x = self.input_layer(x)
-        x = self.hidden_layers(x)
+        for layer in self.hidden_layers:
+            x = layer(x)
         return self.output_layer(x)  # type: ignore
