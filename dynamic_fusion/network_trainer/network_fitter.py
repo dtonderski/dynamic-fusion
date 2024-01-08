@@ -60,6 +60,7 @@ class NetworkFitter:
         )
 
         reconstruction_network.to(self.device)
+        decoding_network.to(self.device)
 
         data_loader_iterator = iter(data_loader)
 
