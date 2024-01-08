@@ -66,7 +66,8 @@ class VideoGenerator:
         timestamps: Float[np.ndarray, " T"],
         target_image_size: Tuple[int, int],
         number_of_images_to_generate_per_input: Optional[int] = None,
-        use_pytorch: bool = True
+        use_pytorch: bool = True,
+        device: torch.device = torch.device('cuda')
     ) -> GrayVideoFloat:
         """Used to generate images at arbitrary timestamps from an initial
         image and a transform definition. Note that the time of the video
@@ -95,7 +96,8 @@ class VideoGenerator:
             scales,
             target_image_size,
             number_of_images_to_generate_per_input,
-            use_pytorch
+            use_pytorch,
+            device
         )
         return video
 
@@ -109,12 +111,13 @@ class VideoGenerator:
         target_image_size: Tuple[int, int],
         number_of_images_to_generate_per_input: Optional[int] = None,
         use_pytorch: bool = True,
+        device: torch.device = torch.device('cuda')
     ) -> GrayVideoFloat:
         if use_pytorch:
             translates, angles, scales_torch = cls._transforms_to_torch(
                 shifts, rotations, scales
             )
-            video = cls._generate_video_torch(image, angles, translates, scales_torch)
+            video = cls._generate_video_torch(image, angles, translates, scales_torch, device)
         else:
             if number_of_images_to_generate_per_input is None:
                 raise ValueError(
@@ -353,9 +356,10 @@ class VideoGenerator:
         angles: List[float],
         translates: List[Tuple[int, int]],
         scales: List[float],
+        device: torch.device = torch.device('cuda')
     ) -> GrayVideoFloat:
-        videos = torch.zeros(len(angles), *image.shape).cuda()
-        image_tensor = torch.tensor(image)[None, ...].cuda()
+        videos = torch.zeros(len(angles), *image.shape, device=device)
+        image_tensor = torch.tensor(image, device=device)[None, ...]
 
         for i, (angle, translate, scale) in enumerate(
             zip(angles, translates, scales)
