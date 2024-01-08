@@ -87,11 +87,11 @@ class NetworkFitter:
         self,
         data_loader_iterator: Iterator[Batch],
         reconstruction_network: nn.Module,
-        reconstruction_optimizer: Optimizer,
+        optimizer: Optimizer,
         decoding_network: nn.Module,
         iteration: int,
     ) -> None:
-        reconstruction_optimizer.zero_grad()
+        optimizer.zero_grad()
         reconstruction_network.reset_states()
 
         with Timer() as timer_batch:
@@ -160,7 +160,7 @@ class NetworkFitter:
 
         with Timer() as timer_backward:
             image_loss.backward()  # type: ignore
-            reconstruction_optimizer.step()
+            optimizer.step()
 
         time_batch, time_backward = timer_batch.interval, timer_backward.interval
         self.logger.info(
