@@ -42,9 +42,9 @@ event_generator:
 event_discretizer:
   number_of_temporal_bins: 100 # N_low
   number_of_temporal_sub_bins_per_bin: 2
-  ground_truth_temporal_location_in_bin: "center" # center or end
+  ground_truth_temporal_location_in_bin: "center" # center or end, doesn't work atm
 
 data_saver:
-  output_dir: "./data/interim/coco/val2014_events"
+  output_dir: "./data/interim/coco/2subbins"
   save_events: True
   h5_compression: 3
