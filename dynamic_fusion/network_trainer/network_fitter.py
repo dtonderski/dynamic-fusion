@@ -133,13 +133,14 @@ class NetworkFitter:
             if t >= self.config.skip_first_timesteps:
                 # TODO: if using continuous timestamps
                 if True:
-                    expanded_timestamps = continuous_timestamps[:, t].expand_as(
+                    expanded_timestamps = continuous_timestamps[:, t, None, None, None].expand_as(
                         continuous_timestamp_frames[:, t]
                     )  # B 1 X Y
                     encoding_and_time = torch.concatenate(
-                        [prediction, expanded_timestamps]
+                        [prediction, expanded_timestamps], dim=1
                     )
-                    einops.rearrange(encoding_and_time, "B C X Y -> B X Y C")
+
+                    encoding_and_time = einops.rearrange(encoding_and_time, "B C X Y -> B X Y C")
                     decoding_prediction = decoding_network(encoding_and_time)
                     prediction = einops.rearrange(
                         decoding_prediction, "B X Y 1 -> B 1 X Y"
