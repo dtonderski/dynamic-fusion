@@ -152,10 +152,10 @@ class NetworkFitter:
                     ).mean()
                 )
 
-            if visualize:
-                event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-                images.append(to_numpy(video[:, t, ...]))
-                predictions.append(to_numpy(prediction))
+                if visualize:
+                    event_polarity_sum_list.append(to_numpy(event_polarity_sum))
+                    images.append(to_numpy(video[:, t, ...]))
+                    predictions.append(to_numpy(prediction))
         image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
 
