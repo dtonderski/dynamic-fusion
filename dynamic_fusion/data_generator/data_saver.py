@@ -7,7 +7,7 @@ from typing import Dict
 import h5py
 
 from dynamic_fusion.utils.datatypes import (
-    GrayImage,
+    GrayImageFloat,
     GrayVideoFloat,
     GrayVideoInt,
     Image,
@@ -31,7 +31,7 @@ class DataSaver:
         image_path: Path,
         image: Image,
         video: GrayVideoInt,
-        preprocessed_image: GrayImage,
+        preprocessed_image: GrayImageFloat,
         transform_definition: TransformDefinition,
         discretized_events_dict: Dict[float, DiscretizedEvents],
         synchronized_video: GrayVideoFloat,

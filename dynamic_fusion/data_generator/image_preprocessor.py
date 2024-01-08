@@ -7,7 +7,7 @@ from skimage.color import rgb2gray  # pylint: disable=no-name-in-module
 from skimage.transform import resize
 from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import GrayImage, Image
+from dynamic_fusion.utils.datatypes import GrayImage, Image, GrayImageFloat
 
 from .configuration import ImagePreprocessorConfiguration, SharedConfiguration
 from .utils.image import normalize
@@ -27,7 +27,7 @@ class ImagePreprocessor:
         self.shared_config = shared_config
         self.logger = logging.getLogger("ImagePreprocessor")
 
-    def run(self, image: Image, pbar: Optional[tqdm] = None) -> GrayImage:
+    def run(self, image: Image, pbar: Optional[tqdm] = None) -> GrayImageFloat:
         if pbar:
             pbar.set_postfix_str("Preprocessing image.")
         else:

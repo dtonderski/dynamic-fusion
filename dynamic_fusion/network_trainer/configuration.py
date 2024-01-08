@@ -5,10 +5,6 @@ from pydantic import BaseModel, Field, validator
 
 
 class SharedConfiguration(BaseModel):
-    use_mean_and_std: bool = Field(
-        ...,
-        description="Determines whether mean and std will be used by the network.",
-    )
     sequence_length: int = Field(
         ..., description="Length of the sequence used in training."
     )
@@ -16,6 +12,10 @@ class SharedConfiguration(BaseModel):
         ...,
         description="If set, resumes training from latest subrun in run directory.",
     )
+
+    use_mean: bool = Field(...)
+    use_std: bool = Field(...)
+    use_count: bool = Field(...)
 
 class TransformsConfiguration(BaseModel):
     network_image_size: Tuple[int, int] = Field(
@@ -48,6 +48,10 @@ class DatasetConfiguration(BaseModel):
         ),
     )
 
+    data_generator_target_image_size: Tuple[int, int] = Field(
+        ..., description="Image size that was used in data generation."
+    )
+
 
 class DataHandlerConfiguration(BaseModel):
     transform: TransformsConfiguration = Field(...)  # pyright: ignore
@@ -63,13 +67,23 @@ class ReconstructionNetworkConfiguration(BaseModel):
     kernel_size: int = Field(...)
 
 
+class DecodingNetworkConfiguration(BaseModel):
+    input_size: int = Field(...)
+    hidden_size: int = Field(...)
+    hidden_layers: int = Field(...)
+
+
 class NetworkLoaderConfiguration(BaseModel):
     reconstruction: ReconstructionNetworkConfiguration = Field(...)
-    reconstruction_checkpoint_path: Optional[str] = Field(...)
+    reconstruction_checkpoint_path: Optional[Path] = Field(...)
+
+    decoding: DecodingNetworkConfiguration = Field(...)
+    decoding_checkpoint_path: Optional[Path] = Field(...)
 
 
 class NetworkFitterConfiguration(BaseModel):
     lr_reconstruction: float = Field(...)
+    lr_decoding: float = Field(...)
     number_of_training_iterations: int = Field(...)
     reconstruction_loss_name: str = Field(...)
     skip_first_timesteps: int = Field(
@@ -81,6 +95,7 @@ class NetworkFitterConfiguration(BaseModel):
 
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
+
 
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)

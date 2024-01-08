@@ -8,6 +8,7 @@ output/
 /carla_recording/
 /finished/
 models/
+*.png
 # Sony IP
 /dependencies/
 

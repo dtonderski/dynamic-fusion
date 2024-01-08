@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import Iterator
+import einops
 
 import numpy as np
 import torch
@@ -44,18 +45,22 @@ class NetworkFitter:
         self,
         data_loader: DataLoader,  # type: ignore
         reconstruction_network: nn.Module,
+        decoding_network: nn.Module,
     ) -> None:
-        reconstruction_optimizer = Adam(
-            reconstruction_network.parameters(), lr=self.config.lr_reconstruction
+        params = list(reconstruction_network.parameters()) + list(
+            decoding_network.parameters()
         )
+        optimizer = Adam(params, lr=self.config.lr_reconstruction)
 
         start_iteration = self.monitor.initialize(
             data_loader,
             reconstruction_network,
-            reconstruction_optimizer,
+            optimizer,
+            decoding_network,
         )
 
         reconstruction_network.to(self.device)
+        decoding_network.to(self.device)
 
         data_loader_iterator = iter(data_loader)
 
@@ -65,14 +70,16 @@ class NetworkFitter:
             self._reconstruction_step(
                 data_loader_iterator,
                 reconstruction_network,
-                reconstruction_optimizer,
+                optimizer,
+                decoding_network,
                 iteration,
             )
 
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(
                     reconstruction_network,
-                    reconstruction_optimizer,
+                    optimizer,
+                    decoding_network,
                     iteration,
                 )
 
@@ -80,17 +87,28 @@ class NetworkFitter:
         self,
         data_loader_iterator: Iterator[Batch],
         reconstruction_network: nn.Module,
-        reconstruction_optimizer: Optimizer,
+        optimizer: Optimizer,
+        decoding_network: nn.Module,
         iteration: int,
     ) -> None:
-        reconstruction_optimizer.zero_grad()
+        optimizer.zero_grad()
         reconstruction_network.reset_states()
 
         with Timer() as timer_batch:
-            event_polarity_sums, _, _, _, video = network_data_to_device(
+            (
+                event_polarity_sums,
+                timestamp_means,
+                timestamp_stds,
+                event_counts,
+                video,
+                continuous_timestamps,
+                continuous_timestamp_frames,
+            ) = network_data_to_device(
                 next(data_loader_iterator),
                 self.device,
-                self.shared_config.use_mean_and_std,
+                self.shared_config.use_mean,
+                self.shared_config.use_std,
+                self.shared_config.use_count,
             )
 
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
@@ -103,24 +121,47 @@ class NetworkFitter:
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
 
-            prediction = reconstruction_network(event_polarity_sum)
+            # TODO: fix variable names. Non-trivial because this might be output video
+            # or latent codes
+            prediction = reconstruction_network(
+                event_polarity_sum,
+                timestamp_means[:, t] if self.shared_config.use_mean else None,
+                timestamp_stds[:, t] if self.shared_config.use_std else None,
+                event_counts[:, t] if self.shared_config.use_count else None,
+            )
 
             if t >= self.config.skip_first_timesteps:
+                # TODO: if using continuous timestamps
+                if True:
+                    expanded_timestamps = continuous_timestamps[:, t, None, None, None].expand_as(
+                        continuous_timestamp_frames[:, t]
+                    )  # B 1 X Y
+                    encoding_and_time = torch.concatenate(
+                        [prediction, expanded_timestamps], dim=1
+                    )
+
+                    encoding_and_time = einops.rearrange(encoding_and_time, "B C X Y -> B X Y C")
+                    decoding_prediction = decoding_network(encoding_and_time)
+                    prediction = einops.rearrange(
+                        decoding_prediction, "B X Y 1 -> B 1 X Y"
+                    )
+
                 image_loss += (
                     self.reconstruction_loss_function(  # pylint: disable=not-callable
                         prediction, video[:, t, ...]
                     ).mean()
                 )
-            if visualize:
-                event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-                images.append(to_numpy(video[:, t, ...]))
-                predictions.append(to_numpy(prediction))
+
+                if visualize:
+                    event_polarity_sum_list.append(to_numpy(event_polarity_sum))
+                    images.append(to_numpy(video[:, t, ...]))
+                    predictions.append(to_numpy(prediction))
         image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
             image_loss.backward()  # type: ignore
-            reconstruction_optimizer.step()
+            optimizer.step()
 
         time_batch, time_backward = timer_batch.interval, timer_backward.interval
         self.logger.info(
