@@ -98,18 +98,18 @@ class TrainingMonitor:
             )
             reconstruction_network.to(self.device)
 
-        if checkpoint["reconstruction_optimizer_state_dict"]:
-            self.logger.info("Loading reconstruction_optimizer_state_dict.")
-            reconstruction_optimizer.load_state_dict(
-                checkpoint["reconstruction_optimizer_state_dict"]
-            )
-
         if checkpoint["decoding_state_dict"]:
             self.logger.info("Loading decoding_state_dict.")
             decoding_network.load_state_dict(
                 checkpoint["decoding_state_dict"]
             )
-            decoding_network.to(self.device)        
+            decoding_network.to(self.device)
+
+        if checkpoint["optimizer_state_dict"]:
+            self.logger.info("Loading optimizer_state_dict.")
+            optimizer.load_state_dict(
+                checkpoint["optimizer_state_dict"]
+            )
 
         if checkpoint["iteration"]:
             iteration = checkpoint["iteration"]
