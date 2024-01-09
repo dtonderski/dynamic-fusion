@@ -97,7 +97,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                 transform_definition = TransformDefinition.load_from_file(file)
 
             event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-                self._discretized_events_to_tensors(discretized_events)
+                self.discretized_events_to_tensors(discretized_events)
             )
 
             network_data = ReconstructionSample(
@@ -145,8 +145,8 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                     " skipping!"
                 )
 
-    def _discretized_events_to_tensors(
-        self,
+    @staticmethod
+    def discretized_events_to_tensors(
         discretized_events: DiscretizedEvents,
     ) -> Tuple[
         Float32[torch.Tensor, "Time 1 X Y"],

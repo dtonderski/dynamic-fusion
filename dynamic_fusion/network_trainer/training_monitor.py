@@ -246,8 +246,8 @@ class TrainingMonitor:
         Float32[np.ndarray, "batch Time 3 X Y"],
         Float32[np.ndarray, "batch Time 3 X Y"],
     ]:
-        colored_event_polarity_sums = self._img_to_colormap(
-            fused_event_polarity_sums[:, :, 0, :, :], self._create_red_blue_cmap(501)
+        colored_event_polarity_sums = self.img_to_colormap(
+            fused_event_polarity_sums[:, :, 0, :, :], self.create_red_blue_cmap(501)
         )
         colored_event_polarity_sums = einops.rearrange(
             colored_event_polarity_sums, "B T X Y C -> B T C X Y"
@@ -265,7 +265,8 @@ class TrainingMonitor:
         return colored_event_polarity_sums, images, predictions
 
     # TODO: this can be reused and should be rewritten
-    def _create_red_blue_cmap(self, N) -> np.ndarray:  # type: ignore
+    @staticmethod
+    def create_red_blue_cmap(N) -> np.ndarray:  # type: ignore
         assert N % 2 == 1
         cm = np.zeros([N, 3])
         cm[: N // 2, 0] = np.sqrt(np.linspace(N / 2, 1, N // 2) * 2 / N)
@@ -273,7 +274,8 @@ class TrainingMonitor:
         cm[N // 2, :] = 0.5
         return cm
 
-    def _img_to_colormap(self, img, cmap, clims=None) -> np.ndarray:  # type: ignore
+    @staticmethod
+    def img_to_colormap(img, cmap, clims=None) -> np.ndarray:  # type: ignore
         if clims is None:
             clims = np.array([-1, 1]) * np.max(np.abs(img))
         N, C = cmap.shape
