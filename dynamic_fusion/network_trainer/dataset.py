@@ -115,6 +115,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                         f"Encountered error {ex} when trying to transform"
                         f" {self.directory_list[index]}, retrying transforms."
                     )
+                    continue
 
                 if self._validate(transformed_network_data.sample):
                     continuous_timestamps_in_bins = torch.rand(
