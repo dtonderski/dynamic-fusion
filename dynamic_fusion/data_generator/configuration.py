@@ -34,17 +34,6 @@ class ImageLoaderConfiguration(BaseModel):
 
 
 class ImagePreprocessorConfiguration(BaseModel):
-    exponentiate_images: bool = Field(
-        None, description="Determines whether to exponentiate images."
-    )
-
-    exponentiation_range: List[float] = Field(
-        None,
-        description=(
-            "Range of constant by which image is multiplied before exponentiation."
-        ),
-    )
-
     downscale_probability: float = Field(
         None, description="Probability of downscaling image."
     )
