@@ -4,6 +4,7 @@ import logging
 from ruamel.yaml import YAML
 
 from dynamic_fusion.data_generator import DataGenerator, DataGeneratorConfiguration
+from dynamic_fusion.interactive_visualizer import Visualizer, VisualizerConfiguration
 from dynamic_fusion.network_trainer import Trainer, TrainerConfiguration
 from dynamic_fusion.utils.seeds import set_seeds
 
@@ -23,6 +24,13 @@ def train_reconstruction(arguments: argparse.Namespace) -> None:
     network_trainer = Trainer(config)
     network_trainer.run()
 
+def visualize_interactive(arguments: argparse.Namespace) -> None:
+    with open(arguments.config, encoding="utf8") as infile:
+        yaml = YAML().load(infile)
+        config = VisualizerConfiguration.parse_obj(yaml)
+    network_trainer = Visualizer(config)
+    network_trainer.run()
+
 
 def main(arguments: argparse.Namespace) -> None:
     if arguments.seed is not None:
@@ -33,6 +41,8 @@ def main(arguments: argparse.Namespace) -> None:
         return generate_data_reconstruction(arguments)
     if arguments.train:
         return train_reconstruction(arguments)
+    if arguments.visualize:
+        return visualize_interactive(arguments)
     raise NotImplementedError()
 
 
@@ -46,6 +56,7 @@ def parse_arguments() -> argparse.Namespace:
         "--generate_data", action="store_true", help="generate data"
     )
     mode_group.add_argument("--train", action="store_true", help="train the model")
+    mode_group.add_argument("--visualize", action="store_true", help="interactively visualize model")
 
     return parser.parse_args()
 
