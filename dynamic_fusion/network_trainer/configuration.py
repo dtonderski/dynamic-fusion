@@ -83,7 +83,6 @@ class NetworkLoaderConfiguration(BaseModel):
 
 class NetworkFitterConfiguration(BaseModel):
     lr_reconstruction: float = Field(...)
-    lr_decoding: float = Field(...)
     number_of_training_iterations: int = Field(...)
     reconstruction_loss_name: str = Field(...)
     skip_first_timesteps: int = Field(
