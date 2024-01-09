@@ -11,9 +11,6 @@ image_loader:
   number_of_input_images: 500 # Nimgs: 500 # number of images to use for generation
 
 image_preprocessor:
-  exponentiate_images: True # exp_images
-  exponentiation_range: [0.5, 2.5] # exp_range
-
   downscale_probability: 0.7 # downscale_prob
   downscale_range: [0.7, 0.85] # downscale_range
 
