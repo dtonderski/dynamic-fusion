@@ -14,3 +14,4 @@ class NetworkHandlerConfiguration(BaseModel):
 class VisualizerConfiguration(BaseModel):
     network_handler: NetworkHandlerConfiguration = Field(...)
     network_loader: NetworkLoaderConfiguration = Field(...)
+    total_bins_in_video: int = Field(...) # TODO: should be settable in the UI or even loaded from data
