@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import einops
 import h5py
@@ -41,6 +41,8 @@ class NetworkHandler:
     network_loader: NetworkLoader
     preprocessed_image: GrayImageFloat
     transform_definition: TransformDefinition
+    last_decoding_prediction: Optional[Float[torch.Tensor, "X Y"]] = None
+    last_timestamp: Optional[float] = None
     device: torch.device
 
     def __init__(
@@ -51,14 +53,18 @@ class NetworkHandler:
         self.config = config
         # wrong configuration, but it's OK
         self.network_loader = NetworkLoader(network_loader_configuration, config)  # type: ignore
-        self.encoding_network, self.decoding_network = self.network_loader.run()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.encoding_network, self.decoding_network = self.network_loader.run()
+
         self.encoding_network.to(self.device)
         self.decoding_network.to(self.device)
         print("Loaded networks!")
 
     # Public API
     def get_reconstruction(self, timestamp: float) -> Float[torch.Tensor, "X Y"]:
+        if self.last_decoding_prediction is not None and self.last_timestamp == timestamp:
+            return self.last_decoding_prediction
+
         with torch.no_grad():
             expanded_timestamp = torch.tensor([timestamp], device=self.device)[
                 :, None, None, None
@@ -69,7 +75,10 @@ class NetworkHandler:
             encoding_and_time = einops.rearrange(encoding_and_time, "1 C X Y -> 1 X Y C")
             decoding_prediction = self.decoding_network(encoding_and_time)
 
-            return torch.squeeze(decoding_prediction).cpu()
+            self.last_timestamp = timestamp
+            self.last_decoding_prediction = torch.squeeze(decoding_prediction).cpu()
+
+            return self.last_decoding_prediction
 
     def get_ground_truth(
         self, timestamp: float, total_bins_in_video: int = 100
@@ -153,6 +162,9 @@ class NetworkHandler:
     # Private
     def _run_network(self) -> None:
         with torch.no_grad():
+            self.last_timestamp = None
+            self.last_decoding_prediction = None
+
             self.encoding_network.reset_states()
             polarity_sums, means, stds, counts = self._sample_to_device()
             for t in range(polarity_sums.shape[1]):
