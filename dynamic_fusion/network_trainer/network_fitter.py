@@ -148,13 +148,13 @@ class NetworkFitter:
 
                 image_loss += (
                     self.reconstruction_loss_function(  # pylint: disable=not-callable
-                        prediction, video[:, t, ...]
+                        prediction, continuous_timestamp_frames[:, t, ...]
                     ).mean()
                 )
 
                 if visualize:
                     event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-                    images.append(to_numpy(video[:, t, ...]))
+                    images.append(to_numpy(continuous_timestamp_frames[:, t, ...]))
                     predictions.append(to_numpy(prediction))
         image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
