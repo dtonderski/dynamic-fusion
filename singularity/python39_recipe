@@ -1,0 +1,6 @@
+Bootstrap: docker
+From: python:3.9
+
+%post
+    apt-get update
+    apt-get install libopenexr-dev

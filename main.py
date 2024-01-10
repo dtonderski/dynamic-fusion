@@ -3,13 +3,14 @@ import logging
 
 from ruamel.yaml import YAML
 
-from dynamic_fusion.data_generator import DataGenerator, DataGeneratorConfiguration
 from dynamic_fusion.interactive_visualizer import Visualizer, VisualizerConfiguration
 from dynamic_fusion.network_trainer import Trainer, TrainerConfiguration
 from dynamic_fusion.utils.seeds import set_seeds
 
 def generate_data_reconstruction(arguments: argparse.Namespace) -> None:
     # pylint: disable-next=import-outside-toplevel
+    from dynamic_fusion.data_generator import DataGenerator, DataGeneratorConfiguration
+
     with open(arguments.config, encoding="utf8") as infile:
         yaml = YAML().load(infile)
         config = DataGeneratorConfiguration.parse_obj(yaml)
