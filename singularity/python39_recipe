@@ -2,5 +2,6 @@ Bootstrap: docker
 From: python:3.9
 
 %post
-    apt-get update
-    apt-get install libopenexr-dev
+    apt update
+    apt install libopenexr-dev
+    apt -y install tmux
