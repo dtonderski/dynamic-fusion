@@ -14,6 +14,7 @@ from dynamic_fusion.data_generator.video_generator import VideoGenerator
 from dynamic_fusion.utils.datatypes import GrayImageFloat
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
+from dynamic_fusion.utils.video import get_video
 
 from .configuration import DatasetConfiguration, SharedConfiguration
 from .utils.datatypes import (
@@ -208,7 +209,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             [torch.zeros(1), continuous_timestamps_using_video_time]
         )
 
-        frames_and_zero = VideoGenerator.get_video(
+        frames_and_zero = get_video(
             preprocessed_image,
             transform_definition,
             timestamps_and_zero,

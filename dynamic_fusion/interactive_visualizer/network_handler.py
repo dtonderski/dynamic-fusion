@@ -21,6 +21,7 @@ from dynamic_fusion.utils.datatypes import GrayImageFloat
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.image import scale_video_to_quantiles
 from dynamic_fusion.utils.transform import TransformDefinition
+from dynamic_fusion.utils.video import get_video
 
 
 class NetworkHandler:
@@ -86,7 +87,7 @@ class NetworkHandler:
         timestamp_using_bin_time = timestamp + self.end_bin_index
         timestamp_using_video_time = timestamp_using_bin_time / total_bins_in_video
 
-        return VideoGenerator.get_video(
+        return get_video(
             self.preprocessed_image,
             self.transform_definition,
             np.array([0, timestamp_using_video_time]),
@@ -98,7 +99,7 @@ class NetworkHandler:
         self,
     ) -> Tuple[GrayImageFloat, GrayImageFloat]:
         if self.end_bin_index == 0:
-            start = VideoGenerator.get_video(
+            start = get_video(
                 self.preprocessed_image,
                 self.transform_definition,
                 np.zeros(1),
