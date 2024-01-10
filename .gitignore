@@ -9,6 +9,8 @@ output/
 /finished/
 models/
 *.png
+# Singularity
+*.sif
 # Sony IP
 /dependencies/
 
