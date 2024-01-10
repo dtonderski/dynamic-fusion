@@ -102,12 +102,18 @@ class EventDiscretizerConfiguration(BaseModel):
         None, description="Number of temporal bins to use in discretizer."
     )
     number_of_temporal_sub_bins_per_bin: int = Field(
-        None, 
-        description = "Number of sub-bins to use per temporal bin. If one "
-        "discretized event statistic has shape T D H W, then this is the D "
-        "dimension.")
-    ground_truth_temporal_location_in_bin: Literal["center", "end"] = Field(
-        None, description="Location of ground truth image in the bin."
+        None,
+        description=(
+            "Number of sub-bins to use per temporal bin. If one "
+            "discretized event statistic has shape T D H W, then this is the D "
+            "dimension."
+        ),
+    )
+    ground_truth_temporal_location_in_bin: str = Field(
+        None,
+        description=(
+            "Location of ground truth image in the bin, must be center or end."
+        ),
     )
 
 
