@@ -8,7 +8,6 @@ import torch
 from jaxtyping import Float
 from torch import nn
 
-from dynamic_fusion.data_generator.video_generator import VideoGenerator
 from dynamic_fusion.interactive_visualizer.configuration import (
     NetworkHandlerConfiguration,
 )
