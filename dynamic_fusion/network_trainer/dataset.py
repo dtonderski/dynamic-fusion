@@ -10,7 +10,6 @@ from jaxtyping import Float32
 from torch._tensor import Tensor
 from torch.utils.data import IterableDataset
 
-from dynamic_fusion.data_generator.video_generator import VideoGenerator
 from dynamic_fusion.utils.datatypes import GrayImageFloat
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
