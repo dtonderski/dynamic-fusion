@@ -71,8 +71,10 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                             "Output exists and overwrite is false, skipping."
                         )
                         continue
-
-                preprocessed_image = self.image_preprocessor.run(image)
+                try:
+                    preprocessed_image = self.image_preprocessor.run(image)
+                except ValueError:
+                    continue
 
                 video, transform_definition = self.video_generator.run(preprocessed_image)
 
