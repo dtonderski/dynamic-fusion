@@ -60,7 +60,7 @@ class CocoTransform:
 
         t_start = np.random.randint(
             low=0,
-            high=total_number_of_bins - self.shared_config.sequence_length,
+            high=total_number_of_bins - self.shared_config.sequence_length + 1, # + 1 because exclusive
         )
 
         network_data.event_polarity_sums = self.extract_part_of_tensor(

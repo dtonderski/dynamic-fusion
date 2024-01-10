@@ -34,7 +34,6 @@ network_loader:
 
 network_fitter:
   lr_reconstruction: 0.0005
-  lr_decoding: 0.0005
   number_of_training_iterations: 10_000
   reconstruction_loss_name: "LPIPS"
   skip_first_timesteps: 4
