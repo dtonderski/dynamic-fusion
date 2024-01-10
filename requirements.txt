@@ -1,4 +1,4 @@
-torch~=1.13
+torch~=1.12
 torchvision~=0.14
 
 h5py~=3.9
