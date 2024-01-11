@@ -204,7 +204,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             / crop_definition.total_number_of_bins
         )
 
-        timestamps_and_zero = torch.concatenate(
+        timestamps_and_zero = torch.concat(
             [torch.zeros(1), continuous_timestamps_using_video_time]
         )
 

@@ -101,7 +101,7 @@ class ConvGruNetV1(nn.Module):
         self.state2 = x3.clone()
 
         x3_up = F.interpolate(x3, size=(imsz0, imsz1), mode="bilinear")
-        x3_c = torch.concatenate([x3_up, x2, x0], dim=1)
+        x3_c = torch.concat([x3_up, x2, x0], dim=1)
 
         # resid:
         x4 = self.conv21(x3_c)

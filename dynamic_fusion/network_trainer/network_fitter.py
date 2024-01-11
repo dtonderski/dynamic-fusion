@@ -136,7 +136,7 @@ class NetworkFitter:
                     expanded_timestamps = continuous_timestamps[:, t, None, None, None].expand_as(
                         continuous_timestamp_frames[:, t]
                     )  # B 1 X Y
-                    encoding_and_time = torch.concatenate(
+                    encoding_and_time = torch.concat(
                         [prediction, expanded_timestamps], dim=1
                     )
 

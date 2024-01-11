@@ -69,7 +69,7 @@ class NetworkHandler:
             expanded_timestamp = torch.tensor([timestamp], device=self.device)[
                 :, None, None, None
             ].expand(1, 1, *self.prediction.shape[-2:])
-            encoding_and_time = torch.concatenate(
+            encoding_and_time = torch.concat(
                 [self.prediction, expanded_timestamp], dim=1
             )
             encoding_and_time = einops.rearrange(encoding_and_time, "1 C X Y -> 1 X Y C")
