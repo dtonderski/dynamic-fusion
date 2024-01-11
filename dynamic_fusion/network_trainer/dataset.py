@@ -213,7 +213,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             transform_definition,
             timestamps_and_zero,
             self.config.data_generator_target_image_size,
-            device=torch.device("cpu"),
+            device=torch.device("cuda"),
         )
 
         cropped_frames = frames_and_zero[
