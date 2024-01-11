@@ -1,3 +1,4 @@
+import torch
 from .configuration import TrainerConfiguration
 from .data_handler import DataHandler
 from .network_fitter import NetworkFitter
@@ -12,6 +13,7 @@ class Trainer:
     network_fitter: NetworkFitter
 
     def __init__(self, config: TrainerConfiguration) -> None:
+        torch.multiprocessing.set_start_method('spawn')
         self.config = config
         self.data_handler = DataHandler(config.data_handler, config.shared)
         self.network_loader = NetworkLoader(config.network_loader, config.shared)
