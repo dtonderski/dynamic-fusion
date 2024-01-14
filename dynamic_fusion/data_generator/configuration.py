@@ -1,12 +1,12 @@
 # mypy: disable-error-code="assignment"
 from pathlib import Path
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, root_validator
 
 
 class SharedConfiguration(BaseModel):
-    target_image_size: Tuple[int, int] = Field(None, description="Target image size.")
+    target_image_size: Optional[Tuple[int, int]] = Field(None, description="Target image size.")
     fps: int = Field(None, description="Framerate of the simulation.")
     number_of_images_to_generate_per_input: int = Field(
         None,

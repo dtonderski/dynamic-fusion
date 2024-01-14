@@ -33,7 +33,10 @@ class ImagePreprocessor:
         else:
             self.logger.info("Preprocessing image...")
 
-        if not self._validate_size(image):
+        if (
+            self.shared_config.target_image_size is not None
+            and not self._validate_size(image)
+        ):
             raise ValueError(
                 f"Skipping image - image shape {image.shape[:2]} "
                 "smaller than target shape "
@@ -62,9 +65,10 @@ class ImagePreprocessor:
             high=self.config.downscale_range[1],
         )
 
-        if np.min(image_size) > 2 * np.max(self.shared_config.target_image_size):
-            self.logger.debug("Downscaling large image by halving its size")
-            scale = 0.5
+        if self.shared_config.target_image_size is not None:
+            if np.min(image_size) > 2 * np.max(self.shared_config.target_image_size):
+                self.logger.debug("Downscaling large image by halving its size")
+                scale = 0.5
 
         downscaled_image_size = np.round(np.array(image_size) * scale)
 

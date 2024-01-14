@@ -25,7 +25,7 @@ class EventDiscretizer:
     config: EventDiscretizerConfiguration
     number_of_images_to_generate_per_input: int
     fps: int
-    target_image_size: Tuple[int, int]
+    target_image_size: Optional[Tuple[int, int]]
     logger: logging.Logger
 
     def __init__(
@@ -34,15 +34,23 @@ class EventDiscretizer:
         shared_config: Optional[SharedConfiguration] = None,
         number_of_images_to_generate_per_input: Optional[int] = None,
         fps: Optional[int] = None,
-        target_image_size: Optional[Tuple[int, int]] = None
+        target_image_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         self.config = config
         if shared_config is not None:
-            self.number_of_images_to_generate_per_input = shared_config.number_of_images_to_generate_per_input
+            self.number_of_images_to_generate_per_input = (
+                shared_config.number_of_images_to_generate_per_input
+            )
             self.fps = shared_config.fps
             self.target_image_size = shared_config.target_image_size
-        elif number_of_images_to_generate_per_input is not None and fps is not None and target_image_size is not None:
-            self.number_of_images_to_generate_per_input = number_of_images_to_generate_per_input
+        elif (
+            number_of_images_to_generate_per_input is not None
+            and fps is not None
+            and target_image_size is not None
+        ):
+            self.number_of_images_to_generate_per_input = (
+                number_of_images_to_generate_per_input
+            )
             self.fps = fps
             self.target_image_size = target_image_size
         else:
@@ -53,6 +61,7 @@ class EventDiscretizer:
     def run(
         self,
         events_dict: Dict[float, Events],
+        image_resolution: Optional[Tuple[int, int]] = None,
         progress_bar: Optional[tqdm] = None,
     ) -> Tuple[Dict[float, DiscretizedEvents], Int64[torch.Tensor, " N"]]:
         if progress_bar:
@@ -60,10 +69,13 @@ class EventDiscretizer:
         else:
             self.logger.info("Discretizing events...")
 
+        if self.target_image_size is None and image_resolution is None:
+            raise ValueError("Resolution must be set if target_image_size is None!")
+
         discretized_events_dict = {}
         for threshold, events in events_dict.items():
             discretized_events_dict[threshold] = self._discretize_events(
-                events, threshold
+                events, threshold, image_resolution
             )
 
         indices_of_label_frames = self._calculate_indices_of_label_frames()
@@ -106,11 +118,12 @@ class EventDiscretizer:
         )
 
     def _discretize_events(
-        self, events: Events, threshold: float
+        self,
+        events: Events,
+        threshold: float,
+        image_resolution: Optional[Tuple[int, int]] = None,
     ) -> DiscretizedEvents:
-        max_timestamp = (
-            self.number_of_images_to_generate_per_input - 1
-        ) / self.fps
+        max_timestamp = (self.number_of_images_to_generate_per_input - 1) / self.fps
         timestamps: TimeStamps = torch.tensor(events.timestamp.values.astype(float))
 
         events_torch: EventTensors = (
@@ -142,10 +155,16 @@ class EventDiscretizer:
             - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
         ).float()
 
+        if self.target_image_size is not None:
+            image_resolution = self.target_image_size
+        
+        if image_resolution is None:
+            raise ValueError("Image resolution is None!")
+
         resolution = (
             self.config.number_of_temporal_bins,
             self.config.number_of_temporal_sub_bins_per_bin,
-            *self.target_image_size,
+            *image_resolution,
         )
 
         event_polarity_sum: DiscretizedEventsStatistics = (

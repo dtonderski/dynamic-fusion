@@ -22,7 +22,7 @@ def get_video(
     image: GrayImage,
     transform_definition: TransformDefinition,
     timestamps: Float[np.ndarray, " T"],
-    target_image_size: Tuple[int, int],
+    target_image_size: Optional[Tuple[int, int]],
     number_of_images_to_generate_per_input: Optional[int] = None,
     use_pytorch: bool = True,
     device: torch.device = torch.device("cuda"),
