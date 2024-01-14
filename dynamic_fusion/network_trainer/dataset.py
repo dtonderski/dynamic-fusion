@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Callable, Generator, List, Tuple
+from typing import Callable, Generator, List, Optional, Tuple
 
 import einops
 import h5py
@@ -27,12 +27,12 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
     config: DatasetConfiguration
     shared_config: SharedConfiguration
     directory_list: List[Path]
-    transform: Callable[[ReconstructionSample], CroppedReconstructionSample]
+    augmentation: Callable[[ReconstructionSample], CroppedReconstructionSample]
     logger: logging.Logger
 
     def __init__(
         self,
-        transform: Callable[[ReconstructionSample], CroppedReconstructionSample],
+        augmentation: Callable[[ReconstructionSample], CroppedReconstructionSample],
         config: DatasetConfiguration,
         shared_config: SharedConfiguration,
     ) -> None:
@@ -41,7 +41,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         ]
         self.config = config
         self.shared_config = shared_config
-        self.transform = transform
+        self.augmentation = augmentation
         self.logger = logging.getLogger("CocoDataset")
 
     def __getitem__(
@@ -60,8 +60,8 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             Float32[
                 torch.Tensor, "Time 1 X Y"
             ],  # frame at end of bin, unused for continuous
-            Float32[torch.Tensor, "Time"],  # continuous timestamps
-            Float32[torch.Tensor, "Time 1 X Y"],  # frame at continuous timestamps
+            Optional[Float32[torch.Tensor, "Time"]],  # continuous timestamps
+            Optional[Float32[torch.Tensor, "Time 1 X Y"]],  # frame at continuous timestamps
         ],
         None,
         None,
@@ -107,9 +107,9 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                 event_count,
                 einops.rearrange(video, "Time X Y -> Time 1 X Y"),
             )
-            for _ in range(self.config.transform_tries):
+            for _ in range(self.config.augmentation_tries):
                 try:
-                    transformed_network_data = self.transform(network_data)
+                    augmented_network_data = self.augmentation(network_data)
                 except ValueError as ex:
                     self.logger.warning(
                         f"Encountered error {ex} when trying to transform"
@@ -117,19 +117,23 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                     )
                     continue
 
-                if self._validate(transformed_network_data.sample):
-                    continuous_timestamps_in_bins = torch.rand(
-                        self.shared_config.sequence_length
-                    )
-                    # TODO: video frames at the timestamps
-                    video_at_continuous_timestamps = (
-                        self._generate_frames_at_continuous_timestamps(
-                            continuous_timestamps_in_bins,
-                            preprocessed_image,
-                            transform_definition,
-                            transformed_network_data.transformation,
+                if self._validate(augmented_network_data.sample):
+                    if self.shared_config.implicit:
+                        continuous_timestamps_in_bins = torch.rand(
+                            self.shared_config.sequence_length
                         )
-                    )
+                        # TODO: video frames at the timestamps
+                        video_at_continuous_timestamps = (
+                            self._generate_frames_at_continuous_timestamps(
+                                continuous_timestamps_in_bins,
+                                preprocessed_image,
+                                transform_definition,
+                                augmented_network_data.crop_definition,
+                            )
+                        )
+                    else:
+                        continuous_timestamps_in_bins = None
+                        video_at_continuous_timestamps = None
                     yield (
                         network_data.event_polarity_sums,
                         network_data.timestamp_means,

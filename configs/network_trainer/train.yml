@@ -10,13 +10,13 @@ shared:
 data_handler:
   batch_size: 2
   num_workers: 1
-  transform:
+  augmentation:
     network_image_size: [96, 96]
 
   dataset:
     dataset_directory: "data/interim/coco/2subbins"
     threshold: 1.4 # 1.4
-    transform_tries: 2
+    augmentation_tries: 2
     video_tries: 5
     min_allowed_max_of_mean_polarities_over_times: 0.01
     data_generator_target_image_size: [180, 240]

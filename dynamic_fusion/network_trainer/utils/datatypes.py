@@ -31,7 +31,7 @@ class CropDefinition:
 @dataclass
 class CroppedReconstructionSample:
     sample: ReconstructionSample
-    transformation: CropDefinition
+    crop_definition: CropDefinition
 
 
 Batch: TypeAlias = Tuple[

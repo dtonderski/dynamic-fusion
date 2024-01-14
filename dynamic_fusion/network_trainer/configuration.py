@@ -19,7 +19,7 @@ class SharedConfiguration(BaseModel):
     implicit: bool = Field(...)
     feature_unfolding: bool = Field(...)
 
-class TransformsConfiguration(BaseModel):
+class AugmentationConfiguration(BaseModel):
     network_image_size: Tuple[int, int] = Field(
         ..., description="Image size that network expects to get."
     )
@@ -31,7 +31,7 @@ class DatasetConfiguration(BaseModel):
     )
     threshold: float = Field(..., description="Threshold to use")
 
-    transform_tries: int = Field(
+    augmentation_tries: int = Field(
         ...,
         description=(
             "Number of times transforms can be retried before moving onto next image."
@@ -56,7 +56,7 @@ class DatasetConfiguration(BaseModel):
 
 
 class DataHandlerConfiguration(BaseModel):
-    transform: TransformsConfiguration = Field(...)  # pyright: ignore
+    augmentation: AugmentationConfiguration = Field(...)  # pyright: ignore
     dataset: DatasetConfiguration = Field(...)  # pyright: ignore
     batch_size: int = Field(..., description="Batch size used in training.")
     num_workers: int = Field(..., description="Workers used by DataLoader")

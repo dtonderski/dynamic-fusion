@@ -8,7 +8,7 @@ from dynamic_fusion.utils.image import scale_video_to_quantiles
 from .configuration import (
     DataHandlerConfiguration,
     SharedConfiguration,
-    TransformsConfiguration,
+    AugmentationConfiguration,
 )
 from .dataset import CocoIterableDataset
 from .utils.datatypes import (
@@ -18,12 +18,12 @@ from .utils.datatypes import (
 )
 
 
-class CocoTransform:
-    config: TransformsConfiguration
+class CocoAugmentation:
+    config: AugmentationConfiguration
     shared_config: SharedConfiguration
 
     def __init__(
-        self, config: TransformsConfiguration, shared_config: SharedConfiguration
+        self, config: AugmentationConfiguration, shared_config: SharedConfiguration
     ):
         self.config = config
         self.shared_config = shared_config
@@ -111,8 +111,8 @@ class DataHandler:
     ) -> None:
         self.config = config
         self.shared_config = shared_config
-        transform = CocoTransform(config.transform, shared_config)
-        self.dataset = CocoIterableDataset(transform, config.dataset, shared_config)
+        augmentation = CocoAugmentation(config.augmentation, shared_config)
+        self.dataset = CocoIterableDataset(augmentation, config.dataset, shared_config)
 
     def run(self) -> DataLoader:  # type: ignore
         return DataLoader(
