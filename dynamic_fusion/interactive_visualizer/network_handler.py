@@ -187,22 +187,22 @@ class NetworkHandler:
         Float[torch.Tensor, "1 T SubBins X Y"],
     ]:
         polarity_sums = (
-            self.sample.event_polarity_sums[self.start_bin_index : self.end_bin_index]
+            self.sample.event_polarity_sums[self.start_bin_index : self.end_bin_index+1]
             .unsqueeze_(0)
             .to(self.device)
         )
         means = (
-            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index]
+            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index+1]
             .unsqueeze_(0)
             .to(self.device)
         )
         stds = (
-            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index]
+            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index+1]
             .unsqueeze_(0)
             .to(self.device)
         )
         counts = (
-            self.sample.event_counts[self.start_bin_index : self.end_bin_index]
+            self.sample.event_counts[self.start_bin_index : self.end_bin_index+1]
             .unsqueeze_(0)
             .to(self.device)
         )
