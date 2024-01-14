@@ -32,10 +32,14 @@ class NetworkLoader:
             + self.shared_config.use_count
         )
 
+        output_size = (
+            self.config.encoding.output_size if self.shared_config.implicit else 1
+        )
+
         encoding_network = ConvGruNetV1(
             input_size=total_input_shape,
             hidden_size=self.config.encoding.hidden_size,
-            out_size=self.config.encoding.output_size,
+            out_size=output_size,
             kernel_size=self.config.encoding.kernel_size,
         )
 
