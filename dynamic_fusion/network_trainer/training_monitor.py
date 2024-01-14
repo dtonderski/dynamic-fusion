@@ -48,7 +48,7 @@ class TrainingMonitor:
         data_loader: DataLoader,  # type: ignore
         reconstruction_network: nn.Module,
         optimizer: torch.optim.Optimizer,
-        decoding_network: nn.Module,
+        decoding_network: Optional[nn.Module],
     ) -> int:
         previous_subrun_directory, self.subrun_directory = (
             self._get_previous_and_current_subrun_directories()
@@ -84,7 +84,7 @@ class TrainingMonitor:
         previous_subrun_directory: Path,
         reconstruction_network: nn.Module,
         optimizer: torch.optim.Optimizer,
-        decoding_network: nn.Module,
+        decoding_network: Optional[nn.Module],
     ) -> int:
         checkpoint_path = previous_subrun_directory / LATEST_CHECKPOINT_FILENAME
         if not checkpoint_path.exists():
@@ -98,7 +98,7 @@ class TrainingMonitor:
             )
             reconstruction_network.to(self.device)
 
-        if checkpoint["decoding_state_dict"]:
+        if decoding_network is not None and checkpoint["decoding_state_dict"]:
             self.logger.info("Loading decoding_state_dict.")
             decoding_network.load_state_dict(
                 checkpoint["decoding_state_dict"]

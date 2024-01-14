@@ -54,7 +54,10 @@ class NetworkHandler:
         # wrong configuration, but it's OK
         self.network_loader = NetworkLoader(network_loader_configuration, config)  # type: ignore
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.encoding_network, self.decoding_network = self.network_loader.run()
+        self.encoding_network, decoding_network = self.network_loader.run()
+        if decoding_network is None:
+            raise ValueError("Only use implicit networks!")
+        self.decoding_network = decoding_network
 
         self.encoding_network.to(self.device)
         self.decoding_network.to(self.device)

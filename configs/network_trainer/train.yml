@@ -4,6 +4,8 @@ shared:
   use_mean: true
   use_std: true
   use_count: true
+  implicit: true
+  feature_unfolding: true
 
 data_handler:
   batch_size: 2

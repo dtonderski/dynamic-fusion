@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
@@ -20,11 +20,11 @@ class NetworkLoader:
         self.config = config
         self.shared_config = shared_config
 
-    def run(self) -> Tuple[nn.Module, nn.Module]:
+    def run(self) -> Tuple[nn.Module, Optional[nn.Module]]:
         reconstruction_network, decoding_network = self._load_reconstruction_network()
         return reconstruction_network, decoding_network
 
-    def _load_reconstruction_network(self) -> Tuple[nn.Module, nn.Module]:
+    def _load_reconstruction_network(self) -> Tuple[nn.Module, Optional[nn.Module]]:
 
         total_input_shape = self.config.reconstruction.input_size * (
             1
@@ -45,6 +45,9 @@ class NetworkLoader:
             reconstruction_network.load_state_dict(
                 checkpoint["reconstruction_state_dict"]
             )
+
+        if not self.shared_config.implicit:
+            return reconstruction_network, None
 
         decoding_network = MLP(
             input_size=self.config.decoding.input_size,
