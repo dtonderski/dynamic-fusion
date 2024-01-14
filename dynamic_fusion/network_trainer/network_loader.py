@@ -46,10 +46,16 @@ class NetworkLoader:
         if self.config.encoding_checkpoint_path:
             checkpoint = torch.load(self.config.encoding_checkpoint_path)
             # For backward compatibility (key was changed)
-            if checkpoint["encoding_state_dict"]:
+            if (
+                "encoding_state_dict" in checkpoint.keys()
+                and checkpoint["encoding_state_dict"]
+            ):
                 encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
             # For compatibility reasons
-            elif checkpoint["reconstruction_state_dict"]:
+            elif (
+                "reconstruction_state_dict" in checkpoint.keys()
+                and checkpoint["reconstruction_state_dict"]
+            ):
                 encoding_network.load_state_dict(
                     checkpoint["reconstruction_state_dict"]
                 )
