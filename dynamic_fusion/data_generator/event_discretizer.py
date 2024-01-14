@@ -82,11 +82,11 @@ class EventDiscretizer:
 
             1. 301 input video frames, 6 temporal bins gives:
                 300 intervals, discretized_frame_length = 50,
-                ground_truth_video_indices = [49, 99, 149, 199, 249, 299].
+                ground_truth_video_indices = [50, 100, 150, 200, 250, 300].
 
             2. 7 input video frames, 3 temporal bins gives:
                 6 intervals, discretized_frame_length = 2,
-                ground_truth_video_indices = [1, 3, 5].
+                ground_truth_video_indices = [2, 4, 6].
         """
 
         # Edges of temporal bins must align frames.
@@ -99,7 +99,7 @@ class EventDiscretizer:
         ) // self.config.number_of_temporal_bins
 
         return torch.arange(
-            discretized_frame_length - 1,
+            discretized_frame_length,
             self.number_of_images_to_generate_per_input - 1,
             discretized_frame_length,
             dtype=torch.int64,
