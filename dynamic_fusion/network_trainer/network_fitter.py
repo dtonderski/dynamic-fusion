@@ -166,7 +166,7 @@ class NetworkFitter:
                 X=continuous_timestamp_frames.shape[3],
                 Y=continuous_timestamp_frames.shape[4],
             )
-            encoding_and_time = torch.concatenate(
+            encoding_and_time = torch.concat(
                 [prediction, expanded_timestamps], dim=1
             )
 
