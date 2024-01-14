@@ -114,11 +114,11 @@ class NetworkHandler:
         return start, np.array(self.sample.video[self.end_bin_index, 0].cpu())
 
     def get_event_image(self) -> Float[torch.Tensor, "3 X Y"]:
-        polarity_sums_in_ben = self.sample.event_polarity_sums[
+        polarity_sums_in_bin = self.sample.event_polarity_sums[
             self.end_bin_index
         ].sum(dim=0)
         colored_event_polarity_sums = TrainingMonitor.img_to_colormap(
-            polarity_sums_in_ben.numpy(), TrainingMonitor.create_red_blue_cmap(501)
+            polarity_sums_in_bin.numpy(), TrainingMonitor.create_red_blue_cmap(501)
         )
         return colored_event_polarity_sums
 
