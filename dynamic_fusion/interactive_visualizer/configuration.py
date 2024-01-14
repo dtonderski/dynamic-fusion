@@ -8,6 +8,8 @@ class NetworkHandlerConfiguration(BaseModel):
     use_mean: bool = Field(...)
     use_std: bool = Field(...)
     use_count: bool = Field(...)
+    implicit: bool = Field(...)
+    feature_unfolding: bool = Field(...)
     data_generator_target_image_size: Tuple[int, int] = Field(...)
 
 
