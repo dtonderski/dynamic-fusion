@@ -62,7 +62,7 @@ class DataHandlerConfiguration(BaseModel):
     num_workers: int = Field(..., description="Workers used by DataLoader")
 
 
-class ReconstructionNetworkConfiguration(BaseModel):
+class EncodingNetworkConfiguration(BaseModel):
     input_size: int = Field(..., description="")
     hidden_size: int = Field(...)
     output_size: int = Field(...)
@@ -70,14 +70,13 @@ class ReconstructionNetworkConfiguration(BaseModel):
 
 
 class DecodingNetworkConfiguration(BaseModel):
-    input_size: int = Field(...)
     hidden_size: int = Field(...)
     hidden_layers: int = Field(...)
 
 
 class NetworkLoaderConfiguration(BaseModel):
-    reconstruction: ReconstructionNetworkConfiguration = Field(...)
-    reconstruction_checkpoint_path: Optional[Path] = Field(...)
+    encoding: EncodingNetworkConfiguration = Field(...)
+    encoding_checkpoint_path: Optional[Path] = Field(...)
 
     decoding: DecodingNetworkConfiguration = Field(...)
     decoding_checkpoint_path: Optional[Path] = Field(...)

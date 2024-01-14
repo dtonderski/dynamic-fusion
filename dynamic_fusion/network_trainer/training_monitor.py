@@ -82,7 +82,7 @@ class TrainingMonitor:
     def _load_checkpoint(
         self,
         previous_subrun_directory: Path,
-        reconstruction_network: nn.Module,
+        encoding_network: nn.Module,
         optimizer: torch.optim.Optimizer,
         decoding_network: Optional[nn.Module],
     ) -> int:
@@ -91,12 +91,20 @@ class TrainingMonitor:
             raise ValueError(f"Subrun found, but no {LATEST_CHECKPOINT_FILENAME}!")
 
         checkpoint: Checkpoint = torch.load(checkpoint_path)
-        if checkpoint["reconstruction_state_dict"]:
-            self.logger.info("Loading reconstruction_state_dict.")
-            reconstruction_network.load_state_dict(
-                checkpoint["reconstruction_state_dict"]
+        if checkpoint["encoding_state_dict"]:
+            self.logger.info("Loading encoding_state_dict.")
+            encoding_network.load_state_dict(
+                checkpoint["encoding_state_dict"]
             )
-            reconstruction_network.to(self.device)
+            encoding_network.to(self.device)
+        # For compatibility reasons
+        elif checkpoint["reconstruction_state_dict"]:  # type: ignore
+            self.logger.info("Loading reconstruction_state_dict.")
+            encoding_network.load_state_dict(
+                checkpoint["reconstruction_state_dict"]  # type: ignore
+            )
+            encoding_network.to(self.device)
+
 
         if decoding_network is not None and checkpoint["decoding_state_dict"]:
             self.logger.info("Loading decoding_state_dict.")
@@ -121,16 +129,16 @@ class TrainingMonitor:
 
     def save_checkpoint(
         self,
-        reconstruction_network: Optional[nn.Module] = None,
+        encoding_network: Optional[nn.Module] = None,
         optimizer: Optional[torch.optim.Optimizer] = None,
         decoding_network: Optional[nn.Module] = None,
         iteration: Optional[int] = None,
     ) -> None:
         checkpoint_path = self.subrun_directory / LATEST_CHECKPOINT_FILENAME
         checkpoint: Checkpoint = {
-            "reconstruction_state_dict": (
-                reconstruction_network.state_dict()
-                if reconstruction_network
+            "encoding_state_dict": (
+                encoding_network.state_dict()
+                if encoding_network
                 else None
             ),
             "optimizer_state_dict": (

@@ -21,36 +21,45 @@ class NetworkLoader:
         self.shared_config = shared_config
 
     def run(self) -> Tuple[nn.Module, Optional[nn.Module]]:
-        reconstruction_network, decoding_network = self._load_reconstruction_network()
-        return reconstruction_network, decoding_network
+        encoding_network, decoding_network = self._load_networks()
+        return encoding_network, decoding_network
 
-    def _load_reconstruction_network(self) -> Tuple[nn.Module, Optional[nn.Module]]:
-
-        total_input_shape = self.config.reconstruction.input_size * (
+    def _load_networks(self) -> Tuple[nn.Module, Optional[nn.Module]]:
+        total_input_shape = self.config.encoding.input_size * (
             1
             + self.shared_config.use_mean
             + self.shared_config.use_std
             + self.shared_config.use_count
         )
 
-        reconstruction_network = ConvGruNetV1(
+        encoding_network = ConvGruNetV1(
             input_size=total_input_shape,
-            hidden_size=self.config.reconstruction.hidden_size,
-            out_size=self.config.reconstruction.output_size,
-            kernel_size=self.config.reconstruction.kernel_size,
+            hidden_size=self.config.encoding.hidden_size,
+            out_size=self.config.encoding.output_size,
+            kernel_size=self.config.encoding.kernel_size,
         )
-        
-        if self.config.reconstruction_checkpoint_path:
-            checkpoint = torch.load(self.config.reconstruction_checkpoint_path)
-            reconstruction_network.load_state_dict(
-                checkpoint["reconstruction_state_dict"]
-            )
+
+        if self.config.encoding_checkpoint_path:
+            checkpoint = torch.load(self.config.encoding_checkpoint_path)
+            # For backward compatibility (key was changed)
+            if checkpoint["encoding_state_dict"]:
+                encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
+            # For compatibility reasons
+            elif checkpoint["reconstruction_state_dict"]:  # type: ignore
+                encoding_network.load_state_dict(
+                    checkpoint["reconstruction_state_dict"]  # type: ignore
+                )
 
         if not self.shared_config.implicit:
-            return reconstruction_network, None
+            return encoding_network, None
+
+        input_shape = self.config.encoding.output_size
+        if self.shared_config.feature_unfolding:
+            input_shape *= 9
+        input_shape += 1
 
         decoding_network = MLP(
-            input_size=self.config.decoding.input_size,
+            input_size=input_shape,
             hidden_size=self.config.decoding.hidden_size,
             hidden_layers=self.config.decoding.hidden_layers,
         )
@@ -59,4 +68,4 @@ class NetworkLoader:
             checkpoint = torch.load(self.config.decoding_checkpoint_path)
             decoding_network.load_state_dict(checkpoint["decoding_state_dict"])
 
-        return reconstruction_network, decoding_network
+        return encoding_network, decoding_network

@@ -42,7 +42,7 @@ TemporalSubBinIndices: TypeAlias = Int64[torch.Tensor, " N*D"]
 
 
 class Checkpoint(TypedDict):
-    reconstruction_state_dict: Optional[Dict[str, Any]]
+    encoding_state_dict: Optional[Dict[str, Any]]
     optimizer_state_dict: Optional[Dict[str, Any]]
     decoding_state_dict: Optional[Dict[str, Any]]
     iteration: Optional[int]

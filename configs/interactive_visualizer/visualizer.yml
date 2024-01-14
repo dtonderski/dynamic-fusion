@@ -1,20 +1,22 @@
 network_loader:
-  reconstruction:
-    input_size: 10 # should equal to be subbins
+  encoding:
+    input_size: 2 # should equal to be subbins
     hidden_size: 24
     output_size: 64
     kernel_size: 3
-  reconstruction_checkpoint_path: runs/continuous/sanity_test/subrun_07/latest_checkpoint.pt
+  encoding_checkpoint_path: runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
   decoding:
-    input_size: 65 # should be output of reconstruction+1
+    input_size: 65 # should be output of encoding+1
     hidden_size: 128
     hidden_layers: 4
-  decoding_checkpoint_path: runs/continuous/sanity_test/subrun_07/latest_checkpoint.pt
+  decoding_checkpoint_path: runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
 
 network_handler:
-  use_mean: false
-  use_std: false
-  use_count: false
+  use_mean: true
+  use_std: true
+  use_count: true
+  implicit: true
+  feature_unfolding: true
   data_generator_target_image_size: [180, 240]
 
-total_bins_in_video: 2
+total_bins_in_video: 100

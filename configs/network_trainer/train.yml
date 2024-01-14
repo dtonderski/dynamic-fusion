@@ -22,14 +22,14 @@ data_handler:
     data_generator_target_image_size: [180, 240]
 
 network_loader:
-  reconstruction:
+  encoding:
     input_size: 2 # should equal to be subbins
     hidden_size: 24
     output_size: 64
     kernel_size: 3
-  reconstruction_checkpoint_path: null
+  encoding_checkpoint_path: null
   decoding:
-    input_size: 65 # should be output of reconstruction+1
+    input_size: 65 # should be output of encoding+1
     hidden_size: 128
     hidden_layers: 4
   decoding_checkpoint_path: null
@@ -44,5 +44,5 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/continuous/test"
+  run_directory: "runs/coding_trials/test1"
   event_colors: [[255, 0, 0], [0, 255, 0]]

@@ -44,10 +44,10 @@ class NetworkFitter:
     def run(
         self,
         data_loader: DataLoader,  # type: ignore
-        reconstruction_network: nn.Module,
+        encoding_network: nn.Module,
         decoding_network: Optional[nn.Module],
     ) -> None:
-        params = list(reconstruction_network.parameters())
+        params = list(encoding_network.parameters())
         if decoding_network is not None:
             params += list(decoding_network.parameters())
 
@@ -55,12 +55,12 @@ class NetworkFitter:
 
         start_iteration = self.monitor.initialize(
             data_loader,
-            reconstruction_network,
+            encoding_network,
             optimizer,
             decoding_network,
         )
 
-        reconstruction_network.to(self.device)
+        encoding_network.to(self.device)
         if decoding_network is not None:
             decoding_network.to(self.device)
 
@@ -71,7 +71,7 @@ class NetworkFitter:
         ):
             self._reconstruction_step(
                 data_loader_iterator,
-                reconstruction_network,
+                encoding_network,
                 optimizer,
                 decoding_network,
                 iteration,
@@ -79,7 +79,7 @@ class NetworkFitter:
 
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(
-                    reconstruction_network,
+                    encoding_network,
                     optimizer,
                     decoding_network,
                     iteration,
