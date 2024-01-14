@@ -26,7 +26,7 @@ class TimeToPrevCounter(torch.nn.Module):
         if self.time_to_prev is None:
             self.time_to_prev = torch.zeros_like(d_unsubbinned)
 
-        mask = (d_unsubbinned == 0).float()  # type: ignore
+        mask = (d_unsubbinned == 0).float()
         count = (self.time_to_prev + 1.) * mask
         count = count.clamp(max=self.max_t)
         self.time_to_prev = count
