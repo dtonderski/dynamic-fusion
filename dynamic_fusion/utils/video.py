@@ -65,7 +65,7 @@ def _generate_video(
     shifts: Float[np.ndarray, "T 2"],
     rotations: Float[np.ndarray, "T 1"],
     scales: Float[np.ndarray, "T 2"],
-    target_image_size: Tuple[int, int],
+    target_image_size: Optional[Tuple[int, int]],
     number_of_images_to_generate_per_input: Optional[int] = None,
     use_pytorch: bool = True,
     device: torch.device = torch.device("cuda"),
@@ -90,7 +90,8 @@ def _generate_video(
         )
         video = _generate_video_scipy(image, transformation_matrices)
     video = normalize(video)
-    video = crop_video(video, target_image_size)
+    if target_image_size is not None:
+        video = crop_video(video, target_image_size)
     return video
 
 

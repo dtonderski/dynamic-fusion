@@ -80,8 +80,10 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
 
                 event_dict = self.event_generator.run(video)
 
+                image_resolution = video.shape[1:]
+
                 discretized_event_dict, indices_of_label_frames = (
-                    self.event_discretizer.run(event_dict)
+                    self.event_discretizer.run(event_dict, image_resolution)
                 )
 
                 ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
