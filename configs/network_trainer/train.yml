@@ -4,11 +4,11 @@ shared:
   use_mean: true
   use_std: true
   use_count: true
-  implicit: true
-  feature_unfolding: true
+  implicit: false
+  feature_unfolding: false
 
 data_handler:
-  batch_size: 2
+  batch_size: 1
   num_workers: 1
   augmentation:
     network_image_size: [96, 96]
@@ -25,11 +25,10 @@ network_loader:
   encoding:
     input_size: 2 # should equal to be subbins
     hidden_size: 24
-    output_size: 64
+    output_size: 64 # only used if implicit
     kernel_size: 3
   encoding_checkpoint_path: null
   decoding:
-    input_size: 65 # should be output of encoding+1
     hidden_size: 128
     hidden_layers: 4
   decoding_checkpoint_path: null
@@ -44,5 +43,5 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/coding_trials/test1"
+  run_directory: "runs/coding_trials/test2"
   event_colors: [[255, 0, 0], [0, 255, 0]]
