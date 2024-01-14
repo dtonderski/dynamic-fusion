@@ -132,8 +132,8 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                             )
                         )
                     else:
-                        continuous_timestamps_in_bins = None
-                        video_at_continuous_timestamps = None
+                        continuous_timestamps_in_bins = torch.zeros(1)
+                        video_at_continuous_timestamps = torch.zeros(1)
                     yield (
                         network_data.event_polarity_sums,
                         network_data.timestamp_means,
