@@ -49,9 +49,9 @@ class NetworkLoader:
             if checkpoint["encoding_state_dict"]:
                 encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
             # For compatibility reasons
-            elif checkpoint["reconstruction_state_dict"]:  # type: ignore
+            elif checkpoint["reconstruction_state_dict"]:
                 encoding_network.load_state_dict(
-                    checkpoint["reconstruction_state_dict"]  # type: ignore
+                    checkpoint["reconstruction_state_dict"]
                 )
 
         if not self.shared_config.implicit:
