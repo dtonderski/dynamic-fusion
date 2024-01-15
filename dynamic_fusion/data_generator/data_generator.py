@@ -80,7 +80,8 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                         continue
                 try:
                     preprocessed_image = self.image_preprocessor.run(image)
-                except ValueError:
+                except ValueError as e:
+                    self.logger.warning(e)
                     continue
 
                 video, transform_definition = self.video_generator.run(

@@ -8,7 +8,7 @@ shared: # used by more than one step in the pipeline
 image_loader:
   dataset_dir: "./data/raw/coco/test2014/"
   file_extension: "jpg"
-  number_of_input_images: 100 # Nimgs: 500 # number of images to use for generation
+  number_of_input_images: 50 # Nimgs: 500 # number of images to use for generation
 
 image_preprocessor:
   downscale_probability: 0 # downscale_prob
