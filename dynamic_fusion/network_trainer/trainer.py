@@ -15,10 +15,10 @@ class Trainer:
     network_fitter: NetworkFitter
 
     def __init__(self, config: TrainerConfiguration) -> None:
-        if self.config.seed is not None:
-            set_seeds(self.config.seed)
         torch.multiprocessing.set_start_method("spawn")
         self.config = config
+        if self.config.seed is not None:
+            set_seeds(self.config.seed)
         self.data_handler = DataHandler(config.data_handler, config.shared)
         self.network_loader = NetworkLoader(config.network_loader, config.shared)
         self.training_monitor = TrainingMonitor(config)
