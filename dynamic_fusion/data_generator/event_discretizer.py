@@ -112,7 +112,7 @@ class EventDiscretizer:
 
         return torch.arange(
             discretized_frame_length,
-            self.number_of_images_to_generate_per_input - 1,
+            self.number_of_images_to_generate_per_input,
             discretized_frame_length,
             dtype=torch.int64,
         )
