@@ -31,7 +31,7 @@ class CocoAugmentation:
     def __call__(
         self, network_data: ReconstructionSample
     ) -> CroppedReconstructionSample:
-        network_data.video = scale_video_to_quantiles(network_data.video)
+        # network_data.video = scale_video_to_quantiles(network_data.video)
         transformed_network_data = self._crop_tensors(network_data)
         return transformed_network_data
 
