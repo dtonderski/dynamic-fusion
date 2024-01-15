@@ -1,0 +1,1 @@
+top -b -n 1 -u dtonderski -o %MEM | grep python
