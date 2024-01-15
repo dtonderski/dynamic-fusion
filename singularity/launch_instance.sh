@@ -1,7 +1,7 @@
 #!/bin/bash
-# Check if the second argument is provided for the instance name
+# Check if the first argument is provided for the instance name
 if [ $# -gt 0 ]; then
-    INSTANCE_NAME=$2
+    INSTANCE_NAME=$1
 else
     # Define a default instance name or generate it dynamically
     INSTANCE_NAME="default_instance_name"
