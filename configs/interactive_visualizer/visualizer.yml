@@ -17,5 +17,6 @@ network_handler:
   implicit: true
   feature_unfolding: false
   data_generator_target_image_size: null
+  losses: ["LPIPS", "L1", "L2"]
 
 total_bins_in_video: 150

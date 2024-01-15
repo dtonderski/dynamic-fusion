@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import einops
 import h5py
@@ -12,13 +12,13 @@ from dynamic_fusion.interactive_visualizer.configuration import (
     NetworkHandlerConfiguration,
 )
 from dynamic_fusion.network_trainer.configuration import NetworkLoaderConfiguration
-from dynamic_fusion.network_trainer.dataset import CocoIterableDataset
 from dynamic_fusion.network_trainer.network_loader import NetworkLoader
 from dynamic_fusion.network_trainer.training_monitor import TrainingMonitor
 from dynamic_fusion.utils.dataset import discretized_events_to_tensors
 from dynamic_fusion.utils.datatypes import GrayImageFloat, ReconstructionSample
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.image import scale_video_to_quantiles
+from dynamic_fusion.utils.loss import get_reconstruction_loss
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video
 
@@ -43,7 +43,9 @@ class NetworkHandler:
     transform_definition: TransformDefinition
     last_decoding_prediction: Optional[Float[torch.Tensor, "X Y"]] = None
     last_timestamp: Optional[float] = None
+    last_ground_truth: Optional[Float[torch.Tensor, "X Y"]] = None
     device: torch.device
+    losses: List[nn.Module]
 
     def __init__(
         self,
@@ -62,6 +64,10 @@ class NetworkHandler:
         self.encoding_network.to(self.device)
         self.decoding_network.to(self.device)
         print("Loaded networks!")
+
+        self.losses = [
+            get_reconstruction_loss(x, self.device) for x in self.config.losses
+        ]
 
     # Public API
     def get_reconstruction(self, timestamp: float) -> Float[torch.Tensor, "X Y"]:
@@ -94,13 +100,14 @@ class NetworkHandler:
         timestamp_using_bin_time = timestamp + self.end_bin_index
         timestamp_using_video_time = timestamp_using_bin_time / total_bins_in_video
 
-        return get_video(
+        self.last_ground_truth = get_video(
             self.preprocessed_image,
             self.transform_definition,
             np.array([0, timestamp_using_video_time]),
             self.config.data_generator_target_image_size,
             device=torch.device("cpu"),
         )[1]
+        return self.last_ground_truth
 
     def get_start_and_end_images(
         self,
@@ -166,6 +173,14 @@ class NetworkHandler:
             print("Data loading successful!")
         except Exception as e:
             print(e)
+
+    def get_losses(self) -> List[float]:
+        prediction = einops.rearrange(
+            self.last_decoding_prediction, "X Y -> 1 1 X Y"
+        ).to(self.device)
+        gt_tensor = torch.tensor(self.last_ground_truth)
+        gt = einops.rearrange(gt_tensor, "X Y -> 1 1 X Y").to(self.device)  # type: ignore
+        return [loss(prediction, gt).item() for loss in self.losses]
 
     # Private
     def _run_network(self) -> None:

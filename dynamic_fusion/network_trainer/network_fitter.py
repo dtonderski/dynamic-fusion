@@ -10,7 +10,7 @@ from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 
 from dynamic_fusion.utils.datatypes import Batch
-from dynamic_fusion.utils.loss import LPIPS
+from dynamic_fusion.utils.loss import get_reconstruction_loss
 from dynamic_fusion.utils.network import network_data_to_device, to_numpy
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
@@ -35,7 +35,9 @@ class NetworkFitter:
         self.config = config
         self.shared_config = shared_config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.reconstruction_loss_function = self._get_reconstruction_loss()
+        self.reconstruction_loss_function = get_reconstruction_loss(
+            self.config.reconstruction_loss_name, self.device
+        )
         self.logger = logging.getLogger("NetworkFitter")
         self.monitor = monitor
 
@@ -205,16 +207,4 @@ class NetworkFitter:
                 np.stack(predictions, 1),
                 iteration,
                 True,
-            )
-
-    def _get_reconstruction_loss(self) -> nn.Module:
-        if self.config.reconstruction_loss_name.upper() == "L1":
-            return nn.L1Loss().to(self.device)
-        elif self.config.reconstruction_loss_name.upper() == "L2":
-            return nn.MSELoss().to(self.device)
-        elif self.config.reconstruction_loss_name.upper() == "LPIPS":
-            return LPIPS().to(self.device)
-        else:
-            raise ValueError(
-                f"Unknown image loss name: {self.config.reconstruction_loss_name}"
             )

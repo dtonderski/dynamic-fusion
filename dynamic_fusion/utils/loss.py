@@ -18,3 +18,14 @@ class LPIPS(nn.Module):
         x = einops.repeat(x, "B C X Y -> B (C three) X Y", three=3)
         y = einops.repeat(y, "B C X Y -> B (C three) X Y", three=3)
         return self.loss_function_vgg(2 * (x - 0.5), 2 * (y - 0.5))
+
+
+def get_reconstruction_loss(loss_name: str, device: torch.device) -> nn.Module:
+    if loss_name.upper() == "L1":
+        return nn.L1Loss().to(device)
+    elif loss_name.upper() == "L2":
+        return nn.MSELoss().to(device)
+    elif loss_name.upper() == "LPIPS":
+        return LPIPS().to(device)
+    else:
+        raise ValueError(f"Unknown image loss name: {loss_name}")
