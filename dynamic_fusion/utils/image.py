@@ -18,7 +18,7 @@ def scale_video_to_quantiles(
         video_high_quantile - video_low_quantile, torch.tensor(1e-5)
     )
     clipped_video = (clipped_video - video_low_quantile) / value_range
-    return video
+    return clipped_video
 
 
 def scale_to_quantiles_numpy(
