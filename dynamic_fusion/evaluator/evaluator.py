@@ -258,9 +258,6 @@ def evaluate_network(
                         current_losses
                     )
 
-        if i > 1:
-            break
-
     losses_dict = {key: value / losses_added for key, value in losses_dict.items()}
     return losses_dict
 
@@ -272,11 +269,11 @@ if __name__ == "__main__":
         test = False
         loss_names = ["LPIPS", "L1", "L2"]
 
-        a = evaluate_network(investigated_timestamps, False, False, test, loss_names, "cubic")
-        b = evaluate_network(investigated_timestamps, False, False, test, loss_names, "linear")
+        cubic = evaluate_network(investigated_timestamps, False, False, test, loss_names, "cubic")
+        linear = evaluate_network(investigated_timestamps, False, False, test, loss_names, "linear")
 
-        c = evaluate_network(investigated_timestamps, True, False, test, loss_names)
-        d = evaluate_network(investigated_timestamps, True, True, test, loss_names)
+        implicit = evaluate_network(investigated_timestamps, True, False, test, loss_names)
+        unfolded = evaluate_network(investigated_timestamps, True, True, test, loss_names)
 
         with open("../runs/evaluation/loss_dict.pkl", "wb") as f:
-            pickle.dump({"cubic": a, "linear": b, "implicit": c, "unfolded": d}, f)
+            pickle.dump({"cubic": cubic, "linear": linear, "implicit": implicit, "unfolded": unfolded}, f)
