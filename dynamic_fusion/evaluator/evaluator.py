@@ -24,12 +24,12 @@ from tqdm import tqdm
 
 TRAIN_DATASET_DIRECTORY = Path("data", "interim", "coco", "2subbins")
 TEST_DATASET_DIRECTORY = Path("data", "interim", "coco", "test", "2subbins")
-IMPLICIT = Path("runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt")
-UNFOLDING = Path("runs/continuous/fourth_run_with_unfolding/latest_checkpoint.pt")
-EXPLICIT = Path("runs/explicit/latest_checkpoint.pt")
+IMPLICIT = Path("runs/continuous/third_run_with_mean_std_count/subrun_02/latest_checkpoint.pt")
+UNFOLDING = Path("runs/continuous/fourth_run_with_unfolding/subrun_01/latest_checkpoint.pt")
+EXPLICIT = Path("runs/explicit/real_run/subrun_10/latest_checkpoint.pt")
 
 BATCH_SIZE = 1
-NUM_WORKERS = 2
+NUM_WORKERS = 0
 USE_MEAN, USE_STD, USE_COUNT = (True, True, True)
 
 ENCODING_INPUT_SIZE = 2
@@ -44,6 +44,7 @@ SKIP_FIRST = 4
 
 LOSS_BATCH_SIZE = 10
 
+DICT_OUTPUT = "./runs/evaluation/new_explicit_loss_dict.pkl"
 
 def load_encoding_network(implicit: bool, checkpoint_path: Path) -> nn.Module:
     total_input_shape = ENCODING_INPUT_SIZE * (1 + USE_MEAN + USE_STD + USE_COUNT)
@@ -266,14 +267,14 @@ if __name__ == "__main__":
     torch.multiprocessing.set_start_method("spawn")
     with torch.no_grad():
         investigated_timestamps = [0, 0.2, 0.4, 0.6, 0.8, 1]
-        test = False
+        test = True
         loss_names = ["LPIPS", "L1", "L2"]
 
         cubic = evaluate_network(investigated_timestamps, False, False, test, loss_names, "cubic")
         linear = evaluate_network(investigated_timestamps, False, False, test, loss_names, "linear")
 
-        implicit = evaluate_network(investigated_timestamps, True, False, test, loss_names)
-        unfolded = evaluate_network(investigated_timestamps, True, True, test, loss_names)
+        # implicit = evaluate_network(investigated_timestamps, True, False, test, loss_names)
+        # unfolded = evaluate_network(investigated_timestamps, True, True, test, loss_names)
 
-        with open("../runs/evaluation/loss_dict.pkl", "wb") as f:
-            pickle.dump({"cubic": cubic, "linear": linear, "implicit": implicit, "unfolded": unfolded}, f)
+        with open(DICT_OUTPUT, "wb") as f:
+            pickle.dump({"cubic": cubic, "linear": linear}, f)  # "implicit": implicit, "unfolded": unfolded}, f)
