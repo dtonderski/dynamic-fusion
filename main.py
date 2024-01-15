@@ -34,8 +34,6 @@ def visualize_interactive(arguments: argparse.Namespace) -> None:
 
 
 def main(arguments: argparse.Namespace) -> None:
-    if arguments.seed is not None:
-        set_seeds(arguments.seed)
     logging.basicConfig(level=logging.INFO)
 
     if arguments.generate_data:
@@ -50,7 +48,6 @@ def main(arguments: argparse.Namespace) -> None:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=str)
-    parser.add_argument("--seed", required=False, default=0, type=int)
     
     mode_group = parser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument(

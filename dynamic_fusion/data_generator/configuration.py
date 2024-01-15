@@ -41,6 +41,7 @@ class ImagePreprocessorConfiguration(BaseModel):
     downscale_range: List[float] = Field(
         None, description="Range of possible scales used for downscaling."
     )
+    max_image_size: Optional[Tuple[int, int]]
 
 
 class VideoGeneratorConfiguration(BaseModel):

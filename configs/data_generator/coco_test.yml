@@ -13,6 +13,7 @@ image_loader:
 image_preprocessor:
   downscale_probability: 0 # downscale_prob
   downscale_range: [0.7, 0.85] # downscale_range
+  max_image_size: [400, 400]
 
 video_generator:
   # A knot is a defined value for a transformation. We generate up to max_knots knots,

@@ -1,5 +1,7 @@
 import logging
 
+import numpy as np
+from jaxtyping import Int32
 from tqdm import tqdm
 
 from dynamic_fusion.utils.datatypes import GrayVideoFloat
@@ -24,11 +26,15 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
     event_generator: EventGenerator
     event_discretizer: EventDiscretizer
     data_saver: DataSaver
+    seeds: Int32[np.ndarray, " N"]
 
     def __init__(self, config: DataGeneratorConfiguration) -> None:
         self.config = config
         if config.shared.seed is not None:
             set_seeds(config.shared.seed)
+        self.seeds = np.random.randint(
+            0, np.iinfo(np.int32).max, self.config.image_loader.number_of_input_images
+        )
 
         self.logger = logging.getLogger("DataGenerator")
 
@@ -54,6 +60,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
         print("-------------------------------------")
         with tqdm(total=len(self.image_loader)) as progress_bar:
             for i_image in tqdm(range(len(self.image_loader))):
+                set_seeds(self.seeds[i_image])
                 progress_bar.set_description(
                     f"Processing image {i_image+1} of {len(self.image_loader)}"
                 )
@@ -76,7 +83,9 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                 except ValueError:
                     continue
 
-                video, transform_definition = self.video_generator.run(preprocessed_image)
+                video, transform_definition = self.video_generator.run(
+                    preprocessed_image
+                )
 
                 event_dict = self.event_generator.run(video)
 
@@ -86,7 +95,9 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     self.event_discretizer.run(event_dict, image_resolution)
                 )
 
-                ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
+                ground_truth_video: GrayVideoFloat = video[
+                    indices_of_label_frames, :, :
+                ]
 
                 self.data_saver.run(
                     image_path,
