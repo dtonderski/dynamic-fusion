@@ -3,8 +3,9 @@ from pathlib import Path
 import h5py
 import numpy as np
 import torch
+from tqdm import tqdm
 
-DATASET_DIR = Path("./data/interim/coco/2subbins")
+DATASET_DIR = Path("./data/interim/coco/1subbins")
 NUMBER_OF_IMAGES_TO_GENERATE_PER_INPUT = 2001
 NUMBER_OF_TEMPORAL_BINS = 100
 H5_COMPRESSION = 3
@@ -12,7 +13,7 @@ H5_COMPRESSION = 3
 
 if __name__ == '__main__':
     directory_list = [path for path in DATASET_DIR.glob("**/*") if path.is_dir()]
-    for directory in directory_list:
+    for directory in tqdm(directory_list):
         video_path = directory / "ground_truth.h5"
         with h5py.File(video_path, "r") as file:
             video = np.array(file["synchronized_video"])
