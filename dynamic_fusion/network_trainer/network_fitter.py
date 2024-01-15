@@ -64,30 +64,44 @@ class NetworkFitter:
         if decoding_network is not None:
             decoding_network.to(self.device)
 
-        data_loader_iterator = iter(data_loader)
+        iteration = start_iteration
+        for batch in data_loader:
+            print(iteration)
+            if iteration > self.config.number_of_training_iterations:
+                break
+            # self._reconstruction_step(
+            #     batch,
+            #     encoding_network,
+            #     optimizer,
+            #     decoding_network,
+            #     iteration,
+            # )
+            iteration += 1
 
-        for iteration in range(
-            start_iteration, self.config.number_of_training_iterations
-        ):
-            self._reconstruction_step(
-                data_loader_iterator,
-                encoding_network,
-                optimizer,
-                decoding_network,
-                iteration,
-            )
 
-            if iteration % self.config.network_saving_frequency == 0:
-                self.monitor.save_checkpoint(
-                    encoding_network,
-                    optimizer,
-                    decoding_network,
-                    iteration,
-                )
+
+        # for iteration in range(
+        #     start_iteration, self.config.number_of_training_iterations
+        # ):
+        #     self._reconstruction_step(
+        #         data_loader_iterator,
+        #         encoding_network,
+        #         optimizer,
+        #         decoding_network,
+        #         iteration,
+        #     )
+
+            # if iteration % self.config.network_saving_frequency == 0:
+            #     self.monitor.save_checkpoint(
+            #         encoding_network,
+            #         optimizer,
+            #         decoding_network,
+            #         iteration,
+            #     )
 
     def _reconstruction_step(
         self,
-        data_loader_iterator: Iterator[Batch],
+        batch: Batch,
         encoding_network: nn.Module,
         optimizer: Optimizer,
         decoding_network: Optional[nn.Module],
@@ -106,7 +120,7 @@ class NetworkFitter:
                 continuous_timestamps,
                 continuous_timestamp_frames,
             ) = network_data_to_device(
-                next(data_loader_iterator),
+                batch,
                 self.device,
                 self.shared_config.use_mean,
                 self.shared_config.use_std,
@@ -117,8 +131,8 @@ class NetworkFitter:
 
         forward_start = time.time()
 
-        visualize = iteration % self.config.visualization_frequency == 0
-        event_polarity_sum_list, images, predictions = [], [], []
+        # visualize = iteration % self.config.visualization_frequency == 0
+        # event_polarity_sum_list, images, predictions = [], [], []
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
@@ -142,11 +156,11 @@ class NetworkFitter:
                         prediction, video[:, t, ...]
                     ).mean()
                 )
-                if not visualize:
-                    continue
-                event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-                images.append(to_numpy(video[:, t, ...]))
-                predictions.append(to_numpy(prediction))
+                # if not visualize:
+                #     continue
+                # event_polarity_sum_list.append(to_numpy(event_polarity_sum))
+                # images.append(to_numpy(video[:, t, ...]))
+                # predictions.append(to_numpy(prediction))
                 continue
 
             # Implicit
@@ -179,32 +193,32 @@ class NetworkFitter:
                     prediction, continuous_timestamp_frames[:, t, ...]
                 ).mean()
             )
-            if not visualize:
-                continue
+            # if not visualize:
+            #     continue
 
-            event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-            images.append(to_numpy(continuous_timestamp_frames[:, t, ...]))
-            predictions.append(to_numpy(prediction))
+            # event_polarity_sum_list.append(to_numpy(event_polarity_sum))
+            # images.append(to_numpy(continuous_timestamp_frames[:, t, ...]))
+            # predictions.append(to_numpy(prediction))
 
-        image_loss /= self.shared_config.sequence_length
+        # image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
             image_loss.backward()  # type: ignore
             optimizer.step()
 
-        time_batch, time_backward = timer_batch.interval, timer_backward.interval
-        self.logger.info(
-            f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f},"
-            f" {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)"
-        )
+        # time_batch, time_backward = timer_batch.interval, timer_backward.interval
+        # self.logger.info(
+        #     f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f},"
+        #     f" {time_backward=:.2f}, {image_loss.item()=:.3f} (reconstruction)"
+        # )
 
-        self.monitor.on_reconstruction(image_loss.item(), iteration)
-        if visualize:
-            self.monitor.visualize(
-                np.stack(event_polarity_sum_list, 1),
-                np.stack(images, 1),
-                np.stack(predictions, 1),
-                iteration,
-                True,
-            )
+        # self.monitor.on_reconstruction(image_loss.item(), iteration)
+        # if visualize:
+        #     self.monitor.visualize(
+        #         np.stack(event_polarity_sum_list, 1),
+        #         np.stack(images, 1),
+        #         np.stack(predictions, 1),
+        #         iteration,
+        #         True,
+        #     )

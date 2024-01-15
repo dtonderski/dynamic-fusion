@@ -10,6 +10,7 @@ from jaxtyping import Float32
 from torch._tensor import Tensor
 from torch.utils.data import IterableDataset
 
+from dynamic_fusion.utils.image import scale_video_to_quantiles, scale_to_quantiles_numpy
 from dynamic_fusion.utils.dataset import (
     discretized_events_to_tensors,
     generate_frames_at_continuous_timestamps,
@@ -68,83 +69,104 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         None,
         None,
     ]:
-        while True:
-            index = np.random.randint(0, len(self.directory_list))
+        with torch.no_grad():
+            while True:
+                index = np.random.randint(0, len(self.directory_list))
 
-            threshold_path = (
-                self.directory_list[index]
-                / f"discretized_events_{self.config.threshold}.h5"
-            )
-            with h5py.File(threshold_path, "r") as file:
-                discretized_events = DiscretizedEvents.load_from_file(file)
-
-            video_path = self.directory_list[index] / "ground_truth.h5"
-            with h5py.File(video_path, "r") as file:
-                video = torch.from_numpy(np.array(file["synchronized_video"])).to(
-                    torch.float32
+                threshold_path = (
+                    self.directory_list[index]
+                    / f"discretized_events_{self.config.threshold}.h5"
                 )
+                with h5py.File(threshold_path, "r") as file:
+                    discretized_events = DiscretizedEvents.load_from_file(file)
 
-            input_path = self.directory_list[index] / "input.h5"
-            with h5py.File(input_path, "r") as file:
-                preprocessed_image: GrayImageFloat = np.array(
-                    file["preprocessed_image"]
-                )
-                transform_definition = TransformDefinition.load_from_file(file)
-
-            event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-                discretized_events_to_tensors(discretized_events)
-            )
-
-            network_data = ReconstructionSample(
-                event_polarity_sum,
-                timestamp_mean,
-                timestamp_std,
-                event_count,
-                einops.rearrange(video, "Time X Y -> Time 1 X Y"),
-            )
-            for _ in range(self.config.augmentation_tries):
-                try:
-                    augmented_network_data = self.augmentation(network_data)
-                except ValueError as ex:
-                    self.logger.warning(
-                        f"Encountered error {ex} when trying to transform"
-                        f" {self.directory_list[index]}, retrying transforms."
+                video_path = self.directory_list[index] / "ground_truth.h5"
+                with h5py.File(video_path, "r") as file:
+                    video = torch.from_numpy(np.array(file["synchronized_video"])).to(
+                        torch.float32
                     )
-                    continue
 
-                if self._validate(augmented_network_data.sample):
-                    if self.shared_config.implicit:
-                        continuous_timestamps_in_bins = torch.rand(
-                            self.shared_config.sequence_length
-                        )
-                        # TODO: video frames at the timestamps
-                        video_at_continuous_timestamps = (
-                            generate_frames_at_continuous_timestamps(
-                                continuous_timestamps_in_bins,
-                                preprocessed_image,
-                                transform_definition,
-                                augmented_network_data.crop_definition,
-                                self.config.data_generator_target_image_size,
-                            )
-                        )
-                    else:
-                        continuous_timestamps_in_bins = torch.zeros(1)
-                        video_at_continuous_timestamps = torch.zeros(1)
-                    yield (
-                        network_data.event_polarity_sums,
-                        network_data.timestamp_means,
-                        network_data.timestamp_stds,
-                        network_data.event_counts,
-                        network_data.video,
-                        continuous_timestamps_in_bins,
-                        video_at_continuous_timestamps,
+                input_path = self.directory_list[index] / "input.h5"
+                with h5py.File(input_path, "r") as file:
+                    preprocessed_image: GrayImageFloat = np.array(
+                        file["preprocessed_image"]
                     )
-                    break
-            else:  # This happens if no break
-                self.logger.warning(
-                    f"No valid data found for dir {self.directory_list[index].name},"
-                    " skipping!"
+                    transform_definition = TransformDefinition.load_from_file(file)
+
+
+                event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
+                    discretized_events_to_tensors(discretized_events)
                 )
+                # yield event_polarity_sum, timestamp_mean, timestamp_std, event_count
+
+                network_data = ReconstructionSample(
+                    event_polarity_sum,
+                    timestamp_mean,
+                    timestamp_std,
+                    event_count,
+                    einops.rearrange(video, "Time X Y -> Time 1 X Y"),
+                )
+
+
+                #network_data.video = scale_video_to_quantiles(network_data.video)
+                #network_data.video = torch.tensor(scale_to_quantiles_numpy(network_data.video.numpy(), axis=[2,3], q_low =0.01, q_high=0.99))
+
+                # try:
+                #     augmented_network_data = self.augmentation(network_data)
+                # except Exception:
+                #     continue
+                # print(threshold_path)
+                # print(network_data.event_polarity_sums.shape)
+                # print(network_data.video.shape)
+                yield (network_data.event_polarity_sums,
+                    network_data.timestamp_means,
+                    network_data.timestamp_stds,
+                    network_data.event_counts,
+                    network_data.video)
+                
+                # for _ in range(self.config.augmentation_tries):
+                #     try:
+                #         augmented_network_data = self.augmentation(network_data)
+                #     except ValueError as ex:
+                #         self.logger.warning(
+                #             f"Encountered error {ex} when trying to transform"
+                #             f" {self.directory_list[index]}, retrying transforms."
+                #         )
+                #         continue
+
+                #     if self._validate(augmented_network_data.sample):
+                #         if self.shared_config.implicit:
+                #             continuous_timestamps_in_bins = torch.rand(
+                #                 self.shared_config.sequence_length
+                #             )
+                #             # TODO: video frames at the timestamps
+                #             video_at_continuous_timestamps = (
+                #                 generate_frames_at_continuous_timestamps(
+                #                     continuous_timestamps_in_bins,
+                #                     preprocessed_image,
+                #                     transform_definition,
+                #                     augmented_network_data.crop_definition,
+                #                     self.config.data_generator_target_image_size,
+                #                 )
+                #             )
+                #         else:
+                #             continuous_timestamps_in_bins = torch.zeros(1)
+                #             video_at_continuous_timestamps = torch.zeros(1)
+                #         yield (
+                #             network_data.event_polarity_sums,
+                #             network_data.timestamp_means,
+                #             network_data.timestamp_stds,
+                #             network_data.event_counts,
+                #             network_data.video,
+                #             continuous_timestamps_in_bins,
+                #             video_at_continuous_timestamps,
+                #         )
+                #         break
+                # else:  # This happens if no break
+                #     self.logger.warning(
+                #         f"No valid data found for dir {self.directory_list[index].name},"
+                #         " skipping!"
+                #     )
 
     def _validate(self, sample: ReconstructionSample) -> bool:
         if torch.all(sample.event_counts == 0):
