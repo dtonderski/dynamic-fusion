@@ -7,8 +7,8 @@ import h5py
 import numpy as np
 import torch
 from jaxtyping import Float, Float32
+from torch.utils.data import Dataset
 
-from dynamic_fusion.network_trainer.dataset import CocoIterableDataset
 from dynamic_fusion.utils.dataset import (
     discretized_events_to_tensors,
     generate_frames_at_continuous_timestamps,
@@ -22,44 +22,43 @@ from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.image import scale_video_to_quantiles
 from dynamic_fusion.utils.transform import TransformDefinition
 
-from .configuration import DatasetConfiguration, SharedConfiguration
-
 
 class CocoTestDataset(Dataset):  # type: ignore
-    config: DatasetConfiguration
-    shared_config: SharedConfiguration
-    timesteps_in_bin: List[int]
-    use_random_timesteps: int
-    timestamps: Float[torch.Tensor, " N TMax"]
+    threshold: float
+    implicit: bool
+    timesteps_in_bin: List[float]
+    use_random_timesteps: int = False
+    timestamps: Float[torch.Tensor, " NDataset TMax"]
     directory_list: List[Path]
     logger: logging.Logger
 
     def __init__(
         self,
-        timestamps_in_bin: Optional[List[int]],
-        maximum_allowed_sequence_length: int,
-        config: DatasetConfiguration,
-        shared_config: SharedConfiguration,
+        dataset_directory: Path,
+        implicit: bool,
+        timestamps_in_bin: Optional[List[float]],
+        threshold: float = 1.4,
+        maximum_sequence_length: int = 150,
+        data_generator_target_image_size: Optional[Tuple[int, int]] = None
     ) -> None:
         self.logger = logging.getLogger("CocoDataset")
-        self.config = config
-        self.shared_config = shared_config
+        self.threshold = threshold
+        self.implicit = implicit
+        self.data_generator_target_image_size = data_generator_target_image_size
 
         self.directory_list = [
-            path for path in config.dataset_directory.glob("**/*") if path.is_dir()
+            path for path in dataset_directory.glob("**/*") if path.is_dir()
         ]
         if timestamps_in_bin is None:
             self.timesteps_in_bin = [1]
-            if self.shared_config.implicit:
+            if implicit:
                 self.use_random_timesteps = True
-                self.timestamps = torch.rand(
-                    len(self), maximum_allowed_sequence_length
-                )
+                self.timestamps = torch.rand(len(self), maximum_sequence_length)
         else:
             self.timesteps_in_bin = timestamps_in_bin
 
     def __len__(self) -> int:
-        return len(self.directory_list) * len(self.timesteps_in_bin)
+        return len(self.directory_list)
 
     def __getitem__(self, index: int) -> Tuple[
         Float32[torch.Tensor, "Time SubBin X Y"],  # polarity sum
@@ -67,13 +66,12 @@ class CocoTestDataset(Dataset):  # type: ignore
         Float32[torch.Tensor, "Time SubBin X Y"],  # std
         Float32[torch.Tensor, "Time SubBin X Y"],  # event count
         Float32[torch.Tensor, "Time 1 X Y"],  # bin end frame, unused in implicit
-        Optional[Float32[torch.Tensor, "Time"]],  # continuous timestamps
-        Optional[Float32[torch.Tensor, "Time 1 X Y"]],  # frames at timestamps
+        Optional[Float32[torch.Tensor, "N Time"]],  # continuous timestamps
+        Optional[Float32[torch.Tensor, "N Time 1 X Y"]],  # frames at timestamps
     ]:
-        file_index = index // len(self.timesteps_in_bin)
-        directory = self.directory_list[file_index]
+        directory = self.directory_list[index]
 
-        threshold_path = directory / f"discretized_events_{self.config.threshold}.h5"
+        threshold_path = directory / f"discretized_events_{self.threshold}.h5"
         with h5py.File(threshold_path, "r") as file:
             discretized_events = DiscretizedEvents.load_from_file(file)
 
@@ -98,39 +96,49 @@ class CocoTestDataset(Dataset):  # type: ignore
             event_count,
             einops.rearrange(video, "Time X Y -> Time 1 X Y"),
         )
+
         network_data.video = scale_video_to_quantiles(network_data.video)
 
         crop_definition = CropDefinition(
             0,
             0,
             0,
-            network_data.video.shape[1],
             network_data.video.shape[2],
+            network_data.video.shape[3],
             network_data.video.shape[0],
             network_data.video.shape[0],
         )
 
-        if self.shared_config.implicit:
+        if self.implicit or self.timesteps_in_bin != [1]:
             if self.use_random_timesteps:
-                timestep_index = index % len(self.timesteps_in_bin)
-                timestamp = torch.tensor(self.timesteps_in_bin[timestep_index])
-                continuous_timestamps_in_bins = einops.repeat(
-                    timestamp,
-                    " -> T",
+                timestamps_in_bins: Float[torch.Tensor, " 1 T"] = self.timestamps[
+                    index : index + 1, : video.shape[0]
+                ]
+            else:
+                timestamps: Float[torch.Tensor, " N"] = torch.tensor(
+                    self.timesteps_in_bin
+                )
+                timestamps_in_bins = einops.repeat(
+                    timestamps,
+                    "N -> N T",
                     T=network_data.video.shape[0],
                 )
-            else:
-                continuous_timestamps_in_bins = self.timestamps[:, : video.shape[0]]
 
-            # TODO: video frames at the timestamps
-            video_at_continuous_timestamps = generate_frames_at_continuous_timestamps(
-                continuous_timestamps_in_bins,
-                preprocessed_image,
-                transform_definition,
-                crop_definition,
-            )
+            videos_at_timestamps = []
+            for timestamps_in_bins_i in timestamps_in_bins:
+                videos_at_timestamps.append(
+                    generate_frames_at_continuous_timestamps(
+                        timestamps_in_bins_i,
+                        preprocessed_image,
+                        transform_definition,
+                        crop_definition,
+                        self.data_generator_target_image_size
+                    )
+                )
+            
+            video_at_continuous_timestamps = torch.stack(videos_at_timestamps)
         else:
-            continuous_timestamps_in_bins = torch.zeros(1)
+            timestamps_in_bins = torch.zeros(1)
             video_at_continuous_timestamps = torch.zeros(1)
 
         return (
@@ -139,6 +147,6 @@ class CocoTestDataset(Dataset):  # type: ignore
             network_data.timestamp_stds,
             network_data.event_counts,
             network_data.video,
-            continuous_timestamps_in_bins,
+            timestamps_in_bins,
             video_at_continuous_timestamps,
         )
