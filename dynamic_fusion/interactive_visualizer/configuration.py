@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 from pydantic import BaseModel, Field
 
 from dynamic_fusion.network_trainer.configuration import NetworkLoaderConfiguration
@@ -10,7 +10,7 @@ class NetworkHandlerConfiguration(BaseModel):
     use_count: bool = Field(...)
     implicit: bool = Field(...)
     feature_unfolding: bool = Field(...)
-    data_generator_target_image_size: Tuple[int, int] = Field(...)
+    data_generator_target_image_size: Optional[Tuple[int, int]] = Field(...)
 
 
 class VisualizerConfiguration(BaseModel):

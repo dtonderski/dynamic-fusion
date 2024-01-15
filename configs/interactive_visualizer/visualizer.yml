@@ -15,7 +15,7 @@ network_handler:
   use_std: true
   use_count: true
   implicit: true
-  feature_unfolding: true
-  data_generator_target_image_size: [180, 240]
+  feature_unfolding: false
+  data_generator_target_image_size: null
 
-total_bins_in_video: 100
+total_bins_in_video: 150
