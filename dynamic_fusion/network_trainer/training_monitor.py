@@ -13,14 +13,10 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from dynamic_fusion.utils.datatypes import Checkpoint
+from dynamic_fusion.utils.datatypes import Batch, Checkpoint
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
 
-from .configuration import (
-    SharedConfiguration,
-    TrainerConfiguration,
-)
-from .utils.datatypes import Batch
+from .configuration import SharedConfiguration, TrainerConfiguration
 
 LATEST_CHECKPOINT_FILENAME = "latest_checkpoint.pt"
 
@@ -93,9 +89,7 @@ class TrainingMonitor:
         checkpoint: Checkpoint = torch.load(checkpoint_path)
         if checkpoint["encoding_state_dict"]:
             self.logger.info("Loading encoding_state_dict.")
-            encoding_network.load_state_dict(
-                checkpoint["encoding_state_dict"]
-            )
+            encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
             encoding_network.to(self.device)
         # For compatibility reasons
         elif checkpoint["reconstruction_state_dict"]:  # type: ignore
@@ -105,19 +99,14 @@ class TrainingMonitor:
             )
             encoding_network.to(self.device)
 
-
         if decoding_network is not None and checkpoint["decoding_state_dict"]:
             self.logger.info("Loading decoding_state_dict.")
-            decoding_network.load_state_dict(
-                checkpoint["decoding_state_dict"]
-            )
+            decoding_network.load_state_dict(checkpoint["decoding_state_dict"])
             decoding_network.to(self.device)
 
         if checkpoint["optimizer_state_dict"]:
             self.logger.info("Loading optimizer_state_dict.")
-            optimizer.load_state_dict(
-                checkpoint["optimizer_state_dict"]
-            )
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         if checkpoint["iteration"]:
             iteration = checkpoint["iteration"]
@@ -137,19 +126,11 @@ class TrainingMonitor:
         checkpoint_path = self.subrun_directory / LATEST_CHECKPOINT_FILENAME
         checkpoint: Checkpoint = {
             "encoding_state_dict": (
-                encoding_network.state_dict()
-                if encoding_network
-                else None
+                encoding_network.state_dict() if encoding_network else None
             ),
-            "optimizer_state_dict": (
-                optimizer.state_dict()
-                if optimizer
-                else None
-            ),
+            "optimizer_state_dict": optimizer.state_dict() if optimizer else None,
             "decoding_state_dict": (
-                decoding_network.state_dict()
-                if decoding_network
-                else None
+                decoding_network.state_dict() if decoding_network else None
             ),
             "iteration": iteration,
         }

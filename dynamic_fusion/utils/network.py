@@ -1,9 +1,8 @@
 import numpy as np
+from dynamic_fusion.utils.datatypes import Batch
+
+
 import torch
-from torch import nn
-
-
-from .datatypes import Batch
 
 
 def network_data_to_device(

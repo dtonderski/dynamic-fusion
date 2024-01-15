@@ -10,17 +10,19 @@ from jaxtyping import Float32
 from torch._tensor import Tensor
 from torch.utils.data import IterableDataset
 
-from dynamic_fusion.utils.datatypes import GrayImageFloat
-from dynamic_fusion.utils.discretized_events import DiscretizedEvents
-from dynamic_fusion.utils.transform import TransformDefinition
-from dynamic_fusion.utils.video import get_video
-
-from .configuration import DatasetConfiguration, SharedConfiguration
-from .utils.datatypes import (
-    CropDefinition,
+from dynamic_fusion.utils.dataset import (
+    discretized_events_to_tensors,
+    generate_frames_at_continuous_timestamps,
+)
+from dynamic_fusion.utils.datatypes import (
     CroppedReconstructionSample,
+    GrayImageFloat,
     ReconstructionSample,
 )
+from dynamic_fusion.utils.discretized_events import DiscretizedEvents
+from dynamic_fusion.utils.transform import TransformDefinition
+
+from .configuration import DatasetConfiguration, SharedConfiguration
 
 
 class CocoIterableDataset(IterableDataset):  # type: ignore
@@ -57,23 +59,16 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             Float32[torch.Tensor, "Time SubBin X Y"],  # mean
             Float32[torch.Tensor, "Time SubBin X Y"],  # std
             Float32[torch.Tensor, "Time SubBin X Y"],  # event count
-            Float32[
-                torch.Tensor, "Time 1 X Y"
-            ],  # frame at end of bin, unused for continuous
+            Float32[torch.Tensor, "Time 1 X Y"],  # bin end frame, unused in implicit
             Optional[Float32[torch.Tensor, "Time"]],  # continuous timestamps
-            Optional[Float32[torch.Tensor, "Time 1 X Y"]],  # frame at continuous timestamps
+            Optional[
+                Float32[torch.Tensor, "Time 1 X Y"]
+            ],  # frame at continuous timestamps
         ],
         None,
         None,
     ]:
         while True:
-            # TODO: add continuous time here
-            # Reconstruction sample should also include times of frames in bin
-            # Generating it before cropping the tensor in time is inefficient, but it shouldn't
-            # matter with num_workers = 4 - batch generation should not be a bottleneck.
-            # to be verified, though. Can use len(discretized_events) to calculate
-            # timestamps I think. First, generate len(discretized_events) samples from U[0,1],
-            # then get the size of each bin by 1/len(discretized_events)
             index = np.random.randint(0, len(self.directory_list))
 
             threshold_path = (
@@ -97,7 +92,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                 transform_definition = TransformDefinition.load_from_file(file)
 
             event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-                self.discretized_events_to_tensors(discretized_events)
+                discretized_events_to_tensors(discretized_events)
             )
 
             network_data = ReconstructionSample(
@@ -124,11 +119,12 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                         )
                         # TODO: video frames at the timestamps
                         video_at_continuous_timestamps = (
-                            self._generate_frames_at_continuous_timestamps(
+                            generate_frames_at_continuous_timestamps(
                                 continuous_timestamps_in_bins,
                                 preprocessed_image,
                                 transform_definition,
                                 augmented_network_data.crop_definition,
+                                self.config.data_generator_target_image_size,
                             )
                         )
                     else:
@@ -150,22 +146,6 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                     " skipping!"
                 )
 
-    @staticmethod
-    def discretized_events_to_tensors(
-        discretized_events: DiscretizedEvents,
-    ) -> Tuple[
-        Float32[torch.Tensor, "Time 1 X Y"],
-        Float32[torch.Tensor, "Time 1 X Y"],
-        Float32[torch.Tensor, "Time 1 X Y"],
-        Float32[torch.Tensor, "Time 1 X Y"],
-    ]:
-        return (
-            discretized_events.event_polarity_sum.to(torch.float32),
-            discretized_events.timestamp_mean.to(torch.float32),
-            discretized_events.timestamp_std.to(torch.float32),
-            discretized_events.event_count.to(torch.float32),
-        )
-
     def _validate(self, sample: ReconstructionSample) -> bool:
         if torch.all(sample.event_counts == 0):
             return False
@@ -183,51 +163,3 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             return False
 
         return True
-
-    def _generate_frames_at_continuous_timestamps(
-        self,
-        continuous_timestamps_in_bins: Float32[np.ndarray, " T"],
-        preprocessed_image: GrayImageFloat,
-        transform_definition: TransformDefinition,
-        crop_definition: CropDefinition,
-    ) -> Float32[torch.Tensor, "T 1 X Y"]:
-        # Translate from time in bin to time in video
-        # For example, if continuous time in bin is 0.5, it's bin number 2, and t_start is 1,
-        # then the result will be 3.5.
-        continuous_timestamps_using_bin_time = (
-            continuous_timestamps_in_bins
-            + np.arange(0, continuous_timestamps_in_bins.shape[0])
-            + crop_definition.t_start
-        )
-
-        # Now, translate this to video time, knowing the total number of bins in the video
-        # If we have 2 bins, then their timestamps are currently (0,1), (1,2), and
-        # should be mapped to (0, 0.5), (0.5, 1). Therefore, this is trivial
-        continuous_timestamps_using_video_time = (
-            continuous_timestamps_using_bin_time
-            / crop_definition.total_number_of_bins
-        )
-
-        timestamps_and_zero = torch.concat(
-            [torch.zeros(1), continuous_timestamps_using_video_time]
-        )
-
-        frames_and_zero = get_video(
-            preprocessed_image,
-            transform_definition,
-            timestamps_and_zero,
-            self.config.data_generator_target_image_size,
-            device=torch.device("cuda"),
-        )
-
-        cropped_frames = frames_and_zero[
-            1:,
-            crop_definition.x_start : crop_definition.x_start
-            + crop_definition.x_size,
-            crop_definition.y_start : crop_definition.y_start
-            + crop_definition.y_size,
-        ]
-
-        return einops.rearrange(
-            torch.tensor(cropped_frames), "Time X Y -> Time 1 X Y"
-        )

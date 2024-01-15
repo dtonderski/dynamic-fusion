@@ -2,6 +2,11 @@ import numpy as np
 import torch
 from jaxtyping import Float32
 from torch.utils.data import DataLoader, Dataset
+from dynamic_fusion.utils.datatypes import (
+    CropDefinition,
+    CroppedReconstructionSample,
+    ReconstructionSample,
+)
 
 from dynamic_fusion.utils.image import scale_video_to_quantiles
 
@@ -11,11 +16,6 @@ from .configuration import (
     AugmentationConfiguration,
 )
 from .dataset import CocoIterableDataset
-from .utils.datatypes import (
-    ReconstructionSample,
-    CropDefinition,
-    CroppedReconstructionSample,
-)
 
 
 class CocoAugmentation:
@@ -60,7 +60,9 @@ class CocoAugmentation:
 
         t_start = np.random.randint(
             low=0,
-            high=total_number_of_bins - self.shared_config.sequence_length + 1, # + 1 because exclusive
+            high=total_number_of_bins
+            - self.shared_config.sequence_length
+            + 1,  # + 1 because exclusive
         )
 
         network_data.event_polarity_sums = self.extract_part_of_tensor(
@@ -112,7 +114,9 @@ class DataHandler:
         self.config = config
         self.shared_config = shared_config
         augmentation = CocoAugmentation(config.augmentation, shared_config)
-        self.dataset = CocoIterableDataset(augmentation, config.dataset, shared_config)
+        self.dataset = CocoIterableDataset(
+            augmentation, config.dataset, shared_config
+        )
 
     def run(self) -> DataLoader:  # type: ignore
         return DataLoader(

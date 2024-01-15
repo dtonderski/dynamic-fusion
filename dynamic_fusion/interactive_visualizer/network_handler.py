@@ -15,8 +15,8 @@ from dynamic_fusion.network_trainer.configuration import NetworkLoaderConfigurat
 from dynamic_fusion.network_trainer.dataset import CocoIterableDataset
 from dynamic_fusion.network_trainer.network_loader import NetworkLoader
 from dynamic_fusion.network_trainer.training_monitor import TrainingMonitor
-from dynamic_fusion.network_trainer.utils.datatypes import ReconstructionSample
-from dynamic_fusion.utils.datatypes import GrayImageFloat
+from dynamic_fusion.utils.dataset import discretized_events_to_tensors
+from dynamic_fusion.utils.datatypes import GrayImageFloat, ReconstructionSample
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.image import scale_video_to_quantiles
 from dynamic_fusion.utils.transform import TransformDefinition
@@ -65,7 +65,10 @@ class NetworkHandler:
 
     # Public API
     def get_reconstruction(self, timestamp: float) -> Float[torch.Tensor, "X Y"]:
-        if self.last_decoding_prediction is not None and self.last_timestamp == timestamp:
+        if (
+            self.last_decoding_prediction is not None
+            and self.last_timestamp == timestamp
+        ):
             return self.last_decoding_prediction
 
         with torch.no_grad():
@@ -75,7 +78,9 @@ class NetworkHandler:
             encoding_and_time = torch.concat(
                 [self.prediction, expanded_timestamp], dim=1
             )
-            encoding_and_time = einops.rearrange(encoding_and_time, "1 C X Y -> 1 X Y C")
+            encoding_and_time = einops.rearrange(
+                encoding_and_time, "1 C X Y -> 1 X Y C"
+            )
             decoding_prediction = self.decoding_network(encoding_and_time)
 
             self.last_timestamp = timestamp
@@ -147,7 +152,7 @@ class NetworkHandler:
                 )
 
             event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-                CocoIterableDataset.discretized_events_to_tensors(discretized_events)
+                discretized_events_to_tensors(discretized_events)
             )
 
             self.sample = ReconstructionSample(
@@ -187,22 +192,24 @@ class NetworkHandler:
         Float[torch.Tensor, "1 T SubBins X Y"],
     ]:
         polarity_sums = (
-            self.sample.event_polarity_sums[self.start_bin_index : self.end_bin_index+1]
+            self.sample.event_polarity_sums[
+                self.start_bin_index : self.end_bin_index + 1
+            ]
             .unsqueeze_(0)
             .to(self.device)
         )
         means = (
-            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index+1]
+            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index + 1]
             .unsqueeze_(0)
             .to(self.device)
         )
         stds = (
-            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index+1]
+            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index + 1]
             .unsqueeze_(0)
             .to(self.device)
         )
         counts = (
-            self.sample.event_counts[self.start_bin_index : self.end_bin_index+1]
+            self.sample.event_counts[self.start_bin_index : self.end_bin_index + 1]
             .unsqueeze_(0)
             .to(self.device)
         )

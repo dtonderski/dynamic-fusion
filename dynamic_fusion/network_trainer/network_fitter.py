@@ -1,22 +1,20 @@
 import logging
 import time
 from typing import Iterator, Optional
-import einops
 
+import einops
 import numpy as np
 import torch
 from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 
+from dynamic_fusion.utils.datatypes import Batch
+from dynamic_fusion.utils.loss import LPIPS
+from dynamic_fusion.utils.network import network_data_to_device, to_numpy
+
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
 from .training_monitor import TrainingMonitor
-from .utils.datatypes import Batch
-from .utils.loss import LPIPS
-from .utils.network import (
-    network_data_to_device,
-    to_numpy,
-)
 from .utils.timer import Timer
 
 
@@ -166,17 +164,13 @@ class NetworkFitter:
                 X=continuous_timestamp_frames.shape[3],
                 Y=continuous_timestamp_frames.shape[4],
             )
-            encoding_and_time = torch.concat(
-                [prediction, expanded_timestamps], dim=1
-            )
+            encoding_and_time = torch.concat([prediction, expanded_timestamps], dim=1)
 
             encoding_and_time = einops.rearrange(
                 encoding_and_time, "B C X Y -> B X Y C"
             )
             decoding_prediction = decoding_network(encoding_and_time)
-            prediction = einops.rearrange(
-                decoding_prediction, "B X Y 1 -> B 1 X Y"
-            )
+            prediction = einops.rearrange(decoding_prediction, "B X Y 1 -> B 1 X Y")
 
             image_loss += (
                 self.reconstruction_loss_function(  # pylint: disable=not-callable
