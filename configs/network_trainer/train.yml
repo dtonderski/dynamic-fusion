@@ -4,7 +4,7 @@ shared:
   use_mean: true
   use_std: true
   use_count: true
-  implicit: false
+  implicit: true
   feature_unfolding: false
 
 data_handler:
@@ -45,3 +45,5 @@ network_fitter:
 training_monitor:
   run_directory: "runs/coding_trials/test2"
   event_colors: [[255, 0, 0], [0, 255, 0]]
+
+seed: 0

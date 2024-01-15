@@ -108,3 +108,4 @@ class TrainerConfiguration(BaseModel):
     network_loader: NetworkLoaderConfiguration = Field(...)
     network_fitter: NetworkFitterConfiguration = Field(...)
     training_monitor: TrainingMonitorConfiguration = Field(...)
+    seed: Optional[int] = Field(...)
