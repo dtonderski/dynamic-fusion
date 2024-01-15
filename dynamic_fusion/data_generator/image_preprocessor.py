@@ -33,12 +33,25 @@ class ImagePreprocessor:
         else:
             self.logger.info("Preprocessing image...")
 
-        if not self._validate_size(image):
-            raise ValueError(
-                f"Skipping image - image shape: {image.shape[:2]}, target shape:"
-                f" {self.shared_config.target_image_size}, max allowed shape:"
-                f" {self.config.max_image_size}"
-            )
+        if self.config.max_image_size is not None:
+            while np.any(image.shape[:2] > np.array(self.config.max_image_size)):
+                self.logger.info(
+                    f"Image shape: {image.shape[:2]} larger than max allowed shape"
+                    f" {self.config.max_image_size} - halving image size."
+                )
+                downscaled_image_size = np.round(np.array(image.shape[:2]) * 0.5)
+                image = resize(
+                    image, output_shape=downscaled_image_size, anti_aliasing=True
+                )
+
+        if self.shared_config.target_image_size is not None:
+            if np.any(
+                image.shape[:2] < np.array(self.shared_config.target_image_size)
+            ):
+                raise ValueError(
+                    f"Skipping image - image shape: {image.shape[:2]}, target shape:"
+                    f" {self.shared_config.target_image_size}"
+                )
 
         image = self._downscale_probabilistically(image)
         image = self._rgb2gray(image)
@@ -46,18 +59,6 @@ class ImagePreprocessor:
             raise ValueError("Skipping image - low contrast.")
         image = normalize(image)
         return image
-
-    def _validate_size(self, image: Image) -> bool:
-        if self.config.max_image_size is not None:
-            if np.any(image.shape[:2] > np.array(self.config.max_image_size)):
-                return False
-
-        if self.shared_config.target_image_size is not None:
-            if np.any(
-                image.shape[:2] < np.array(self.shared_config.target_image_size)
-            ):
-                return False
-        return True
 
     def _downscale_probabilistically(self, image: Image) -> Image:
         image_size = image.shape[:2]
