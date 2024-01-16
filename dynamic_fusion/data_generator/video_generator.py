@@ -52,9 +52,12 @@ class VideoGenerator:
         return video, transform_definition
 
     def _define_transforms(self) -> TransformDefinition:
+        def _generate_interpolation_type() -> Literal["linear", "cubic"]:
+            return "linear" if uniform() > 0.5 else "cubic"
+
         shift_knots, rotation_knots, scale_knots = self._generate_knots()
         shift_interpolation, rotation_interpolation, scale_interpolation = (
-            self._generate_interpolation_type() for _ in range(3)
+            _generate_interpolation_type() for _ in range(3)
         )
         return TransformDefinition(
             shift_knots,
@@ -100,6 +103,3 @@ class VideoGenerator:
         )
 
         return shift_knot_values, rotation_knot_values, scale_knot_values
-
-    def _generate_interpolation_type(self) -> Literal["linear", "cubic"]:
-        return "linear" if uniform() > 0.5 else "cubic"
