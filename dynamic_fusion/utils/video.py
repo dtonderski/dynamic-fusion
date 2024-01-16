@@ -1,4 +1,5 @@
 from typing import List, Literal, Optional, Tuple
+import einops
 
 import numpy as np
 import torch
@@ -75,6 +76,33 @@ def _generate_video(
             shifts, rotations, scales
         )
         video = _generate_video_torch(image, angles, translates, scales_torch, device)
+
+        scales[:,1] = scales[:,0]
+        #shifts[:, 1] = -shifts[:,1]
+
+        transformation_matrices = _transforms_to_matrices(
+            image,
+            shifts / target_image_size,
+            rotations,
+            scales,
+            shifts.shape[0],
+            False,
+            invert=True
+        )
+
+        grid = torch.nn.functional.affine_grid(
+            torch.tensor(transformation_matrices[:, :2, :], device=device),
+            [shifts.shape[0], 1, *image.shape],
+        )
+
+        image_tensor = einops.repeat(
+            torch.tensor(image, device=device, dtype=torch.float),
+            "H W -> N 1 H W",
+            N=shifts.shape[0],
+        )
+        video_new = torch.nn.functional.grid_sample(
+            image_tensor, grid, "nearest", "zeros"
+        )
     else:
         if number_of_images_to_generate_per_input is None:
             raise ValueError(
@@ -178,6 +206,7 @@ def _transforms_to_matrices(  # pylint: disable=R0913,R0914
     scales: Float[np.ndarray, "T 2"],
     number_of_images_to_generate_per_input: int,
     rotate_around_center: bool = True,
+    invert: bool = False,
 ) -> Float[np.ndarray, "T 3 3"]:
     x_size, y_size = image.shape
     centering_matrix = np.array(
@@ -194,41 +223,78 @@ def _transforms_to_matrices(  # pylint: disable=R0913,R0914
         dtype=np.float32,
     )
 
-    for step in range(number_of_images_to_generate_per_input):
-        theta = rotations[step, 0]
-        scale = scales[step, :]
-        shift = shifts[step, :]
+    if not invert:
+        for step in range(number_of_images_to_generate_per_input):
+            theta = rotations[step, 0]
+            scale = scales[step, :]
+            shift = shifts[step, :]
 
-        rotation_matrix = np.array(
-            [
-                [np.cos(theta), np.sin(theta), 0],
-                [-np.sin(theta), np.cos(theta), 0],
-                [0, 0, 1],
-            ],
-            dtype=np.float32,
-        )
-        shift_matrix = np.array(
-            [[1, 0, shift[0]], [0, 1, shift[1]], [0, 0, 1]],
-            dtype=np.float32,
-        )
-
-        scale_matrix = np.array(
-            [[scale[0], 0, 0], [0, scale[1], 0], [0, 0, 1]],
-            dtype=np.float32,
-        )
-
-        if not rotate_around_center:
-            transformation_matrices[step, ...] = (
-                rotation_matrix @ shift_matrix @ scale_matrix
+            rotation_matrix = np.array(
+                [
+                    [np.cos(theta), -np.sin(theta), 0],
+                    [np.sin(theta), np.cos(theta), 0],
+                    [0, 0, 1],
+                ],
+                dtype=np.float32,
             )
-            continue
-        transformation_matrices[step, ...] = (
-            centering_matrix
-            @ rotation_matrix
-            @ inverse_centering_matrix
-            @ shift_matrix
-            @ scale_matrix
-        )
+            shift_matrix = np.array(
+                [[1, 0, shift[0]], [0, 1, shift[1]], [0, 0, 1]],
+                dtype=np.float32,
+            )
+
+            scale_matrix = np.array(
+                [[scale[0], 0, 0], [0, scale[1], 0], [0, 0, 1]],
+                dtype=np.float32,
+            )
+
+            if not rotate_around_center:
+                transformation_matrices[step, ...] = (
+                    rotation_matrix @ shift_matrix @ scale_matrix
+                )
+                continue
+            transformation_matrices[step, ...] = (
+                centering_matrix
+                @ rotation_matrix
+                @ inverse_centering_matrix
+                @ shift_matrix
+                @ scale_matrix
+            )
+    if invert:
+        for step in range(number_of_images_to_generate_per_input):
+            theta = rotations[step, 0]
+            scale = scales[step, :]
+            shift = shifts[step, :]
+
+            rotation_matrix = np.array(
+                [
+                    [np.cos(theta), np.sin(theta), 0],
+                    [-np.sin(theta), np.cos(theta), 0],
+                    [0, 0, 1],
+                ],
+                dtype=np.float32,
+            )
+            shift_matrix = np.array(
+                [[1, 0, -shift[0]], [0, 1, -shift[1]], [0, 0, 1]],
+                dtype=np.float32,
+            )
+
+            scale_matrix = np.array(
+                [[1 / scale[0], 0, 0], [0, 1 / scale[1], 0], [0, 0, 1]],
+                dtype=np.float32,
+            )
+
+            if not rotate_around_center:
+                transformation_matrices[step, ...] = (
+                    scale_matrix @ shift_matrix @ rotation_matrix
+                )
+                continue
+            transformation_matrices[step, ...] = (
+                scale_matrix
+                @ shift_matrix
+                @ centering_matrix
+                @ rotation_matrix
+                @ inverse_centering_matrix
+            )
 
     return transformation_matrices
 
