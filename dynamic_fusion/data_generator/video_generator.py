@@ -35,7 +35,7 @@ class VideoGenerator:
         else:
             self.logger.info("Generating video...")
 
-        transform_definition = self._define_transforms(image.shape)
+        transform_definition = self._define_transforms()
 
         video_frame_times = np.linspace(
             0, 1, self.shared_config.number_of_images_to_generate_per_input
@@ -46,20 +46,13 @@ class VideoGenerator:
             transform_definition,
             video_frame_times,
             self.shared_config.target_image_size,
-            self.shared_config.number_of_images_to_generate_per_input,
-            fill_mode=self.config.pytorch_fill_mode  # type: ignore
+            fill_mode=self.config.fill_mode,  # type: ignore
+            interpolation=self.config.interpolation,  # type: ignore
         )
         return video, transform_definition
 
-    def _define_transforms(
-        self, image_resolution: Optional[Tuple[int, int]] = None
-    ) -> TransformDefinition:
-        if self.shared_config.target_image_size is None and image_resolution is None:
-            raise ValueError("Resolution must be set if target_image_size is None!")
-
-        shift_knots, rotation_knots, scale_knots = self._generate_knots(
-            image_resolution
-        )
+    def _define_transforms(self) -> TransformDefinition:
+        shift_knots, rotation_knots, scale_knots = self._generate_knots()
         shift_interpolation, rotation_interpolation, scale_interpolation = (
             self._generate_interpolation_type() for _ in range(3)
         )
@@ -72,27 +65,16 @@ class VideoGenerator:
             scale_interpolation,
         )
 
-    def _generate_knots(
-        self, image_resolution: Optional[Tuple[int, int]] = None
-    ) -> Tuple[
+    def _generate_knots(self) -> Tuple[
         Float[np.ndarray, "NShiftKnots 2"],
         Float[np.ndarray, "NRotKnots 1"],
         Float[np.ndarray, "NScaleKnots 2"],
     ]:
-        if self.shared_config.target_image_size is None and image_resolution is None:
-            raise ValueError("Resolution must be set if target_image_size is None!")
-
         number_of_shift_knots = randint(
             low=2, high=self.config.max_number_of_shift_knots, dtype=np.int32
         )
 
-        if self.shared_config.target_image_size is not None:
-            image_resolution = self.shared_config.target_image_size
-
-        max_shift_knot_value = (
-            np.array(self.config.max_shift_knot_multiplier_value)
-            * image_resolution
-        )
+        max_shift_knot_value = np.array(self.config.max_shift_knot_multiplier_value)
         shift_knot_values = uniform(size=(number_of_shift_knots, 2)) * np.reshape(
             max_shift_knot_value, (1, 2)
         )

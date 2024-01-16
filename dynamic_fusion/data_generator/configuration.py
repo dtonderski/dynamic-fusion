@@ -71,12 +71,12 @@ class VideoGeneratorConfiguration(BaseModel):
         None, description="Maximum value of rotation knot."
     )
 
-    use_pytorch: bool = Field(
-        None, description="Use pytorch for affine transformations."
+    fill_mode: str = Field(
+        None, description="One of wrap, zeros, border, or reflection"
     )
 
-    pytorch_fill_mode: str = Field(
-        ..., description="One of wrap, zeros, border, or reflection"
+    interpolation: str = Field(
+        None, description="One of bilinear, nearest, or bicubic"
     )
 
 
