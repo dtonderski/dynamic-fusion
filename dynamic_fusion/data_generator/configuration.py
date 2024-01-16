@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field, root_validator
 
 
 class SharedConfiguration(BaseModel):
-    target_image_size: Optional[Tuple[int, int]] = Field(None, description="Target image size.")
+    target_image_size: Optional[Tuple[int, int]] = Field(
+        None, description="Target image size."
+    )
     fps: int = Field(None, description="Framerate of the simulation.")
     number_of_images_to_generate_per_input: int = Field(
         None,
@@ -71,6 +73,10 @@ class VideoGeneratorConfiguration(BaseModel):
 
     use_pytorch: bool = Field(
         None, description="Use pytorch for affine transformations."
+    )
+
+    pytorch_fill_mode: str = Field(
+        ..., description="One of wrap, zeros, border, or reflection"
     )
 
 

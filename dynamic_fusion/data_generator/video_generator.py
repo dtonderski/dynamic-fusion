@@ -47,6 +47,7 @@ class VideoGenerator:
             video_frame_times,
             self.shared_config.target_image_size,
             self.shared_config.number_of_images_to_generate_per_input,
+            fill_mode=self.config.pytorch_fill_mode  # type: ignore
         )
         return video, transform_definition
 

@@ -27,6 +27,7 @@ def get_video(
     number_of_images_to_generate_per_input: Optional[int] = None,
     use_pytorch: bool = True,
     device: torch.device = torch.device("cuda"),
+    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = "wrap"
 ) -> GrayVideoFloat:
     """Used to generate images at arbitrary timestamps from an initial
     image and a transform definition. Note that the time of the video
@@ -57,6 +58,7 @@ def get_video(
         number_of_images_to_generate_per_input,
         use_pytorch,
         device,
+        fill_mode
     )
     return video
 
@@ -70,16 +72,9 @@ def _generate_video(
     number_of_images_to_generate_per_input: Optional[int] = None,
     use_pytorch: bool = True,
     device: torch.device = torch.device("cuda"),
+    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = "wrap"
 ) -> GrayVideoFloat:
     if use_pytorch:
-        translates, angles, scales_torch = _transforms_to_torch(
-            shifts, rotations, scales
-        )
-        video = _generate_video_torch(image, angles, translates, scales_torch, device)
-
-        scales[:,1] = scales[:,0]
-        #shifts[:, 1] = -shifts[:,1]
-
         transformation_matrices = _transforms_to_matrices(
             image,
             shifts / target_image_size,
@@ -94,14 +89,17 @@ def _generate_video(
             torch.tensor(transformation_matrices[:, :2, :], device=device),
             [shifts.shape[0], 1, *image.shape],
         )
+        if fill_mode == "wrap":
+            grid.add_(1).remainder_(2).subtract_(1)
+            fill_mode = "zeros"
 
         image_tensor = einops.repeat(
             torch.tensor(image, device=device, dtype=torch.float),
             "H W -> N 1 H W",
             N=shifts.shape[0],
         )
-        video_new = torch.nn.functional.grid_sample(
-            image_tensor, grid, "nearest", "zeros"
+        video = torch.nn.functional.grid_sample(
+            image_tensor, grid, "nearest", fill_mode
         )
     else:
         if number_of_images_to_generate_per_input is None:
