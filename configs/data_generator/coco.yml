@@ -26,7 +26,8 @@ video_generator:
   max_shift_knot_multiplier_value: 1.2 # max_val_shift_mul
   max_rotation_knot_value: 1.7 # max_val_rot
 
-  use_pytorch: True # pytorch is almost an order of magnitude faster than scipy
+  fill_mode: "wrap"
+  interpolation: "bicubic"
 
 event_generator:
   sensor_config_path: "configs/data_generator/simulator/davis_model.yml"
@@ -43,6 +44,6 @@ event_discretizer:
   ground_truth_temporal_location_in_bin: "center" # center or end, doesn't work atm
 
 data_saver:
-  output_dir: "./data/interim/coco/2subbins"
+  output_dir: "./data/interim/coco/2subbins_new"
   save_events: True
   h5_compression: 3
