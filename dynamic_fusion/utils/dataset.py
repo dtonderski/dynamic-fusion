@@ -68,4 +68,4 @@ def generate_frames_at_continuous_timestamps(
         crop_definition.y_start : crop_definition.y_start + crop_definition.y_size,
     ]
 
-    return einops.rearrange(torch.tensor(cropped_frames), "Time X Y -> Time 1 X Y")
+    return einops.rearrange(cropped_frames, "Time X Y -> Time 1 X Y")
