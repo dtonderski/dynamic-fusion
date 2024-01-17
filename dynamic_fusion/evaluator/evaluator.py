@@ -227,8 +227,10 @@ def evaluate_network(
                     interpolation_timestamps, "N TMinusOne -> (N TMinusOne)"
                 )
             )
-            # TODO: check that if investigated timestamps = [0,1], then 
-            # interpolation_timestamps[1,1] == interpolation_timestamps[0,2]
+
+            # The following is true if investigated_timestamps[0] == 0
+            # and investigated_timestamps[-1] == 1:
+            #   interpolated_predictions[0, -1, 0] == interpolation_timestamps[0,0,1]
 
             interpolated_predictions = einops.rearrange(
                 flattened_interpolated_predictions,
