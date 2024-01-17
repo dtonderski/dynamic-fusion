@@ -37,8 +37,7 @@ class DataSaver:
         synchronized_video: GrayVideoFloat,
     ) -> None:
         self.logger.info("Saving data...")
-
-        output_dir = Path(self.config.output_dir) / image_path.stem
+        output_dir = self.config.output_dir / image_path.stem
 
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -69,7 +68,6 @@ class DataSaver:
                 )
 
                 transform_definition.save_to_file(file)
-
 
             with h5py.File(output_dir / "ground_truth.h5", "w") as file:
                 file.create_dataset(
