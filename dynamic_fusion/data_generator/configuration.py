@@ -7,22 +7,22 @@ from pydantic import BaseModel, Field, root_validator
 
 class SharedConfiguration(BaseModel):
     target_image_size: Optional[Tuple[int, int]] = Field(
-        None, description="Target image size."
+        ..., description="Target image size."
     )
-    fps: int = Field(None, description="Framerate of the simulation.")
+    fps: int = Field(..., description="Framerate of the simulation.")
     number_of_images_to_generate_per_input: int = Field(
-        None,
+        ...,
         description="Number of transformed images generated per input image.",
     )
-    seed: int = Field(None, description="Randomness seed.")
+    seed: int = Field(..., description="Randomness seed.")
     overwrite: bool = Field(
-        None, description="Controls whether to overwrite existing data."
+        ..., description="Controls whether to overwrite existing data."
     )
 
 
 class ImageLoaderConfiguration(BaseModel):
     dataset_dir: Path = Field(
-        None,
+        ...,
         description="Path to the folder containing the images used to generate data.",
     )
 
@@ -31,85 +31,85 @@ class ImageLoaderConfiguration(BaseModel):
     )
 
     number_of_input_images: int = Field(
-        None, description="Number of images to use for data generation."
+        ..., description="Number of images to use for data generation."
     )
 
 
 class ImagePreprocessorConfiguration(BaseModel):
     downscale_probability: float = Field(
-        None, description="Probability of downscaling image."
+        ..., description="Probability of downscaling image."
     )
 
     downscale_range: List[float] = Field(
-        None, description="Range of possible scales used for downscaling."
+        ..., description="Range of possible scales used for downscaling."
     )
     max_image_size: Optional[Tuple[int, int]]
 
 
 class VideoGeneratorConfiguration(BaseModel):
     max_number_of_scale_knots: int = Field(
-        None, description="Maximum number of scale knots to use."
+        ..., description="Maximum number of scale knots to use."
     )
 
     max_number_of_shift_knots: int = Field(
-        None, description="Maximum number of shift knots to use."
+        ..., description="Maximum number of shift knots to use."
     )
 
     max_number_of_rotation_knots: int = Field(
-        None, description="Maximum number of rotation knots to use."
+        ..., description="Maximum number of rotation knots to use."
     )
 
     max_scale_knot_value: float = Field(
-        None, description="Maximum value of scale knots."
+        ..., description="Maximum value of scale knots."
     )
 
     max_shift_knot_multiplier_value: float = Field(
-        None, description="Maximum value of shift knot multiplier."
+        ..., description="Maximum value of shift knot multiplier."
     )
 
     max_rotation_knot_value: float = Field(
-        None, description="Maximum value of rotation knot."
+        ..., description="Maximum value of rotation knot."
     )
 
-    fill_mode: str = Field(
-        None, description="One of wrap, zeros, border, or reflection"
+    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = Field(
+        ..., description="One of wrap, zeros, border, or reflection"
     )
 
-    interpolation: str = Field(
-        None, description="One of bilinear, nearest, or bicubic"
+    interpolation: Literal["bilinear", "nearest", "bicubic"] = Field(
+        ..., description="One of bilinear, nearest, or bicubic"
     )
 
 
 class EventGeneratorConfiguration(BaseModel):
     sensor_config_path: Path = Field(
-        None, description="Path to the sensor config yml."
+        ..., description="Path to the sensor config yml."
     )
 
     simulator_config_path: Path = Field(
-        None, description="Path to the simulator config yml."
+        ..., description="Path to the simulator config yml."
     )
 
     thresholds: List[float] = Field(
-        None, description="Thresholds to use in data generation."
+        ..., description="Thresholds to use in data generation."
     )
 
     min_illuminance_lux_range: List[float] = Field(
-        None,
+        ...,
         description="Range of values from which to sample min illuminance.",
     )
 
     max_illuminance_lux_range: List[float] = Field(
-        None,
+        ...,
         description="Range of values from which to sample max illuminance.",
     )
 
 
 class EventDiscretizerConfiguration(BaseModel):
     number_of_temporal_bins: int = Field(
-        None, description="Number of temporal bins to use in discretizer."
+        ..., description="Number of temporal bins to use in discretizer."
     )
     number_of_temporal_sub_bins_per_bin: int = Field(
-        None,
+        ...,
         description=(
             "Number of sub-bins to use per temporal bin. If one "
             "discretized event statistic has shape T D H W, then this is the D "
@@ -117,7 +117,7 @@ class EventDiscretizerConfiguration(BaseModel):
         ),
     )
     ground_truth_temporal_location_in_bin: str = Field(
-        None,
+        ...,
         description=(
             "Location of ground truth image in the bin, must be center or end."
         ),
@@ -126,41 +126,25 @@ class EventDiscretizerConfiguration(BaseModel):
 
 class DataSaverConfiguration(BaseModel):
     output_dir: Path = Field(
-        None,
+        ...,
         description="Path to the folder where to output should be stored.",
     )
 
     save_events: bool = Field(
-        None, description="Determines whether to save the raw events."
+        ..., description="Determines whether to save the raw events."
     )
 
-    h5_compression: int = Field(None, description="Indicates gzip compression level.")
+    h5_compression: int = Field(..., description="Indicates gzip compression level.")
 
 
 class DataGeneratorConfiguration(BaseModel):
-    shared: SharedConfiguration = SharedConfiguration()  # pyright: ignore
-
-    image_loader: ImageLoaderConfiguration = (
-        ImageLoaderConfiguration()
-    )  # pyright: ignore
-
-    image_preprocessor: ImagePreprocessorConfiguration = (
-        ImagePreprocessorConfiguration()
-    )  # pyright: ignore
-
-    video_generator: VideoGeneratorConfiguration = (
-        VideoGeneratorConfiguration()
-    )  # pyright: ignore
-
-    event_generator: EventGeneratorConfiguration = (
-        EventGeneratorConfiguration()
-    )  # pyright: ignore
-
-    event_discretizer: EventDiscretizerConfiguration = (
-        EventDiscretizerConfiguration()
-    )  # pyright: ignore
-
-    data_saver: DataSaverConfiguration = DataSaverConfiguration()  # pyright: ignore
+    shared: SharedConfiguration = Field(...)
+    image_loader: ImageLoaderConfiguration = Field(...)
+    image_preprocessor: ImagePreprocessorConfiguration = Field(...)
+    video_generator: VideoGeneratorConfiguration = Field(...)
+    event_generator: EventGeneratorConfiguration = Field(...)
+    event_discretizer: EventDiscretizerConfiguration = Field(...)
+    data_saver: DataSaverConfiguration = Field(...)
 
     @root_validator(pre=False)
     @classmethod
