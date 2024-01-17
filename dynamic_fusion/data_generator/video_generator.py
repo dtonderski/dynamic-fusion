@@ -7,6 +7,7 @@ from numpy.random import randint, uniform
 from tqdm import tqdm
 
 from dynamic_fusion.utils.datatypes import GrayImage, GrayVideoFloat
+from dynamic_fusion.utils.network import to_numpy
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video
 
@@ -46,10 +47,10 @@ class VideoGenerator:
             transform_definition,
             video_frame_times,
             self.shared_config.target_image_size,
-            fill_mode=self.config.fill_mode,  # type: ignore
-            interpolation=self.config.interpolation,  # type: ignore
+            fill_mode=self.config.fill_mode,
+            interpolation=self.config.interpolation,
         )
-        return video, transform_definition
+        return to_numpy(video), transform_definition
 
     def _define_transforms(self) -> TransformDefinition:
         def _generate_interpolation_type() -> Literal["linear", "cubic"]:
@@ -77,9 +78,9 @@ class VideoGenerator:
             low=2, high=self.config.max_number_of_shift_knots, dtype=np.int32
         )
 
-        max_shift_knot_value = np.array(self.config.max_shift_knot_multiplier_value)
-        shift_knot_values = uniform(size=(number_of_shift_knots, 2)) * np.reshape(
-            max_shift_knot_value, (1, 2)
+        shift_knot_values = (
+            uniform(size=(number_of_shift_knots, 2))
+            * self.config.max_shift_knot_multiplier_value
         )
 
         number_of_rotation_knots = randint(
