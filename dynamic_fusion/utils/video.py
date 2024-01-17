@@ -59,6 +59,7 @@ def get_video(
     grid = torch.nn.functional.affine_grid(
         torch.tensor(transformation_matrices[:, :2, :]),
         [shifts.shape[0], 1, *image.shape],
+        align_corners=False,
     ).to(device)
 
     if fill_mode == "wrap":
@@ -72,7 +73,7 @@ def get_video(
         N=shifts.shape[0],
     )
     video = torch.nn.functional.grid_sample(
-        image_tensor, grid, interpolation, fill_mode
+        image_tensor, grid, interpolation, fill_mode, align_corners=False
     )
     video = normalize(video.squeeze())
     if target_image_size is not None:
