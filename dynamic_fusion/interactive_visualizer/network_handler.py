@@ -106,7 +106,7 @@ class NetworkHandler:
             np.array([0, timestamp_using_video_time]),
             self.config.data_generator_target_image_size,
             device=torch.device("cpu"),
-        )[1]
+        )[1].numpy()
         return self.last_ground_truth
 
     def get_start_and_end_images(

@@ -10,13 +10,18 @@ from scipy.ndimage import affine_transform  # pyright: ignore
 from torchvision.transforms.functional import affine
 from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import GrayImage, GrayVideoFloat, GrayVideoInt
+from dynamic_fusion.utils.datatypes import (
+    GrayImage,
+    GrayVideoFloat,
+    GrayVideoInt,
+    GrayVideoTorch,
+)
 from dynamic_fusion.utils.transform import TransformDefinition
 
 
 def normalize(data: Shaped[np.ndarray, "..."]) -> Shaped[np.ndarray, "..."]:
-    data = data - np.min(data)
-    return data / np.max(data)
+    data = data - data.min()
+    return data / data.max()
 
 
 def get_video(
@@ -26,8 +31,8 @@ def get_video(
     target_image_size: Optional[Tuple[int, int]],
     device: torch.device = torch.device("cuda"),
     fill_mode: Literal["wrap", "zeros", "border", "reflection"] = "wrap",
-    interpolation: Literal["bilinear","nearest","bicubic"] = "bicubic",
-) -> GrayVideoFloat:
+    interpolation: Literal["bilinear", "nearest", "bicubic"] = "bicubic",
+) -> GrayVideoTorch:
     """Used to generate images at arbitrary timestamps from an initial
     image and a transform definition. Note that the time of the video
     is assumed to be in [0, 1], where 0 is the timestamp of the first
@@ -52,9 +57,10 @@ def get_video(
     transformation_matrices = _transforms_to_matrices(shifts, rotations, scales)
 
     grid = torch.nn.functional.affine_grid(
-        torch.tensor(transformation_matrices[:, :2, :], device=device),
+        torch.tensor(transformation_matrices[:, :2, :]),
         [shifts.shape[0], 1, *image.shape],
-    )
+    ).to(device)
+
     if fill_mode == "wrap":
         # Need to do in-place for memory concerns
         grid.add_(1).remainder_(2).subtract_(1)
@@ -65,8 +71,10 @@ def get_video(
         "H W -> N 1 H W",
         N=shifts.shape[0],
     )
-    video = torch.nn.functional.grid_sample(image_tensor, grid, interpolation, fill_mode)
-    video = normalize(video)
+    video = torch.nn.functional.grid_sample(
+        image_tensor, grid, interpolation, fill_mode
+    )
+    video = normalize(video.squeeze())
     if target_image_size is not None:
         video = crop_video(video, target_image_size)
     return video
@@ -217,7 +225,7 @@ def _generate_video_torch(
 def crop_video(
     video: GrayVideoFloat, target_image_size: Tuple[int, int]
 ) -> GrayVideoFloat:
-    cropped_video_border = (video.shape[1:] - np.array(target_image_size)) // 2
+    cropped_video_border = (video.shape[-2:] - np.array(target_image_size)) // 2
 
     cropped_video = video[
         :,
