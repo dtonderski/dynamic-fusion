@@ -17,7 +17,9 @@ class SharedConfiguration(BaseModel):
     use_std: bool = Field(...)
     use_count: bool = Field(...)
     implicit: bool = Field(...)
-    feature_unfolding: bool = Field(...)
+    spatial_feature_unfolding: bool = Field(...)
+    temporal_interpolation: bool = Field(...)
+
 
 class AugmentationConfiguration(BaseModel):
     network_image_size: Tuple[int, int] = Field(

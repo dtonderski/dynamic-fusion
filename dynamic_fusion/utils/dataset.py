@@ -35,10 +35,11 @@ def generate_frames_at_continuous_timestamps(
     data_generator_target_image_size: Optional[Tuple[int, int]] = None,
 ) -> Float32[torch.Tensor, "T 1 X Y"]:
     # Translate from time in bin to time in video
-    # For example, if continuous time in bin is 0.5, it's bin number 2, and t_start is 1,
+    # For example, if continuous time in bin is 0 (domain is [-0.5, 0.5]), it's bin number 2, and t_start is 1,
     # then the result will be 3.5.
     continuous_timestamps_using_bin_time = (
         continuous_timestamps_in_bins
+        + 0.5
         + np.arange(0, continuous_timestamps_in_bins.shape[0])
         + crop_definition.t_start
     )

@@ -64,7 +64,7 @@ class NetworkLoader:
             return encoding_network, None
 
         input_shape = self.config.encoding.output_size
-        if self.shared_config.feature_unfolding:
+        if self.shared_config.spatial_feature_unfolding:
             input_shape *= 9
         input_shape += 1
 

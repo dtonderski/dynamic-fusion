@@ -5,6 +5,7 @@ from typing import Iterator, Optional
 import einops
 import numpy as np
 import torch
+from jaxtyping import Float
 from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
@@ -118,7 +119,8 @@ class NetworkFitter:
         forward_start = time.time()
 
         visualize = iteration % self.config.visualization_frequency == 0
-        event_polarity_sum_list, images, predictions = [], [], []
+        event_polarity_sum_list, images, reconstructions = [], [], []
+        previous_prediction: Optional[Float[torch.Tensor, "B C X Y"]] = None
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
@@ -131,6 +133,24 @@ class NetworkFitter:
                 timestamp_stds[:, t] if self.shared_config.use_std else None,
                 event_counts[:, t] if self.shared_config.use_count else None,
             )
+
+            # Store last encoding if using temporal interpolation
+            if (
+                t == self.config.skip_first_timesteps - 1
+                and self.shared_config.implicit
+                and self.shared_config.temporal_interpolation
+            ):
+                if self.shared_config.spatial_feature_unfolding:
+                    unfolded_prediction = torch.nn.functional.unfold(
+                        prediction, kernel_size=3, padding=1, stride=1
+                    )
+                    prediction = einops.rearrange(
+                        unfolded_prediction,
+                        "B C (X Y) -> B C X Y",
+                        X=continuous_timestamp_frames.shape[3],
+                    )
+
+                previous_prediction = prediction.clone()
 
             if t < self.config.skip_first_timesteps:
                 continue
@@ -146,11 +166,11 @@ class NetworkFitter:
                     continue
                 event_polarity_sum_list.append(to_numpy(event_polarity_sum))
                 images.append(to_numpy(video[:, t, ...]))
-                predictions.append(to_numpy(prediction))
+                reconstructions.append(to_numpy(prediction))
                 continue
 
             # Implicit
-            if self.shared_config.feature_unfolding:
+            if self.shared_config.spatial_feature_unfolding:
                 unfolded_prediction = torch.nn.functional.unfold(
                     prediction, kernel_size=3, padding=1, stride=1
                 )
@@ -166,25 +186,70 @@ class NetworkFitter:
                 X=continuous_timestamp_frames.shape[3],
                 Y=continuous_timestamp_frames.shape[4],
             )
-            encoding_and_time = torch.concat([prediction, expanded_timestamps], dim=1)
+            # No temporal interpolation
+            if not self.shared_config.temporal_interpolation:
+                encoding_and_time = torch.concat(
+                    [prediction, expanded_timestamps], dim=1
+                )
 
-            encoding_and_time = einops.rearrange(
-                encoding_and_time, "B C X Y -> B X Y C"
-            )
-            decoding_prediction = decoding_network(encoding_and_time)
-            prediction = einops.rearrange(decoding_prediction, "B X Y 1 -> B 1 X Y")
+                encoding_and_time = einops.rearrange(
+                    encoding_and_time, "B C X Y -> B X Y C"
+                )
+
+                decoding_prediction = decoding_network(encoding_and_time)
+                reconstruction = einops.rearrange(
+                    decoding_prediction, "B X Y 1 -> B 1 X Y"
+                )
+
+            # With temporal interpolation
+            else:
+                if previous_prediction is None:
+                    raise ValueError("Encountered previous prediction None!")
+                # expanded_timestamps in [-1, 0]
+                previous_encoding_and_time = torch.concat(
+                    [previous_prediction, expanded_timestamps+1], dim=1
+                )
+                previous_encoding_and_time = einops.rearrange(
+                    previous_encoding_and_time, "B C X Y -> B X Y C"
+                )
+
+                previous_decoding_prediction = decoding_network(
+                    previous_encoding_and_time
+                )
+                previous_decoding_prediction = einops.rearrange(
+                    previous_decoding_prediction, "B X Y 1 -> B 1 X Y"
+                )
+
+                encoding_and_time = torch.concat(
+                    [prediction, expanded_timestamps], dim=1
+                )
+                encoding_and_time = einops.rearrange(
+                    encoding_and_time, "B C X Y -> B X Y C"
+                )
+
+                decoding_prediction = decoding_network(encoding_and_time)
+                decoding_prediction = einops.rearrange(
+                    decoding_prediction, "B X Y 1 -> B 1 X Y"
+                )
+
+                previous_prediction = prediction.clone()
+
+                # expanded_timestamps in [-1, 0] here
+                reconstruction = previous_decoding_prediction * (-expanded_timestamps)
+                +(decoding_prediction * (1 + expanded_timestamps))
 
             image_loss += (
                 self.reconstruction_loss_function(  # pylint: disable=not-callable
-                    prediction, continuous_timestamp_frames[:, t, ...]
+                    reconstruction, continuous_timestamp_frames[:, t, ...]
                 ).mean()
             )
+
             if not visualize:
                 continue
 
             event_polarity_sum_list.append(to_numpy(event_polarity_sum))
             images.append(to_numpy(continuous_timestamp_frames[:, t, ...]))
-            predictions.append(to_numpy(prediction))
+            reconstructions.append(to_numpy(reconstruction))
 
         image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
@@ -204,7 +269,7 @@ class NetworkFitter:
             self.monitor.visualize(
                 np.stack(event_polarity_sum_list, 1),
                 np.stack(images, 1),
-                np.stack(predictions, 1),
+                np.stack(reconstructions, 1),
                 iteration,
                 True,
             )

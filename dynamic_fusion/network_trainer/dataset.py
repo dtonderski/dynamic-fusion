@@ -117,6 +117,13 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                         continuous_timestamps_in_bins = torch.rand(
                             self.shared_config.sequence_length
                         )
+                        if self.shared_config.temporal_interpolation:
+                            continuous_timestamps_in_bins.subtract_(1)
+                            # No negative timestamps!
+                            continuous_timestamps_in_bins[0].clip_(-0.5, 0)
+                        else:
+                            continuous_timestamps_in_bins.subtract_(0.5)
+
                         # TODO: video frames at the timestamps
                         video_at_continuous_timestamps = (
                             generate_frames_at_continuous_timestamps(
