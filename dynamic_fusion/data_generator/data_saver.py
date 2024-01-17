@@ -7,6 +7,7 @@ from typing import Dict
 import h5py
 
 from dynamic_fusion.utils.datatypes import (
+    Events,
     GrayImageFloat,
     GrayVideoFloat,
     GrayVideoInt,
@@ -33,6 +34,7 @@ class DataSaver:
         video: GrayVideoInt,
         preprocessed_image: GrayImageFloat,
         transform_definition: TransformDefinition,
+        event_dict: Dict[float, Events],
         discretized_events_dict: Dict[float, DiscretizedEvents],
         synchronized_video: GrayVideoFloat,
     ) -> None:
@@ -70,6 +72,17 @@ class DataSaver:
                 )
 
                 transform_definition.save_to_file(file)
+
+            # Read using data = pd.read_hdf("events.h5", "threshold..."")
+            if self.config.save_events:
+                for threshold, event_df in event_dict.items():
+                    event_df.to_hdf(
+                        output_dir / "events.h5",
+                        f"threshold{threshold}",
+                        "a",
+                        complevel=self.config.h5_compression,
+                        complib="zlib",
+                    )
 
             with h5py.File(output_dir / "ground_truth.h5", "w") as file:
                 file.create_dataset(

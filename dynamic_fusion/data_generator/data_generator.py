@@ -106,6 +106,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     video,
                     preprocessed_image,
                     transform_definition,
+                    event_dict,
                     discretized_event_dict,
                     ground_truth_video,
                 )
