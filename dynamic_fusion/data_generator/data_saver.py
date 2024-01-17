@@ -55,12 +55,14 @@ class DataSaver:
                     compression="gzip",
                     compression_opts=self.config.h5_compression,
                 )
-                file.create_dataset(
-                    "/generated_video",
-                    data=video,
-                    compression="gzip",
-                    compression_opts=self.config.h5_compression,
-                )
+
+                if self.config.save_video:
+                    file.create_dataset(
+                        "/generated_video",
+                        data=video,
+                        compression="gzip",
+                        compression_opts=self.config.h5_compression,
+                    )
 
                 file.create_dataset(
                     "/preprocessed_image",

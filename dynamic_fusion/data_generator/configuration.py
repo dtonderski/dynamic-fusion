@@ -133,7 +133,7 @@ class DataSaverConfiguration(BaseModel):
     save_events: bool = Field(
         ..., description="Determines whether to save the raw events."
     )
-
+    save_video: bool = Field(...)
     h5_compression: int = Field(..., description="Indicates gzip compression level.")
 
 

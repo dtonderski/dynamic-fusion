@@ -26,7 +26,7 @@ video_generator:
   max_shift_knot_multiplier_value: 1.2 # max_val_shift_mul
   max_rotation_knot_value: 1.7 # max_val_rot
 
-  fill_mode: "wrap"
+  fill_mode: "zeros"
   interpolation: "bicubic"
 
 event_generator:
@@ -46,4 +46,5 @@ event_discretizer:
 data_saver:
   output_dir: "./data/interim/coco/2subbins_new"
   save_events: True
+  save_video: False
   h5_compression: 3
