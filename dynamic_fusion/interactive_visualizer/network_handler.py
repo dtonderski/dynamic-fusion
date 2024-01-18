@@ -77,12 +77,16 @@ class NetworkHandler:
         ):
             return self.last_decoding_prediction
 
+        # Use previous prediction if needed
+        encoding = self.previous_prediction if timestamp < 0 else self.prediction
+        timestamp = timestamp + 1 if timestamp < 0 else timestamp
+
         with torch.no_grad():
             expanded_timestamp = torch.tensor([timestamp], device=self.device)[
                 :, None, None, None
-            ].expand(1, 1, *self.prediction.shape[-2:])
+            ].expand(1, 1, *encoding.shape[-2:])
             encoding_and_time = torch.concat(
-                [self.prediction, expanded_timestamp], dim=1
+                [encoding, expanded_timestamp], dim=1
             )
             encoding_and_time = einops.rearrange(
                 encoding_and_time, "1 C X Y -> 1 X Y C"
@@ -197,6 +201,8 @@ class NetworkHandler:
                     stds[:, t] if self.config.use_std else None,
                     counts[:, t] if self.config.use_count else None,
                 )
+                if t == polarity_sums.shape[1]-2:
+                    self.previous_prediction = self.prediction.clone()
 
     def _sample_to_device(
         self,

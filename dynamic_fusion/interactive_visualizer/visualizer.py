@@ -20,6 +20,7 @@ TIMESTAMP_TEMPLATE = "Timestamp in bin: {val:.3f}"
 GT_TEMPLATE = "Ground truth at: {val:.3f}"
 PREDICTION_TEMPLATE = "Reconstruction at {val:.3f}"
 IMAGE_SIZE = (350, 350)
+TIMESTAMP_RANGE = [-1, 1]
 
 ctk.set_appearance_mode("dark")
 
@@ -116,14 +117,18 @@ class Visualizer(ctk.CTk):  # type: ignore
 
         # Timestamp slider
         self.timestamp_slider_label = ctk.CTkLabel(
-            self, text=TIMESTAMP_TEMPLATE.format(val=0.5)
+            self, text=TIMESTAMP_TEMPLATE.format(val=(TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])/2)
         )
         self.timestamp_slider_label.grid(row=self._next_row(), column=1)
         self.timestamp_slider = ctk.CTkSlider(
-            self, from_=0, to=1, width=300, command=self._timestamp_slider_changed
+            self,
+            from_=TIMESTAMP_RANGE[0],
+            to=TIMESTAMP_RANGE[1],
+            width=300,
+            command=self._timestamp_slider_changed,
         )
         self.timestamp_slider.grid(row=self._next_row(), column=0, columnspan=3)
-        self.timestamp_slider.bind("<ButtonRelease-1>", self._new_slider_value)
+        # self.timestamp_slider.bind("<ButtonRelease-1>", self._new_slider_value)
 
         # Zoom
         self.zoom_frame = ctk.CTkFrame(self)
@@ -178,9 +183,13 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.end_image_label.grid(row=self.row, column=2)
 
         # Prediction
+        timestamp = (
+                    self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])
+                    + TIMESTAMP_RANGE[0]
+                )
         self.prediction_label = ctk.CTkLabel(
             self,
-            text=f"Prediction at t={self.timestamp_slider._value:2f}",
+            text=f"Prediction at t={timestamp:2f}",
             compound="bottom",
         )
         self.prediction_label.grid(row=self._next_row(), column=1)
@@ -188,7 +197,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         # GT
         self.gt_image_label = ctk.CTkLabel(
             self,
-            text=GT_TEMPLATE.format(val=self.timestamp_slider._value),
+            text=GT_TEMPLATE.format(val=timestamp),
             compound="bottom",
         )
         self.gt_image_label.grid(row=self.row, column=1)
@@ -279,9 +288,12 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.event_image_label.image = event_image
 
     def _update_gt(self) -> None:
-        # print(f"Updating GT to {self.timestamp_slider._value}")
+        timestamp = (
+            self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])
+            + TIMESTAMP_RANGE[0]
+        )
         gt_image_np = self.network_handler.get_ground_truth(
-            self.timestamp_slider._value, self.config.total_bins_in_video
+            timestamp, self.config.total_bins_in_video
         )
 
         gt_image_np = gt_image_np[
@@ -294,7 +306,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         gt_image = ImageTk.PhotoImage(gt_image, size=IMAGE_SIZE)
         self.gt_image_label.configure(
             image=gt_image,
-            text=GT_TEMPLATE.format(val=self.timestamp_slider._value),
+            text=GT_TEMPLATE.format(val=timestamp),
         )
         self.gt_image_label.image = gt_image
 
@@ -324,15 +336,19 @@ class Visualizer(ctk.CTk):  # type: ignore
         )
         self.timestamp_slider_label.update()
         self._update_gt()
+        self._update_prediction()
 
     def _new_slider_value(self, _: Any) -> None:
         self._update_prediction()
 
     def _update_prediction(self) -> None:
-        print(f"Updating prediction to {self.timestamp_slider._value}")
-        prediction = self.network_handler.get_reconstruction(
-            self.timestamp_slider._value
+        timestamp = (
+            self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])
+            + TIMESTAMP_RANGE[0]
         )
+
+        print(f"Updating prediction to {timestamp}")
+        prediction = self.network_handler.get_reconstruction(timestamp)
         print(f"Prediction range: {prediction.min()} to {prediction.max()}")
         prediction[prediction < 0] = 0
         prediction[prediction > 1] = 1
@@ -347,7 +363,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         prediction_image = ctk.CTkImage(prediction_image, size=IMAGE_SIZE)
         self.prediction_label.configure(
             image=prediction_image,
-            text=PREDICTION_TEMPLATE.format(val=self.timestamp_slider._value),
+            text=PREDICTION_TEMPLATE.format(val=timestamp),
         )
         self.prediction_label.image = prediction_image
 
