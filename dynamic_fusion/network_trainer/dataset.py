@@ -119,6 +119,8 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                         )
                         if self.shared_config.temporal_interpolation:
                             continuous_timestamps_in_bins.subtract_(1)
+                            # This guarantees that we don't have negative timestamps
+                            continuous_timestamps_in_bins[0] = 0
 
                         video_at_continuous_timestamps = (
                             generate_frames_at_continuous_timestamps(
