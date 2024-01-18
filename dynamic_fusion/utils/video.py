@@ -20,6 +20,11 @@ from dynamic_fusion.utils.transform import TransformDefinition
 
 
 def normalize(data: Shaped[np.ndarray, "..."]) -> Shaped[np.ndarray, "..."]:
+    if isinstance(data, torch.Tensor):
+        data.subtract_(data.min())
+        data.divide_(data.max())
+        return data
+    
     data = data - data.min()
     return data / data.max()
 
