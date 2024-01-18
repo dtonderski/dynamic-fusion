@@ -9,7 +9,7 @@ class NetworkHandlerConfiguration(BaseModel):
     use_std: bool = Field(...)
     use_count: bool = Field(...)
     implicit: bool = Field(...)
-    feature_unfolding: bool = Field(...)
+    spatial_feature_unfolding: bool = Field(...)
     data_generator_target_image_size: Optional[Tuple[int, int]] = Field(...)
     losses: List[str] = Field(...)
 

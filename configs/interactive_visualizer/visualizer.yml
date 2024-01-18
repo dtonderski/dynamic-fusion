@@ -15,7 +15,7 @@ network_handler:
   use_std: true
   use_count: true
   implicit: true
-  feature_unfolding: false
+  spatial_feature_unfolding: false
   data_generator_target_image_size: null
   losses: ["LPIPS", "L1", "L2"]
 
