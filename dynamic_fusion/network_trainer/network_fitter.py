@@ -207,7 +207,7 @@ class NetworkFitter:
                     raise ValueError("Encountered previous prediction None!")
                 # expanded_timestamps in [-1, 0]
                 previous_encoding_and_time = torch.concat(
-                    [previous_prediction, expanded_timestamps+1], dim=1
+                    [previous_prediction, expanded_timestamps + 1], dim=1
                 )
                 previous_encoding_and_time = einops.rearrange(
                     previous_encoding_and_time, "B C X Y -> B X Y C"
@@ -234,7 +234,7 @@ class NetworkFitter:
 
                 previous_prediction = prediction.clone()
 
-                # expanded_timestamps in [-1, 0] here
+                # expanded_timestamps in [-1, 0]
                 reconstruction = previous_decoding_prediction * (-expanded_timestamps)
                 +(decoding_prediction * (1 + expanded_timestamps))
 
