@@ -212,7 +212,7 @@ class TrainingMonitor:
         with torch.no_grad():
             x_t_plot = self._generate_x_t_plot(last_8_encodings, decoding_network)
 
-        self.writer.add_image("last 5 frames", to_numpy(x_t_plot))  # type: ignore[no-untyped-call]
+        self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
         self.writer.flush()  # type: ignore[no-untyped-call]
 
     def _generate_montage(
@@ -311,7 +311,9 @@ class TrainingMonitor:
         images = einops.rearrange(stacked_reconstructions, "T batch X 1 -> batch X T")
         color_images = einops.repeat(images, "batch X T -> batch 3 X T")
         red_strip = einops.repeat(
-            torch.tensor([1, 0, 0]).to(encoding), "C -> C X 1", X=color_images.shape[2]
+            torch.tensor([1, 0, 0]).to(encoding),
+            "C -> C X 1",
+            X=color_images.shape[2],
         )
         images_to_concat = []
         for i, color_image in enumerate(color_images):
