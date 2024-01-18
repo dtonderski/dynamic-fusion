@@ -122,6 +122,8 @@ class NetworkFitter:
         event_polarity_sum_list, images, reconstructions = [], [], []
         previous_prediction: Optional[Float[torch.Tensor, "B C X Y"]] = None
 
+        last_8_encodings = []
+
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
 
@@ -238,6 +240,10 @@ class NetworkFitter:
                 reconstruction = previous_decoding_prediction * (-expanded_timestamps)
                 +(decoding_prediction * (1 + expanded_timestamps))
 
+            # Store last 7 encodings
+            if visualize and t >= self.shared_config.sequence_length - 8:
+                last_8_encodings.append(prediction.clone().detach())
+
             image_loss += (
                 self.reconstruction_loss_function(  # pylint: disable=not-callable
                     reconstruction, continuous_timestamp_frames[:, t, ...]
@@ -271,5 +277,6 @@ class NetworkFitter:
                 np.stack(images, 1),
                 np.stack(reconstructions, 1),
                 iteration,
-                True,
+                last_8_encodings,
+                decoding_network
             )
