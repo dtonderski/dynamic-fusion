@@ -40,7 +40,7 @@ def generate_frames_at_continuous_timestamps(
     continuous_timestamps_using_bin_time = (
         continuous_timestamps_in_bins
         + np.arange(0, continuous_timestamps_in_bins.shape[0])
-        + crop_definition.t_start
+        + crop_definition.T_start
     )
 
     # Now, translate this to video time, knowing the total number of bins in the video

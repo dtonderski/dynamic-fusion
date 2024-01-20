@@ -9,10 +9,12 @@ from jaxtyping import Float
 from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
+from dynamic_fusion.utils.dataset import generate_frames_at_continuous_timestamps
 
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import get_reconstruction_loss
 from dynamic_fusion.utils.network import network_data_to_device, to_numpy
+from dynamic_fusion.utils.video import get_video
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
 from .training_monitor import TrainingMonitor
@@ -36,9 +38,7 @@ class NetworkFitter:
         self.config = config
         self.shared_config = shared_config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.reconstruction_loss_function = get_reconstruction_loss(
-            self.config.reconstruction_loss_name, self.device
-        )
+        self.reconstruction_loss_function = get_reconstruction_loss(self.config.reconstruction_loss_name, self.device)
         self.logger = logging.getLogger("NetworkFitter")
         self.monitor = monitor
 
@@ -67,9 +67,7 @@ class NetworkFitter:
 
         data_loader_iterator = iter(data_loader)
 
-        for iteration in range(
-            start_iteration, self.config.number_of_training_iterations
-        ):
+        for iteration in range(start_iteration, self.config.number_of_training_iterations):
             self._reconstruction_step(
                 data_loader_iterator,
                 encoding_network,
@@ -94,24 +92,33 @@ class NetworkFitter:
         decoding_network: Optional[nn.Module],
         iteration: int,
     ) -> None:
+        """Variable name explanations:
+            1. T - timestamp in video, in [0, 101] for the default data generation with 100 bins per image
+            2. tau - timestamp in frame, in [0,1].
+            3. t - timestamp in current sequence, in [0, sequence_length]. Note that T = tau + t + crop.T_start
+
+        Args:
+            data_loader_iterator (Iterator[Batch]): _description_
+            encoding_network (nn.Module): _description_
+            optimizer (Optimizer): _description_
+            decoding_network (Optional[nn.Module]): _description_
+            iteration (int): _description_
+
+        Raises:
+            ValueError: _description_
+        """
         optimizer.zero_grad()
         encoding_network.reset_states()
 
         with Timer() as timer_batch:
-            (
-                event_polarity_sums,
-                timestamp_means,
-                timestamp_stds,
-                event_counts,
-                video,
-                continuous_timestamps,
-                continuous_timestamp_frames,
-            ) = network_data_to_device(
-                next(data_loader_iterator),
-                self.device,
-                self.shared_config.use_mean,
-                self.shared_config.use_std,
-                self.shared_config.use_count,
+            (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = (
+                network_data_to_device(
+                    next(data_loader_iterator),
+                    self.device,
+                    self.shared_config.use_mean,
+                    self.shared_config.use_std,
+                    self.shared_config.use_count,
+                )
             )
 
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
@@ -120,142 +127,69 @@ class NetworkFitter:
 
         visualize = iteration % self.config.visualization_frequency == 0
         event_polarity_sum_list, images, reconstructions = [], [], []
-        previous_prediction: Optional[Float[torch.Tensor, "B C X Y"]] = None
-
-        last_8_encodings = []
+        c_list = []
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
 
             # TODO: fix variable names. Non-trivial because this might be output video
             # or latent codes
-            prediction = encoding_network(
+            c_t = encoding_network(
                 event_polarity_sum,
                 timestamp_means[:, t] if self.shared_config.use_mean else None,
                 timestamp_stds[:, t] if self.shared_config.use_std else None,
                 event_counts[:, t] if self.shared_config.use_count else None,
             )
 
-            # Store last encoding if using temporal interpolation
-            if (
-                t == self.config.skip_first_timesteps - 1
-                and self.shared_config.implicit
-                and self.shared_config.temporal_interpolation
-            ):
-                if self.shared_config.spatial_feature_unfolding:
-                    unfolded_prediction = torch.nn.functional.unfold(
-                        prediction, kernel_size=3, padding=1, stride=1
-                    )
-                    prediction = einops.rearrange(
-                        unfolded_prediction,
-                        "B C (X Y) -> B C X Y",
-                        X=continuous_timestamp_frames.shape[3],
-                    )
-
-                previous_prediction = prediction.clone()
-
-            if t < self.config.skip_first_timesteps:
-                continue
-
-            # Non-implicit
             if decoding_network is None:
-                image_loss += (
-                    self.reconstruction_loss_function(  # pylint: disable=not-callable
-                        prediction, video[:, t, ...]
-                    ).mean()
-                )
+                image_loss += self.reconstruction_loss_function(c_t, video[:, t, ...]).mean()  # pylint: disable=not-callable
                 if not visualize:
                     continue
                 event_polarity_sum_list.append(to_numpy(event_polarity_sum))
                 images.append(to_numpy(video[:, t, ...]))
-                reconstructions.append(to_numpy(prediction))
+                reconstructions.append(to_numpy(c_t))
                 continue
 
-            # Implicit
-            if self.shared_config.spatial_feature_unfolding:
-                unfolded_prediction = torch.nn.functional.unfold(
-                    prediction, kernel_size=3, padding=1, stride=1
-                )
-                prediction = einops.rearrange(
-                    unfolded_prediction,
-                    "B C (X Y) -> B C X Y",
-                    X=continuous_timestamp_frames.shape[3],
-                )
+            c_list.append(c_t.clone())
+        if decoding_network is None:
+            return
+        t_0 = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
+        t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
+        cs = torch.concat(c_list, dim=2)  # B C T X Y
 
-            expanded_timestamps = einops.repeat(
-                continuous_timestamps[:, t],
-                "B -> B 1 X Y",
-                X=continuous_timestamp_frames.shape[3],
-                Y=continuous_timestamp_frames.shape[4],
-            )
-            # No temporal interpolation
-            if not self.shared_config.temporal_interpolation:
-                encoding_and_time = torch.concat(
-                    [prediction, expanded_timestamps], dim=1
-                )
+        if self.shared_config.spatial_unfolding:
+            cs = torch.nn.functional.unfold(cs, kernel_size=(1, 3, 3), padding=(0, 1, 1), stride=1)
+            cs = einops.rearrange(cs, " B C (T X Y) -> B C T X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
+        if self.shared_config.temporal_unfolding:
+            cs = torch.nn.functional.unfold(cs, kernel_size=(3, 1, 1), padding=(1, 0, 0), stride=1)
+            cs = einops.rearrange(cs, " B C (T X Y) -> B C T X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
 
-                encoding_and_time = einops.rearrange(
-                    encoding_and_time, "B C X Y -> B X Y C"
-                )
+        cs = einops.rearrange(cs, "B C T X Y -> T B C X Y")
 
-                decoding_prediction = decoding_network(encoding_and_time)
-                reconstruction = einops.rearrange(
-                    decoding_prediction, "B X Y 1 -> B 1 X Y"
-                )
+        T_starts = np.array([x.T_start for x in crops])
+        taus = np.random.rand(len(preprocessed_images), t_end - t_0)
+        Ts = einops.rearrange(np.arange(t_0, t_end), "T -> 1 T") + taus + T_starts
+        Ts_normalized = Ts / crops[0].total_number_of_bins  # Normalize from [0,NBinsInSequence] to [0,1]
+        xs_list = []
+        for image, transform, T_normalized_batch in zip(preprocessed_images, transforms, Ts_normalized):
+            xs_list.append(get_video(image, transform, T_normalized_batch, self.config.data_generator_target_image_size, self.device))
+        xs = einops.rearrange(torch.concat(xs_list, dim=0), "B T X Y -> T B 1 X Y")
 
-            # With temporal interpolation
-            else:
-                if previous_prediction is None:
-                    raise ValueError("Encountered previous prediction None!")
-                # expanded_timestamps in [-1, 0]
-                previous_encoding_and_time = torch.concat(
-                    [previous_prediction, expanded_timestamps + 1], dim=1
-                )
-                previous_encoding_and_time = einops.rearrange(
-                    previous_encoding_and_time, "B C X Y -> B X Y C"
-                )
+        taus = einops.rearrange(taus, "B T -> T B 1 X Y")
 
-                previous_decoding_prediction = decoding_network(
-                    previous_encoding_and_time
-                )
-                previous_decoding_prediction = einops.rearrange(
-                    previous_decoding_prediction, "B X Y 1 -> B 1 X Y"
-                )
-
-                encoding_and_time = torch.concat(
-                    [prediction, expanded_timestamps], dim=1
-                )
-                encoding_and_time = einops.rearrange(
-                    encoding_and_time, "B C X Y -> B X Y C"
-                )
-
-                decoding_prediction = decoding_network(encoding_and_time)
-                decoding_prediction = einops.rearrange(
-                    decoding_prediction, "B X Y 1 -> B 1 X Y"
-                )
-
-                previous_prediction = prediction.clone()
-
-                # expanded_timestamps in [-1, 0]
-                reconstruction = previous_decoding_prediction * (-expanded_timestamps)
-                +(decoding_prediction * (1 + expanded_timestamps))
-
-            # Store last 7 encodings
-            if visualize and t >= self.shared_config.sequence_length - 8:
-                last_8_encodings.append(prediction.clone().detach())
-
-            image_loss += (
-                self.reconstruction_loss_function(  # pylint: disable=not-callable
-                    reconstruction, continuous_timestamp_frames[:, t, ...]
-                ).mean()
-            )
+        for t in range(t_0, t_end):
+            r_t = decoding_network(torch.concat([cs[t], taus[t]], dim=1))  # type: ignore
+            if self.shared_config.temporal_interpolation:
+                r_tnext = decoding_network(torch.concat([cs[t + 1], taus[t] - 1], dim=1))  # type: ignore
+                r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
+            image_loss = image_loss + self.reconstruction_loss_function(r_t, xs[t]).mean()  # pylint: disable=not-callable
 
             if not visualize:
                 continue
 
             event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-            images.append(to_numpy(continuous_timestamp_frames[:, t, ...]))
-            reconstructions.append(to_numpy(reconstruction))
+            images.append(to_numpy(xs[:, t, ...]))
+            reconstructions.append(to_numpy(r_t))
 
         image_loss /= self.shared_config.sequence_length
         time_forward = time.time() - forward_start
@@ -266,17 +200,11 @@ class NetworkFitter:
 
         time_batch, time_backward = timer_batch.interval, timer_backward.interval
         self.logger.info(
-            f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f},"
-            f" {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)"
+            f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)"
         )
 
         self.monitor.on_reconstruction(image_loss.item(), iteration)
         if visualize:
             self.monitor.visualize(
-                np.stack(event_polarity_sum_list, 1),
-                np.stack(images, 1),
-                np.stack(reconstructions, 1),
-                iteration,
-                last_8_encodings,
-                decoding_network
+                np.stack(event_polarity_sum_list, 1), np.stack(images, 1), np.stack(reconstructions, 1), iteration, cs[-8:], decoding_network  # type: ignore
             )

@@ -11,17 +11,8 @@ def network_data_to_device(
     use_mean: bool,
     use_std: bool,
     use_count: bool,
-    use_continuous_timestamps: bool = True,
 ) -> Batch:
-    (
-        event_polarity_sums,
-        timestamp_means,
-        timestamp_stds,
-        event_counts,
-        video,
-        continuous_timestamps,
-        continuous_timestamp_frames,
-    ) = batch
+    (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_image, transforms_definition, crop_definition) = batch
     event_polarity_sums = event_polarity_sums.to(device)
 
     if use_mean:
@@ -32,19 +23,8 @@ def network_data_to_device(
         event_counts = event_counts.to(device)
 
     video = video.to(device)
-    if use_continuous_timestamps:
-        continuous_timestamps = continuous_timestamps.to(device)
-        continuous_timestamp_frames = continuous_timestamp_frames.to(device)
 
-    return (
-        event_polarity_sums,
-        timestamp_means,
-        timestamp_stds,
-        event_counts,
-        video,
-        continuous_timestamps,
-        continuous_timestamp_frames,
-    )
+    return (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_image, transforms_definition, crop_definition)
 
 
 def to_numpy(tensor: torch.Tensor) -> np.ndarray:  # type: ignore[type-arg]

@@ -8,6 +8,8 @@ from jaxtyping import Bool, Float, Float32, Int, Int64, UInt8
 from pandera.typing import DataFrame, Series
 from typing_extensions import TypeAlias
 
+from dynamic_fusion.utils.transform import TransformDefinition
+
 Image: TypeAlias = UInt8[np.ndarray, "H W 3"]
 GrayImage: TypeAlias = UInt8[np.ndarray, "H W"]
 GrayImageFloat: TypeAlias = Float[np.ndarray, "H W"]
@@ -48,17 +50,28 @@ class Checkpoint(TypedDict):
     decoding_state_dict: Optional[Dict[str, Any]]
     iteration: Optional[int]
 
+@dataclass
+class CropDefinition:
+    x_start: int
+    y_start: int
+    T_start: int
+    x_size: int
+    y_size: int
+    t_size: int
+    # total_number_of_bins is for convenience, used to calculate time
+    # for continuous time training
+    total_number_of_bins: int
 
 Batch: TypeAlias = Tuple[
-    Float32[torch.Tensor, "batch Time SubBin X Y"],  # EPS
-    Float32[torch.Tensor, "batch Time SubBin X Y"],  # Means
-    Float32[torch.Tensor, "batch Time SubBin X Y"],  # STD
-    Float32[torch.Tensor, "batch Time SubBin X Y"],  # Counts
-    Float32[torch.Tensor, "batch Time 1 X Y"],  # Video
-    Float32[torch.Tensor, "batch N Time"],  # Continuous timestamps
-    Float32[torch.Tensor, "batch N Time 1 X Y"],  # Continuous timestamp frames
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # polarity sum
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # mean
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # std
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # event count
+    Float32[torch.Tensor, "Batch Time 1 X Y"],  # bin end frame, unused in implicit
+    List[GrayImageFloat],
+    List[TransformDefinition],
+    List[CropDefinition],
 ]
-
 
 @dataclass
 class ReconstructionSample:
@@ -67,19 +80,6 @@ class ReconstructionSample:
     timestamp_stds: Float32[torch.Tensor, "Time SubBin X Y"]
     event_counts: Float32[torch.Tensor, "Time SubBin X Y"]
     video: Float32[torch.Tensor, "Time 1 X Y"]
-
-
-@dataclass
-class CropDefinition:
-    x_start: int
-    y_start: int
-    t_start: int
-    x_size: int
-    y_size: int
-    t_size: int
-    # total_number_of_bins is for convenience, used to calculate time
-    # for continuous time training
-    total_number_of_bins: int
 
 
 @dataclass

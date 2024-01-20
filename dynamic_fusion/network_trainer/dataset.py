@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Callable, Generator, List, Optional, Tuple
+from typing import Callable, Generator, List, Tuple
 
 import einops
 import h5py
@@ -8,17 +8,10 @@ import numpy as np
 import torch
 from jaxtyping import Float32
 from torch._tensor import Tensor
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, default_collate
 
-from dynamic_fusion.utils.dataset import (
-    discretized_events_to_tensors,
-    generate_frames_at_continuous_timestamps,
-)
-from dynamic_fusion.utils.datatypes import (
-    CroppedReconstructionSample,
-    GrayImageFloat,
-    ReconstructionSample,
-)
+from dynamic_fusion.utils.dataset import discretized_events_to_tensors
+from dynamic_fusion.utils.datatypes import Batch, CropDefinition, CroppedReconstructionSample, GrayImageFloat, ReconstructionSample
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
 
@@ -38,17 +31,13 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         config: DatasetConfiguration,
         shared_config: SharedConfiguration,
     ) -> None:
-        self.directory_list = [
-            path for path in config.dataset_directory.glob("**/*") if path.is_dir()
-        ]
+        self.directory_list = [path for path in config.dataset_directory.glob("**/*") if path.is_dir()]
         self.config = config
         self.shared_config = shared_config
         self.augmentation = augmentation
         self.logger = logging.getLogger("CocoDataset")
 
-    def __getitem__(
-        self, index: int
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def __getitem__(self, index: int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         raise NotImplementedError("__getitem__ not implemented for IterableDataset!")
 
     def __iter__(
@@ -60,10 +49,9 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             Float32[torch.Tensor, "Time SubBin X Y"],  # std
             Float32[torch.Tensor, "Time SubBin X Y"],  # event count
             Float32[torch.Tensor, "Time 1 X Y"],  # bin end frame, unused in implicit
-            Optional[Float32[torch.Tensor, "Time"]],  # continuous timestamps
-            Optional[
-                Float32[torch.Tensor, "Time 1 X Y"]
-            ],  # frame at continuous timestamps
+            GrayImageFloat,
+            TransformDefinition,
+            CropDefinition,
         ],
         None,
         None,
@@ -71,29 +59,20 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         while True:
             index = np.random.randint(0, len(self.directory_list))
 
-            threshold_path = (
-                self.directory_list[index]
-                / f"discretized_events_{self.config.threshold}.h5"
-            )
+            threshold_path = self.directory_list[index] / f"discretized_events_{self.config.threshold}.h5"
             with h5py.File(threshold_path, "r") as file:
                 discretized_events = DiscretizedEvents.load_from_file(file)
 
             video_path = self.directory_list[index] / "ground_truth.h5"
             with h5py.File(video_path, "r") as file:
-                video = torch.from_numpy(np.array(file["synchronized_video"])).to(
-                    torch.float32
-                )
+                video = torch.from_numpy(np.array(file["synchronized_video"])).to(torch.float32)
 
             input_path = self.directory_list[index] / "input.h5"
             with h5py.File(input_path, "r") as file:
-                preprocessed_image: GrayImageFloat = np.array(
-                    file["preprocessed_image"]
-                )
+                preprocessed_image: GrayImageFloat = np.array(file["preprocessed_image"])
                 transform_definition = TransformDefinition.load_from_file(file)
 
-            event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-                discretized_events_to_tensors(discretized_events)
-            )
+            event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
 
             network_data = ReconstructionSample(
                 event_polarity_sum,
@@ -106,49 +85,23 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
                 try:
                     augmented_network_data = self.augmentation(network_data)
                 except ValueError as ex:
-                    self.logger.warning(
-                        f"Encountered error {ex} when trying to transform"
-                        f" {self.directory_list[index]}, retrying transforms."
-                    )
+                    self.logger.warning(f"Encountered error {ex} when trying to transform {self.directory_list[index]}, retrying transforms.")
                     continue
 
                 if self._validate(augmented_network_data.sample):
-                    if self.shared_config.implicit:
-                        continuous_timestamps_in_bins = torch.rand(
-                            self.shared_config.sequence_length
-                        )
-                        if self.shared_config.temporal_interpolation:
-                            continuous_timestamps_in_bins.subtract_(1)
-                            # This guarantees that we don't have negative timestamps
-                            continuous_timestamps_in_bins[0] = 0
-
-                        video_at_continuous_timestamps = (
-                            generate_frames_at_continuous_timestamps(
-                                continuous_timestamps_in_bins,
-                                preprocessed_image,
-                                transform_definition,
-                                augmented_network_data.crop_definition,
-                                self.config.data_generator_target_image_size,
-                            )
-                        )
-                    else:
-                        continuous_timestamps_in_bins = torch.zeros(1)
-                        video_at_continuous_timestamps = torch.zeros(1)
                     yield (
                         network_data.event_polarity_sums,
                         network_data.timestamp_means,
                         network_data.timestamp_stds,
                         network_data.event_counts,
                         network_data.video,
-                        continuous_timestamps_in_bins,
-                        video_at_continuous_timestamps,
+                        preprocessed_image,
+                        transform_definition,
+                        augmented_network_data.crop_definition,
                     )
                     break
             else:  # This happens if no break
-                self.logger.warning(
-                    f"No valid data found for dir {self.directory_list[index].name},"
-                    " skipping!"
-                )
+                self.logger.warning(f"No valid data found for dir {self.directory_list[index].name}, skipping!")
 
     def _validate(self, sample: ReconstructionSample) -> bool:
         if torch.all(sample.event_counts == 0):
@@ -160,10 +113,26 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             "mean",
         ).max()
 
-        if (
-            max_of_mean_polarities_over_times
-            < self.config.min_allowed_max_of_mean_polarities_over_times
-        ):
+        if max_of_mean_polarities_over_times < self.config.min_allowed_max_of_mean_polarities_over_times:
             return False
 
         return True
+
+
+def collate_items(
+    items: List[
+        Tuple[
+            Float32[torch.Tensor, "Time SubBin X Y"],  # polarity sum
+            Float32[torch.Tensor, "Time SubBin X Y"],  # mean
+            Float32[torch.Tensor, "Time SubBin X Y"],  # std
+            Float32[torch.Tensor, "Time SubBin X Y"],  # event count
+            Float32[torch.Tensor, "Time 1 X Y"],  # bin end frame, unused in implicit
+            GrayImageFloat,
+            TransformDefinition,
+            CropDefinition,
+        ],
+    ]
+) -> Batch:
+    tensors = default_collate([(x[i] for i in range(5)) for x in items])
+    collated_items = (*tensors, *[[x[i] for x in items] for i in range(5, 8)])
+    return collated_items

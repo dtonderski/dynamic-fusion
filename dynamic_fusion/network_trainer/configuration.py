@@ -17,8 +17,9 @@ class SharedConfiguration(BaseModel):
     use_std: bool = Field(...)
     use_count: bool = Field(...)
     implicit: bool = Field(...)
-    spatial_feature_unfolding: bool = Field(...)
+    spatial_unfolding: bool = Field(...)
     temporal_interpolation: bool = Field(...)
+    temporal_unfolding: bool = Field(...)
 
 
 class AugmentationConfiguration(BaseModel):
@@ -51,11 +52,6 @@ class DatasetConfiguration(BaseModel):
             " and thresholds."
         ),
     )
-
-    data_generator_target_image_size: Tuple[int, int] = Field(
-        ..., description="Image size that was used in data generation."
-    )
-
 
 class DataHandlerConfiguration(BaseModel):
     augmentation: AugmentationConfiguration = Field(...)  # pyright: ignore
@@ -97,6 +93,9 @@ class NetworkFitterConfiguration(BaseModel):
 
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
+    data_generator_target_image_size: Tuple[int, int] = Field(
+        ..., description="Image size that was used in data generation."
+    )
 
 
 class TrainingMonitorConfiguration(BaseModel):
