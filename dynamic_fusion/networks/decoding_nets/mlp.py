@@ -8,9 +8,7 @@ class MLP(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, hidden_layers: int) -> None:
         super().__init__()
         if hidden_layers < 1:
-            raise ValueError(
-                f"n_hidden_layers must be at least 1, but it is {hidden_layers}"
-            )
+            raise ValueError(f"n_hidden_layers must be at least 1, but it is {hidden_layers}")
 
         self.input_layer = nn.Sequential(nn.Linear(input_size, hidden_size), nn.ReLU())
 

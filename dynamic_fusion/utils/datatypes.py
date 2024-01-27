@@ -50,6 +50,7 @@ class Checkpoint(TypedDict):
     decoding_state_dict: Optional[Dict[str, Any]]
     iteration: Optional[int]
 
+
 @dataclass
 class CropDefinition:
     x_start: int
@@ -62,6 +63,7 @@ class CropDefinition:
     # for continuous time training
     total_number_of_bins: int
 
+
 Batch: TypeAlias = Tuple[
     Float32[torch.Tensor, "Batch Time SubBin X Y"],  # polarity sum
     Float32[torch.Tensor, "Batch Time SubBin X Y"],  # mean
@@ -72,6 +74,7 @@ Batch: TypeAlias = Tuple[
     List[TransformDefinition],
     List[CropDefinition],
 ]
+
 
 @dataclass
 class ReconstructionSample:

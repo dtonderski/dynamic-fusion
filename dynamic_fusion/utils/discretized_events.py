@@ -55,28 +55,8 @@ class DiscretizedEvents:
         y_end: Optional[int] = None,
     ) -> DiscretizedEvents:
         return cls(
-            event_polarity_sum=torch.from_numpy(
-                np.array(
-                    file["event_polarity_sum"][
-                        t_start:t_end, x_start:x_end, y_start:y_end
-                    ]
-                )
-            ),
-            timestamp_mean=torch.from_numpy(
-                np.array(
-                    file["timestamp_mean"][
-                        t_start:t_end, x_start:x_end, y_start:y_end
-                    ]
-                )
-            ),
-            timestamp_std=torch.from_numpy(
-                np.array(
-                    file["timestamp_std"][t_start:t_end, x_start:x_end, y_start:y_end]
-                )
-            ),
-            event_count=torch.from_numpy(
-                np.array(
-                    file["event_count"][t_start:t_end, x_start:x_end, y_start:y_end]
-                )
-            ),
+            event_polarity_sum=torch.from_numpy(np.array(file["event_polarity_sum"][t_start:t_end, x_start:x_end, y_start:y_end])),
+            timestamp_mean=torch.from_numpy(np.array(file["timestamp_mean"][t_start:t_end, x_start:x_end, y_start:y_end])),
+            timestamp_std=torch.from_numpy(np.array(file["timestamp_std"][t_start:t_end, x_start:x_end, y_start:y_end])),
+            event_count=torch.from_numpy(np.array(file["event_count"][t_start:t_end, x_start:x_end, y_start:y_end])),
         )

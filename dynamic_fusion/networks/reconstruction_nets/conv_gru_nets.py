@@ -70,9 +70,7 @@ class ConvGruNetV1(nn.Module):
         """
         batch_size, _, imsz0, imsz1 = d.shape
         if self.state1 is None:
-            self.state1 = torch.zeros(
-                [batch_size, self.hidden_size, imsz0, imsz1]
-            ).to(d)
+            self.state1 = torch.zeros([batch_size, self.hidden_size, imsz0, imsz1]).to(d)
 
         d_nrm = self.input_normalizer(d)
         time_to_prev = self.time_to_prev_ev(d)

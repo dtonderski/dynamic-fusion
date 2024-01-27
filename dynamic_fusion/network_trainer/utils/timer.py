@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 
 class Timer:
-    def __init__(self, autoprint_str: Optional[str]=None) -> None:
+    def __init__(self, autoprint_str: Optional[str] = None) -> None:
         self.autoprint_str = autoprint_str
         self.interval = 0.0
 

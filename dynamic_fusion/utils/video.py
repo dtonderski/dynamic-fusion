@@ -24,7 +24,7 @@ def normalize(data: Shaped[np.ndarray, "..."]) -> Shaped[np.ndarray, "..."]:
         data.subtract_(data.min())
         data.divide_(data.max())
         return data
-    
+
     data = data - data.min()
     return data / data.max()
 
@@ -55,9 +55,7 @@ def get_video(
     """
     if timestamps[0] != 0:
         raise ValueError("The first timestamp must always be 0!")
-    shifts, rotations, scales = _interpolate_transforms(
-        transform_definition, timestamps
-    )
+    shifts, rotations, scales = _interpolate_transforms(transform_definition, timestamps)
 
     transformation_matrices = _transforms_to_matrices(shifts, rotations, scales)
 
@@ -77,9 +75,7 @@ def get_video(
         "H W -> N 1 H W",
         N=shifts.shape[0],
     )
-    video = torch.nn.functional.grid_sample(
-        image_tensor, grid, interpolation, fill_mode, align_corners=False
-    )
+    video = torch.nn.functional.grid_sample(image_tensor, grid, interpolation, fill_mode, align_corners=False)
     video = normalize(video.squeeze())
     if target_image_size is not None:
         video = crop_video(video, target_image_size)
@@ -182,23 +178,17 @@ def _transforms_to_matrices(  # pylint: disable=R0913,R0914
             dtype=np.float32,
         )
 
-        transformation_matrices[step, ...] = (
-            scale_matrix @ shift_matrix @ rotation_matrix
-        )
+        transformation_matrices[step, ...] = scale_matrix @ shift_matrix @ rotation_matrix
 
     return transformation_matrices
 
 
-def _generate_video_scipy(
-    image: GrayImage, transformation_matrices: Float[np.ndarray, "T 3 3"]
-) -> GrayVideoInt:
+def _generate_video_scipy(image: GrayImage, transformation_matrices: Float[np.ndarray, "T 3 3"]) -> GrayVideoInt:
     video = np.zeros(
         (transformation_matrices.shape[0], image.shape[0], image.shape[1]),
         dtype=np.float32,
     )
-    with tqdm(
-        total=len(transformation_matrices), desc="Generating video"
-    ) as video_progress_bar:
+    with tqdm(total=len(transformation_matrices), desc="Generating video") as video_progress_bar:
         for timestep, matrix in enumerate(transformation_matrices):
             video[timestep] = affine_transform(image, matrix=matrix)
             video_progress_bar.update(1)
@@ -228,9 +218,7 @@ def _generate_video_torch(
     return videos.cpu().numpy()
 
 
-def crop_video(
-    video: GrayVideoFloat, target_image_size: Tuple[int, int]
-) -> GrayVideoFloat:
+def crop_video(video: GrayVideoFloat, target_image_size: Tuple[int, int]) -> GrayVideoFloat:
     cropped_video_border = (video.shape[-2:] - np.array(target_image_size)) // 2
 
     cropped_video = video[

@@ -39,16 +39,14 @@ class CocoTestDataset(Dataset):  # type: ignore
         timestamps_in_bin: Optional[List[float]],
         threshold: float = 1.4,
         maximum_sequence_length: int = 150,
-        data_generator_target_image_size: Optional[Tuple[int, int]] = None
+        data_generator_target_image_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         self.logger = logging.getLogger("CocoDataset")
         self.threshold = threshold
         self.implicit = implicit
         self.data_generator_target_image_size = data_generator_target_image_size
 
-        self.directory_list = [
-            path for path in dataset_directory.glob("**/*") if path.is_dir()
-        ]
+        self.directory_list = [path for path in dataset_directory.glob("**/*") if path.is_dir()]
         if timestamps_in_bin is None:
             self.timesteps_in_bin = [1]
             if implicit:
@@ -77,18 +75,14 @@ class CocoTestDataset(Dataset):  # type: ignore
 
         video_path = directory / "ground_truth.h5"
         with h5py.File(video_path, "r") as file:
-            video = torch.from_numpy(np.array(file["synchronized_video"])).to(
-                torch.float32
-            )
+            video = torch.from_numpy(np.array(file["synchronized_video"])).to(torch.float32)
 
         input_path = directory / "input.h5"
         with h5py.File(input_path, "r") as file:
             preprocessed_image: GrayImageFloat = np.array(file["preprocessed_image"])
             transform_definition = TransformDefinition.load_from_file(file)
 
-        event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-            discretized_events_to_tensors(discretized_events)
-        )
+        event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
         network_data = ReconstructionSample(
             event_polarity_sum,
             timestamp_mean,
@@ -111,13 +105,9 @@ class CocoTestDataset(Dataset):  # type: ignore
 
         if self.implicit or self.timesteps_in_bin != [1]:
             if self.use_random_timesteps:
-                timestamps_in_bins: Float[torch.Tensor, " 1 T"] = self.timestamps[
-                    index : index + 1, : video.shape[0]
-                ]
+                timestamps_in_bins: Float[torch.Tensor, " 1 T"] = self.timestamps[index : index + 1, : video.shape[0]]
             else:
-                timestamps: Float[torch.Tensor, " N"] = torch.tensor(
-                    self.timesteps_in_bin
-                )
+                timestamps: Float[torch.Tensor, " N"] = torch.tensor(self.timesteps_in_bin)
                 timestamps_in_bins = einops.repeat(
                     timestamps,
                     "N -> N T",
@@ -128,14 +118,10 @@ class CocoTestDataset(Dataset):  # type: ignore
             for timestamps_in_bins_i in timestamps_in_bins:
                 videos_at_timestamps.append(
                     generate_frames_at_continuous_timestamps(
-                        timestamps_in_bins_i,
-                        preprocessed_image,
-                        transform_definition,
-                        crop_definition,
-                        self.data_generator_target_image_size
+                        timestamps_in_bins_i, preprocessed_image, transform_definition, crop_definition, self.data_generator_target_image_size
                     )
                 )
-            
+
             video_at_continuous_timestamps = torch.stack(videos_at_timestamps)
         else:
             timestamps_in_bins = torch.zeros(1)

@@ -65,9 +65,7 @@ class EventGenerator:
         )  # pyright: ignore
         self.logger = logging.getLogger("EventGenerator")
 
-    def run(
-        self, video: GrayVideoFloat, progress_bar: Optional[tqdm] = None
-    ) -> Dict[float, Events]:
+    def run(self, video: GrayVideoFloat, progress_bar: Optional[tqdm] = None) -> Dict[float, Events]:
         if progress_bar:
             progress_bar.set_postfix_str("Generating events")
         else:
@@ -78,9 +76,7 @@ class EventGenerator:
 
         video = video * 255
 
-        image_generator = ImageGenerator(
-            data=video, fps=self.shared_config.fps, num_frames=len(video)
-        )
+        image_generator = ImageGenerator(data=video, fps=self.shared_config.fps, num_frames=len(video))
 
         self.evs_config.input.source = image_generator
 
@@ -107,10 +103,7 @@ class EventGenerator:
                 high=self.config.max_illuminance_lux_range[1],
             )
 
-            if (
-                max_illuminance_lux - min_illuminance_lux > 50
-                and max_illuminance_lux / min_illuminance_lux > 4.5
-            ):
+            if max_illuminance_lux - min_illuminance_lux > 50 and max_illuminance_lux / min_illuminance_lux > 4.5:
                 break
 
         return min_illuminance_lux, max_illuminance_lux
@@ -127,6 +120,4 @@ class EventGenerator:
             self.evs_config.sensor.ONth_mul = threshold
             self.evs_config.sensor.OFFth_mul = threshold
         elif self.evs_config.sensor_model == "sees_model":
-            self.evs_config.sensor.set_sensor_event_sensitivity(  # pyright: ignore
-                ContrastStep(threshold)
-            )
+            self.evs_config.sensor.set_sensor_event_sensitivity(ContrastStep(threshold))  # pyright: ignore

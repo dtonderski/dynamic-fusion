@@ -38,19 +38,11 @@ class EventDiscretizer:
     ) -> None:
         self.config = config
         if shared_config is not None:
-            self.number_of_images_to_generate_per_input = (
-                shared_config.number_of_images_to_generate_per_input
-            )
+            self.number_of_images_to_generate_per_input = shared_config.number_of_images_to_generate_per_input
             self.fps = shared_config.fps
             self.target_image_size = shared_config.target_image_size
-        elif (
-            number_of_images_to_generate_per_input is not None
-            and fps is not None
-            and target_image_size is not None
-        ):
-            self.number_of_images_to_generate_per_input = (
-                number_of_images_to_generate_per_input
-            )
+        elif number_of_images_to_generate_per_input is not None and fps is not None and target_image_size is not None:
+            self.number_of_images_to_generate_per_input = number_of_images_to_generate_per_input
             self.fps = fps
             self.target_image_size = target_image_size
         else:
@@ -74,9 +66,7 @@ class EventDiscretizer:
 
         discretized_events_dict = {}
         for threshold, events in events_dict.items():
-            discretized_events_dict[threshold] = self._discretize_events(
-                events, threshold, image_resolution
-            )
+            discretized_events_dict[threshold] = self._discretize_events(events, threshold, image_resolution)
 
         indices_of_label_frames = self._calculate_indices_of_label_frames()
 
@@ -102,13 +92,9 @@ class EventDiscretizer:
         """
 
         # Edges of temporal bins must align frames.
-        assert (
-            self.number_of_images_to_generate_per_input - 1
-        ) % self.config.number_of_temporal_bins == 0
+        assert (self.number_of_images_to_generate_per_input - 1) % self.config.number_of_temporal_bins == 0
 
-        discretized_frame_length = (
-            self.number_of_images_to_generate_per_input - 1
-        ) // self.config.number_of_temporal_bins
+        discretized_frame_length = (self.number_of_images_to_generate_per_input - 1) // self.config.number_of_temporal_bins
 
         return torch.arange(
             discretized_frame_length,
@@ -133,31 +119,20 @@ class EventDiscretizer:
             torch.tensor(events.polarity.values.astype(bool)),
         )
 
-        temporal_bin_indices = self._calculate_temporal_bin_indices(
-            timestamps, max_timestamp
-        )
-        temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(
-            timestamps, max_timestamp
-        )
+        temporal_bin_indices = self._calculate_temporal_bin_indices(timestamps, max_timestamp)
+        temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(timestamps, max_timestamp)
 
         # Normalize so they lie between [0, n_bins*sub_bins_per_bin]
-        normalized_timestamps = (
-            timestamps
-            / max_timestamp
-            * self.config.number_of_temporal_bins
-            * self.config.number_of_temporal_sub_bins_per_bin
-        )
+        normalized_timestamps = timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
 
         # Normalize so events in each sub-bin lie between [0, 1]
         timestamps_in_sub_bins = (
-            normalized_timestamps
-            - temporal_sub_bin_indices
-            - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
+            normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
         ).float()
 
         if self.target_image_size is not None:
             image_resolution = self.target_image_size
-        
+
         if image_resolution is None:
             raise ValueError("Image resolution is None!")
 
@@ -167,14 +142,12 @@ class EventDiscretizer:
             *image_resolution,
         )
 
-        event_polarity_sum: DiscretizedEventsStatistics = (
-            self._calculate_event_polarity_sum(
-                events_torch,
-                temporal_bin_indices,
-                temporal_sub_bin_indices,
-                threshold,
-                resolution,
-            )
+        event_polarity_sum: DiscretizedEventsStatistics = self._calculate_event_polarity_sum(
+            events_torch,
+            temporal_bin_indices,
+            temporal_sub_bin_indices,
+            threshold,
+            resolution,
         )
 
         timestamp_mean, timestamp_std, event_count = self._calculate_statistics(
@@ -185,9 +158,7 @@ class EventDiscretizer:
             resolution,
         )
 
-        return DiscretizedEvents(
-            event_polarity_sum, timestamp_mean, timestamp_std, event_count
-        )
+        return DiscretizedEvents(event_polarity_sum, timestamp_mean, timestamp_std, event_count)
 
     def _calculate_statistics(
         self,
@@ -232,17 +203,9 @@ class EventDiscretizer:
         )
 
         indices_with_events = event_count > 0
-        timestamp_mean[indices_with_events] = (
-            timestamp_sum[indices_with_events] / event_count[indices_with_events]
-        )
+        timestamp_mean[indices_with_events] = timestamp_sum[indices_with_events] / event_count[indices_with_events]
         timestamp_std[indices_with_events] = torch.sqrt(
-            (
-                timestamp_squared_sum[indices_with_events]
-                - (
-                    timestamp_sum[indices_with_events] ** 2
-                    / event_count[indices_with_events]
-                )
-            )
+            (timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events]))
             / event_count[indices_with_events]
         )
 
@@ -283,32 +246,19 @@ class EventDiscretizer:
 
         return event_polarity_sum * threshold
 
-    def _calculate_temporal_bin_indices(
-        self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float
-    ) -> TemporalBinIndices:
-        temporal_bin_indices = torch.floor(
-            timestamps / max_timestamp * self.config.number_of_temporal_bins
-        )
+    def _calculate_temporal_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> TemporalBinIndices:
+        temporal_bin_indices = torch.floor(timestamps / max_timestamp * self.config.number_of_temporal_bins)
 
-        temporal_bin_indices = torch.clip(
-            temporal_bin_indices, 0, self.config.number_of_temporal_bins - 1
-        )
+        temporal_bin_indices = torch.clip(temporal_bin_indices, 0, self.config.number_of_temporal_bins - 1)
         temporal_bin_indices = temporal_bin_indices.long()
         return temporal_bin_indices
 
-    def _calculate_temporal_sub_bin_indices(
-        self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float
-    ) -> TemporalBinIndices:
+    def _calculate_temporal_sub_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> TemporalBinIndices:
         total_sub_bin_indices = torch.floor(
-            timestamps
-            / max_timestamp
-            * self.config.number_of_temporal_bins
-            * self.config.number_of_temporal_sub_bins_per_bin
+            timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
         )
 
-        sub_bin_indices_in_bins = torch.remainder(
-            total_sub_bin_indices, self.config.number_of_temporal_sub_bins_per_bin
-        )
+        sub_bin_indices_in_bins = torch.remainder(total_sub_bin_indices, self.config.number_of_temporal_sub_bins_per_bin)
         sub_bin_indices_in_bins = torch.clip(
             sub_bin_indices_in_bins,
             0,

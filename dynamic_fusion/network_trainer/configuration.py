@@ -5,9 +5,7 @@ from pydantic import BaseModel, Field, validator
 
 
 class SharedConfiguration(BaseModel):
-    sequence_length: int = Field(
-        ..., description="Length of the sequence used in training."
-    )
+    sequence_length: int = Field(..., description="Length of the sequence used in training.")
     resume: bool = Field(
         ...,
         description="If set, resumes training from latest subrun in run directory.",
@@ -23,35 +21,25 @@ class SharedConfiguration(BaseModel):
 
 
 class AugmentationConfiguration(BaseModel):
-    network_image_size: Tuple[int, int] = Field(
-        ..., description="Image size that network expects to get."
-    )
+    network_image_size: Tuple[int, int] = Field(..., description="Image size that network expects to get.")
 
 
 class DatasetConfiguration(BaseModel):
-    dataset_directory: Path = Field(
-        ..., description="Path to directory containing the dataset."
-    )
+    dataset_directory: Path = Field(..., description="Path to directory containing the dataset.")
     threshold: float = Field(..., description="Threshold to use")
 
     augmentation_tries: int = Field(
         ...,
-        description=(
-            "Number of times transforms can be retried before moving onto next image."
-        ),
+        description="Number of times transforms can be retried before moving onto next image.",
     )
 
-    video_tries: int = Field(
-        ..., description="Number of videos to try before raising an exception."
-    )
+    video_tries: int = Field(..., description="Number of videos to try before raising an exception.")
 
     min_allowed_max_of_mean_polarities_over_times: float = Field(
         ...,
-        description=(
-            "Minimum allowed value of the maximum of mean polarities taken over times"
-            " and thresholds."
-        ),
+        description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds.",
     )
+
 
 class DataHandlerConfiguration(BaseModel):
     augmentation: AugmentationConfiguration = Field(...)  # pyright: ignore
@@ -86,16 +74,12 @@ class NetworkFitterConfiguration(BaseModel):
     reconstruction_loss_name: str = Field(...)
     skip_first_timesteps: int = Field(
         ...,
-        description=(
-            "Number of initial timesteps to skip when training reconstruction."
-        ),
+        description="Number of initial timesteps to skip when training reconstruction.",
     )
 
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
-    data_generator_target_image_size: Tuple[int, int] = Field(
-        ..., description="Image size that was used in data generation."
-    )
+    data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
 
 
 class TrainingMonitorConfiguration(BaseModel):

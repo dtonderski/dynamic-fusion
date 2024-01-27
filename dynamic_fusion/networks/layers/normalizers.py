@@ -44,9 +44,7 @@ class RunningAverageNNZnormalizer(torch.nn.Module):
 
         self.first = True
 
-        self.k = torch.nn.Parameter(
-            data=torch.tensor(k, dtype=torch.float), requires_grad=k_trainable
-        )
+        self.k = torch.nn.Parameter(data=torch.tensor(k, dtype=torch.float), requires_grad=k_trainable)
         self.ra_mean = torch.zeros(1, dtype=torch.float)
         self.ra_std = torch.ones(1, dtype=torch.float)
 
@@ -87,9 +85,7 @@ class InstanceNorm2dPlus(torch.nn.Module):
         self.num_features = num_features
         self.bias = bias
 
-        self.instance_norm = torch.nn.InstanceNorm2d(
-            num_features=num_features, affine=False, track_running_stats=False
-        )
+        self.instance_norm = torch.nn.InstanceNorm2d(num_features=num_features, affine=False, track_running_stats=False)
         self.alpha = torch.nn.Parameter(torch.zeros(num_features))
         self.gamma = torch.nn.Parameter(torch.zeros(num_features))
         self.alpha.data.normal_(1, 0.02)

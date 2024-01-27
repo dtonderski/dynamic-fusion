@@ -22,9 +22,7 @@ class Trainer:
         self.data_handler = DataHandler(config.data_handler, config.shared)
         self.network_loader = NetworkLoader(config.network_loader, config.shared)
         self.training_monitor = TrainingMonitor(config)
-        self.network_fitter = NetworkFitter(
-            self.training_monitor, config.network_fitter, config.shared
-        )
+        self.network_fitter = NetworkFitter(self.training_monitor, config.network_fitter, config.shared)
 
     def run(self) -> None:
         data_loader = self.data_handler.run()

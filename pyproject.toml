@@ -40,8 +40,8 @@ extend-ignore = ['E203', 'F722', 'E501']
 extend-select = ['B950']
 
 [tool.black]
-# 86 to be compliant with B950
-line-length = 86
+# 80 or 86 is not suitable for scientific code IMO
+line-length = 150
 target-version = ['py39']
 preview = true
 

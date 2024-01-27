@@ -10,13 +10,9 @@ def scale_video_to_quantiles(
     low_quantile: float = 0.01,
     high_quantile: float = 0.99,
 ) -> Float32[torch.Tensor, "Time X Y"]:
-    video_low_quantile, video_high_quantile = torch.quantile(
-        video, torch.tensor([low_quantile, high_quantile])
-    )
+    video_low_quantile, video_high_quantile = torch.quantile(video, torch.tensor([low_quantile, high_quantile]))
     clipped_video = torch.clip(video, min=video_low_quantile, max=video_high_quantile)
-    value_range = torch.maximum(
-        video_high_quantile - video_low_quantile, torch.tensor(1e-5)
-    )
+    value_range = torch.maximum(video_high_quantile - video_low_quantile, torch.tensor(1e-5))
     clipped_video = (clipped_video - video_low_quantile) / value_range
     return clipped_video
 

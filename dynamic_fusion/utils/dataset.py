@@ -38,21 +38,15 @@ def generate_frames_at_continuous_timestamps(
     # For example, if continuous time in bin is 0.5 (domain is [0, 1]), it's bin number 2, and t_start is 1,
     # then the result will be 3.5.
     continuous_timestamps_using_bin_time = (
-        continuous_timestamps_in_bins
-        + np.arange(0, continuous_timestamps_in_bins.shape[0])
-        + crop_definition.T_start
+        continuous_timestamps_in_bins + np.arange(0, continuous_timestamps_in_bins.shape[0]) + crop_definition.T_start
     )
 
     # Now, translate this to video time, knowing the total number of bins in the video
     # If we have 2 bins, then their timestamps are currently (0,1), (1,2), and
     # should be mapped to (0, 0.5), (0.5, 1). Therefore, this is trivial
-    continuous_timestamps_using_video_time = (
-        continuous_timestamps_using_bin_time / crop_definition.total_number_of_bins
-    )
+    continuous_timestamps_using_video_time = continuous_timestamps_using_bin_time / crop_definition.total_number_of_bins
 
-    timestamps_and_zero = torch.concat(
-        [torch.zeros(1), continuous_timestamps_using_video_time]
-    )
+    timestamps_and_zero = torch.concat([torch.zeros(1), continuous_timestamps_using_video_time])
 
     frames_and_zero = get_video(
         preprocessed_image,

@@ -14,9 +14,7 @@ class NetworkLoader:
     config: NetworkLoaderConfiguration
     shared_config: SharedConfiguration
 
-    def __init__(
-        self, config: NetworkLoaderConfiguration, shared_config: SharedConfiguration
-    ) -> None:
+    def __init__(self, config: NetworkLoaderConfiguration, shared_config: SharedConfiguration) -> None:
         self.config = config
         self.shared_config = shared_config
 
@@ -26,15 +24,10 @@ class NetworkLoader:
 
     def _load_networks(self) -> Tuple[nn.Module, Optional[nn.Module]]:
         total_input_shape = self.config.encoding.input_size * (
-            1
-            + self.shared_config.use_mean
-            + self.shared_config.use_std
-            + self.shared_config.use_count
+            1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count
         )
 
-        output_size = (
-            self.config.encoding.output_size if self.shared_config.implicit else 1
-        )
+        output_size = self.config.encoding.output_size if self.shared_config.implicit else 1
 
         encoding_network = ConvGruNetV1(
             input_size=total_input_shape,
@@ -46,19 +39,11 @@ class NetworkLoader:
         if self.config.encoding_checkpoint_path:
             checkpoint = torch.load(self.config.encoding_checkpoint_path)
             # For backward compatibility (key was changed)
-            if (
-                "encoding_state_dict" in checkpoint.keys()
-                and checkpoint["encoding_state_dict"]
-            ):
+            if "encoding_state_dict" in checkpoint.keys() and checkpoint["encoding_state_dict"]:
                 encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
             # For compatibility reasons
-            elif (
-                "reconstruction_state_dict" in checkpoint.keys()
-                and checkpoint["reconstruction_state_dict"]
-            ):
-                encoding_network.load_state_dict(
-                    checkpoint["reconstruction_state_dict"]
-                )
+            elif "reconstruction_state_dict" in checkpoint.keys() and checkpoint["reconstruction_state_dict"]:
+                encoding_network.load_state_dict(checkpoint["reconstruction_state_dict"])
 
         if not self.shared_config.implicit:
             return encoding_network, None

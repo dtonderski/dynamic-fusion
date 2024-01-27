@@ -40,9 +40,7 @@ class Visualizer(ctk.CTk):  # type: ignore
     def __init__(self, configuration: VisualizerConfiguration) -> None:
         super().__init__()
         self.config = configuration
-        self.network_handler = NetworkHandler(
-            configuration.network_handler, configuration.network_loader
-        )
+        self.network_handler = NetworkHandler(configuration.network_handler, configuration.network_loader)
 
         # configure window
         self.title("CustomTkinter complex_example.py")
@@ -68,19 +66,13 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.bins_frame = ctk.CTkFrame(self)
 
         self.bins_frame.grid(row=self._next_row(), column=1)
-        self.apply_bins_button = ctk.CTkButton(
-            self.bins_frame, text="Apply bins", command=self._new_bins_value
-        )
+        self.apply_bins_button = ctk.CTkButton(self.bins_frame, text="Apply bins", command=self._new_bins_value)
         self.apply_bins_button.grid(row=0, column=1, rowspan=4)
 
         # Start bin slider
-        self.start_bin_slider_label = ctk.CTkLabel(
-            self.bins_frame, text=START_BIN_INDEX_TEMPLATE.format(val=0)
-        )
+        self.start_bin_slider_label = ctk.CTkLabel(self.bins_frame, text=START_BIN_INDEX_TEMPLATE.format(val=0))
         self.start_bin_slider_label.grid(row=1, column=0)
-        command = lambda val: self._slider_changed(
-            self.start_bin_slider_label, val, START_BIN_INDEX_TEMPLATE
-        )
+        command = lambda val: self._slider_changed(self.start_bin_slider_label, val, START_BIN_INDEX_TEMPLATE)
 
         self.start_bin_var = ctk.IntVar(value=0)
         self.start_bin_slider = ctk.CTkSlider(
@@ -95,13 +87,9 @@ class Visualizer(ctk.CTk):  # type: ignore
         # self.start_bin_slider.bind("<ButtonRelease-1>", self._new_bin_slider_value)
 
         # End bin slider
-        self.end_bin_slider_label = ctk.CTkLabel(
-            self.bins_frame, text=END_BIN_INDEX_TEMPLATE.format(val=0)
-        )
+        self.end_bin_slider_label = ctk.CTkLabel(self.bins_frame, text=END_BIN_INDEX_TEMPLATE.format(val=0))
         self.end_bin_slider_label.grid(row=3, column=0)
-        command = lambda val: self._slider_changed(
-            self.end_bin_slider_label, val, END_BIN_INDEX_TEMPLATE
-        )
+        command = lambda val: self._slider_changed(self.end_bin_slider_label, val, END_BIN_INDEX_TEMPLATE)
 
         self.end_bin_var = ctk.IntVar(value=0)
         self.end_bin_slider = ctk.CTkSlider(
@@ -119,9 +107,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.time_frame = ctk.CTkFrame(self)
         self.time_frame.grid(row=self._next_row(), column=0, columnspan=3)
 
-        self.timestamp_slider_label = ctk.CTkLabel(
-            self.time_frame, text=TIMESTAMP_TEMPLATE.format(val=(TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])/2)
-        )
+        self.timestamp_slider_label = ctk.CTkLabel(self.time_frame, text=TIMESTAMP_TEMPLATE.format(val=(TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0]) / 2))
         self.timestamp_slider_label.grid(row=0, column=0)
         self.timestamp_slider = ctk.CTkSlider(
             self.time_frame,
@@ -143,56 +129,39 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.x_start_label = ctk.CTkLabel(self.zoom_frame, text="x_start")
         self.x_start_label.grid(row=0, column=0)
         self.x_start_string = ctk.StringVar(self)
-        self.x_start_entry = ctk.CTkEntry(
-            self.zoom_frame, textvariable=self.x_start_string
-        )
+        self.x_start_entry = ctk.CTkEntry(self.zoom_frame, textvariable=self.x_start_string)
         self.x_start_entry.grid(row=0, column=1, padx=2)
 
         self.x_stop_label = ctk.CTkLabel(self.zoom_frame, text="x_stop")
         self.x_stop_label.grid(row=0, column=2)
         self.x_stop_string = ctk.StringVar(self)
-        self.x_stop_entry = ctk.CTkEntry(
-            self.zoom_frame, textvariable=self.x_stop_string
-        )
+        self.x_stop_entry = ctk.CTkEntry(self.zoom_frame, textvariable=self.x_stop_string)
         self.x_stop_entry.grid(row=0, column=3, padx=2)
 
         self.y_start_label = ctk.CTkLabel(self.zoom_frame, text="y_start")
         self.y_start_label.grid(row=0, column=4)
         self.y_start_string = ctk.StringVar(self)
-        self.y_start_entry = ctk.CTkEntry(
-            self.zoom_frame, textvariable=self.y_start_string
-        )
+        self.y_start_entry = ctk.CTkEntry(self.zoom_frame, textvariable=self.y_start_string)
         self.y_start_entry.grid(row=0, column=5, padx=2)
 
         self.y_stop_label = ctk.CTkLabel(self.zoom_frame, text="y_stop")
         self.y_stop_label.grid(row=0, column=6)
         self.y_stop_string = ctk.StringVar(self)
-        self.y_stop_entry = ctk.CTkEntry(
-            self.zoom_frame, textvariable=self.y_stop_string
-        )
+        self.y_stop_entry = ctk.CTkEntry(self.zoom_frame, textvariable=self.y_stop_string)
         self.y_stop_entry.grid(row=0, column=7, padx=2)
 
-        self.apply_zoom_button = ctk.CTkButton(
-            self.zoom_frame, text="Apply zoom", command=self._apply_zoom
-        )
+        self.apply_zoom_button = ctk.CTkButton(self.zoom_frame, text="Apply zoom", command=self._apply_zoom)
         self.apply_zoom_button.grid(row=0, column=9)
 
         # Images
-        self.start_image_label = ctk.CTkLabel(
-            self, text="Image at start of bin", compound="bottom"
-        )
+        self.start_image_label = ctk.CTkLabel(self, text="Image at start of bin", compound="bottom")
         self.start_image_label.grid(row=self.row, column=0)
 
-        self.end_image_label = ctk.CTkLabel(
-            self, text="Image at end of bin", compound="bottom"
-        )
+        self.end_image_label = ctk.CTkLabel(self, text="Image at end of bin", compound="bottom")
         self.end_image_label.grid(row=self.row, column=2)
 
         # Prediction
-        timestamp = (
-                    self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])
-                    + TIMESTAMP_RANGE[0]
-                )
+        timestamp = self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0]) + TIMESTAMP_RANGE[0]
         self.prediction_label = ctk.CTkLabel(
             self,
             text=f"Prediction at t={timestamp:2f}",
@@ -244,9 +213,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.network_handler.set_data_directory(Path(self.data_directory))
 
     def _new_bins_value(self) -> None:
-        self.network_handler.set_bin_indices(
-            self.start_bin_var.get(), self.end_bin_var.get()
-        )
+        self.network_handler.set_bin_indices(self.start_bin_var.get(), self.end_bin_var.get())
         # Start and end
         self._update_start_and_end_images()
         # GT
@@ -280,9 +247,7 @@ class Visualizer(ctk.CTk):  # type: ignore
 
     def _update_event_image(self) -> None:
         event_image = self.network_handler.get_event_image()
-        event_image = event_image[
-            self.x_start : self.x_stop, self.y_start : self.y_stop
-        ]
+        event_image = event_image[self.x_start : self.x_stop, self.y_start : self.y_stop]
         self.event_image = Image.fromarray((event_image * 255).astype(np.uint8))
         event_image = self.event_image.copy()
 
@@ -294,17 +259,10 @@ class Visualizer(ctk.CTk):  # type: ignore
         self.event_image_label.image = event_image
 
     def _update_gt(self) -> None:
-        timestamp = (
-            self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])
-            + TIMESTAMP_RANGE[0]
-        )
-        gt_image_np = self.network_handler.get_ground_truth(
-            timestamp, self.config.total_bins_in_video
-        )
+        timestamp = self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0]) + TIMESTAMP_RANGE[0]
+        gt_image_np = self.network_handler.get_ground_truth(timestamp, self.config.total_bins_in_video)
 
-        gt_image_np = gt_image_np[
-            self.x_start : self.x_stop, self.y_start : self.y_stop
-        ]
+        gt_image_np = gt_image_np[self.x_start : self.x_stop, self.y_start : self.y_stop]
         gt_image = Image.fromarray(gt_image_np * 255).convert("RGB")
         self._add_grid(gt_image)
         gt_image = gt_image.resize(IMAGE_SIZE, resample=Image.BOX)
@@ -337,9 +295,7 @@ class Visualizer(ctk.CTk):  # type: ignore
             draw.line([(x, 0), (x, height)], fill=fill)
 
     def _timestamp_slider_changed(self, value: float) -> None:
-        self.timestamp_slider_label.configure(
-            text=TIMESTAMP_TEMPLATE.format(val=value)
-        )
+        self.timestamp_slider_label.configure(text=TIMESTAMP_TEMPLATE.format(val=value))
         self.timestamp_slider_label.update()
         self._update_gt()
         self._update_prediction()
@@ -348,10 +304,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         self._update_prediction()
 
     def _update_prediction(self) -> None:
-        timestamp = (
-            self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])
-            + TIMESTAMP_RANGE[0]
-        )
+        timestamp = self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0]) + TIMESTAMP_RANGE[0]
 
         print(f"Updating prediction to {timestamp}")
         prediction = self.network_handler.get_reconstruction(timestamp, self.interpolate_checkbox.get())
@@ -359,9 +312,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         prediction[prediction < 0] = 0
         prediction[prediction > 1] = 1
 
-        prediction = prediction[
-            self.x_start : self.x_stop, self.y_start : self.y_stop
-        ]
+        prediction = prediction[self.x_start : self.x_stop, self.y_start : self.y_stop]
         prediction_image = Image.fromarray(prediction.numpy() * 255).convert("RGB")
         self._add_grid(prediction_image)
         prediction_image = prediction_image.resize(IMAGE_SIZE, resample=Image.BOX)
@@ -373,15 +324,11 @@ class Visualizer(ctk.CTk):  # type: ignore
         )
         self.prediction_label.image = prediction_image
 
-        for loss_name, loss in zip(
-            self.config.network_handler.losses, self.network_handler.get_losses()
-        ):
+        for loss_name, loss in zip(self.config.network_handler.losses, self.network_handler.get_losses()):
             self.loss_label_dictionary[loss_name].configure(text=f"{loss:.4f}")
             self.loss_label_dictionary[loss_name].update()
 
-    def _slider_changed(
-        self, label: ctk.CTkLabel, value: float, template: str
-    ) -> None:
+    def _slider_changed(self, label: ctk.CTkLabel, value: float, template: str) -> None:
         if self.end_bin_slider._value < self.start_bin_slider._value:
             if label is self.start_bin_slider_label:
                 val = self.start_bin_var.get()
@@ -426,9 +373,7 @@ class Visualizer(ctk.CTk):  # type: ignore
 
 
 if __name__ == "__main__":
-    with open(
-        "configs/interactive_visualizer/visualizer.yml", encoding="utf8"
-    ) as infile:
+    with open("configs/interactive_visualizer/visualizer.yml", encoding="utf8") as infile:
         yaml = YAML().load(infile)
         config = VisualizerConfiguration.parse_obj(yaml)
 

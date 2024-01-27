@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from typing import Type, Union
 
+
 class ConvGRU(nn.Module):
     """
     Adapted from: https://github.com/jacobkimmel/pytorch_convgru/blob/master/convgru.py
@@ -19,15 +20,9 @@ class ConvGRU(nn.Module):
         padding = kernel_size // 2
         self.hidden_size = hidden_size
 
-        self.reset_gate = conv_layer(
-            input_size + hidden_size, hidden_size, kernel_size, padding=padding
-        )
-        self.update_gate = conv_layer(
-            input_size + hidden_size, hidden_size, kernel_size, padding=padding
-        )
-        self.out_gate = conv_layer(
-            input_size + hidden_size, hidden_size, kernel_size, padding=padding
-        )
+        self.reset_gate = conv_layer(input_size + hidden_size, hidden_size, kernel_size, padding=padding)
+        self.update_gate = conv_layer(input_size + hidden_size, hidden_size, kernel_size, padding=padding)
+        self.out_gate = conv_layer(input_size + hidden_size, hidden_size, kernel_size, padding=padding)
 
         nn.init.orthogonal_(self.reset_gate.weight)  # type: ignore
         nn.init.orthogonal_(self.update_gate.weight)  # type: ignore
@@ -50,9 +45,7 @@ class ConvGRU(nn.Module):
         stacked_inputs = torch.cat([input_, prev_state], dim=1)
         update = torch.sigmoid(self.update_gate(stacked_inputs))
         reset = torch.sigmoid(self.reset_gate(stacked_inputs))
-        out_inputs = torch.tanh(
-            self.out_gate(torch.cat([input_, prev_state * reset], dim=1))
-        )
+        out_inputs = torch.tanh(self.out_gate(torch.cat([input_, prev_state * reset], dim=1)))
         new_state = prev_state * (1 - update) + out_inputs * update
 
         return new_state  # type: ignore

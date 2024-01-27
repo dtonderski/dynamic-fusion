@@ -8,6 +8,8 @@ import numpy as np
 from jaxtyping import Float
 
 GROUP_NAME = "transforms_definition"
+
+
 @dataclass
 class TransformDefinition:
     shift_knots: Float[np.ndarray, "NShiftKnots 2"]
@@ -17,7 +19,7 @@ class TransformDefinition:
     rotation_interpolation: Literal["linear", "cubic"]
     scale_interpolation: Literal["linear", "cubic"]
 
-    def save_to_file(self, file:h5py.File) -> None:
+    def save_to_file(self, file: h5py.File) -> None:
         transform_definition_group = file.create_group(GROUP_NAME)
 
         for key, value in asdict(self).items():
@@ -36,7 +38,7 @@ class TransformDefinition:
             if "np.ndarray" in field_to_load.type:
                 return np.array(file[GROUP_NAME][field_to_load.name])
             elif "Literal" in field_to_load.type:
-                return file[GROUP_NAME][field_to_load.name][()].decode('utf-8')
+                return file[GROUP_NAME][field_to_load.name][()].decode("utf-8")
             raise ValueError(f"Unhandled type {field_to_load.type}")
 
         loaded_data = {field.name: load_field(field) for field in fields(cls)}

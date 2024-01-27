@@ -47,9 +47,7 @@ class TrainingMonitor:
         optimizer: torch.optim.Optimizer,
         decoding_network: Optional[nn.Module],
     ) -> int:
-        previous_subrun_directory, self.subrun_directory = (
-            self._get_previous_and_current_subrun_directories()
-        )
+        previous_subrun_directory, self.subrun_directory = self._get_previous_and_current_subrun_directories()
         self.subrun_directory.mkdir(parents=True, exist_ok=True)
 
         self._save_config()
@@ -95,9 +93,7 @@ class TrainingMonitor:
         # For compatibility reasons
         elif checkpoint["reconstruction_state_dict"]:  # type: ignore
             self.logger.info("Loading reconstruction_state_dict.")
-            encoding_network.load_state_dict(
-                checkpoint["reconstruction_state_dict"]  # type: ignore
-            )
+            encoding_network.load_state_dict(checkpoint["reconstruction_state_dict"])  # type: ignore
             encoding_network.to(self.device)
 
         if decoding_network is not None and checkpoint["decoding_state_dict"]:
@@ -126,13 +122,9 @@ class TrainingMonitor:
     ) -> None:
         checkpoint_path = self.subrun_directory / LATEST_CHECKPOINT_FILENAME
         checkpoint: Checkpoint = {
-            "encoding_state_dict": (
-                encoding_network.state_dict() if encoding_network else None
-            ),
+            "encoding_state_dict": encoding_network.state_dict() if encoding_network else None,
             "optimizer_state_dict": optimizer.state_dict() if optimizer else None,
-            "decoding_state_dict": (
-                decoding_network.state_dict() if decoding_network else None
-            ),
+            "decoding_state_dict": decoding_network.state_dict() if decoding_network else None,
             "iteration": iteration,
         }
         torch.save(checkpoint, checkpoint_path)
@@ -141,25 +133,15 @@ class TrainingMonitor:
         self,
     ) -> Tuple[Optional[Path], Path]:
         if self.training_config.training_monitor.run_directory:
-            max_dir = self._get_maximum_existing_subrun_directory_number(
-                self.training_config.training_monitor.run_directory
-            )
-            previous_subrun_directory = (
-                self.training_config.training_monitor.run_directory
-                / f"subrun_{max_dir:02d}"
-                if max_dir >= 0
-                else None
-            )
+            max_dir = self._get_maximum_existing_subrun_directory_number(self.training_config.training_monitor.run_directory)
+            previous_subrun_directory = self.training_config.training_monitor.run_directory / f"subrun_{max_dir:02d}" if max_dir >= 0 else None
 
             return (
                 previous_subrun_directory,
-                self.training_config.training_monitor.run_directory
-                / f"subrun_{max_dir+1:02d}",
+                self.training_config.training_monitor.run_directory / f"subrun_{max_dir+1:02d}",
             )
 
-        return None, Path(
-            "runs", datetime.now().strftime("%b%d_%H-%M-%S"), "subrun_00"
-        )
+        return None, Path("runs", datetime.now().strftime("%b%d_%H-%M-%S"), "subrun_00")
 
     @staticmethod
     def _get_maximum_existing_subrun_directory_number(run_directory: Path) -> int:
@@ -178,9 +160,7 @@ class TrainingMonitor:
         return max_dir
 
     def on_reconstruction(self, image_loss: float, iteration: int) -> None:
-        self.writer.add_scalar(
-            "reconstruction/ImageLoss", image_loss, iteration
-        )  # type: ignore[no-untyped-call]
+        self.writer.add_scalar("reconstruction/ImageLoss", image_loss, iteration)  # type: ignore[no-untyped-call]
 
     def visualize(
         self,
@@ -191,20 +171,14 @@ class TrainingMonitor:
         last_8_encodings: Optional[List[Float32[torch.Tensor, "batch C X Y"]]] = None,
         decoding_network: Optional[nn.Module] = None,
     ) -> None:
-        video_event_polarity_sums, video_images, video_predictions = (
-            self._generate_montage(fused_event_polarity_sums, images, predictions)
-        )
+        video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
         montage_frames = np.stack(
             (video_event_polarity_sums, video_images, video_predictions),
             axis=0,
         )  # S B T C X Y
-        montage_frames_video = einops.rearrange(
-            montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)"
-        )
-        self.writer.add_video(
-            "reconstruction_visualization", montage_frames_video, iteration
-        )  # type: ignore[no-untyped-call]
+        montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
+        self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]
 
         if not last_8_encodings or decoding_network is None:
             self.writer.flush()  # type: ignore[no-untyped-call]
@@ -225,21 +199,13 @@ class TrainingMonitor:
         Float32[np.ndarray, "batch Time 3 X Y"],
         Float32[np.ndarray, "batch Time 3 X Y"],
     ]:
-        colored_event_polarity_sums = self.img_to_colormap(
-            fused_event_polarity_sums[:, :, 0, :, :], self.create_red_blue_cmap(501)
-        )
-        colored_event_polarity_sums = einops.rearrange(
-            colored_event_polarity_sums, "B T X Y C -> B T C X Y"
-        )
+        colored_event_polarity_sums = self.img_to_colormap(fused_event_polarity_sums[:, :, 0, :, :], self.create_red_blue_cmap(501))
+        colored_event_polarity_sums = einops.rearrange(colored_event_polarity_sums, "B T X Y C -> B T C X Y")
         images = scale_to_quantiles_numpy(images, [1, 2, 3, 4], 0.005, 0.995)
-        predictions = scale_to_quantiles_numpy(
-            predictions, [1, 2, 3, 4], 0.005, 0.995
-        )
+        predictions = scale_to_quantiles_numpy(predictions, [1, 2, 3, 4], 0.005, 0.995)
 
         images = einops.repeat(images, "batch Time 1 X Y -> batch Time C X Y", C=3)
-        predictions = einops.repeat(
-            predictions, "batch Time 1 X Y -> batch Time C X Y", C=3
-        )
+        predictions = einops.repeat(predictions, "batch Time 1 X Y -> batch Time C X Y", C=3)
 
         return colored_event_polarity_sums, images, predictions
 
@@ -272,25 +238,15 @@ class TrainingMonitor:
                         batch=encoding.shape[0],
                         X=encoding.shape[1],
                     )
-                    current_encoding_and_tau = torch.concat(
-                        [current_expanded_tau, encoding], dim=-1
-                    )
-                    current_decoding = decoding_network(
-                        current_encoding_and_tau
-                    )  # batch X 1
+                    current_encoding_and_tau = torch.concat([current_expanded_tau, encoding], dim=-1)
+                    current_decoding = decoding_network(current_encoding_and_tau)  # batch X 1
 
-                    rearranged_next_encoding = einops.rearrange(
-                        last_8_encoding_cols[i_encoding + 1], "batch C X -> batch X C"
-                    )
+                    rearranged_next_encoding = einops.rearrange(last_8_encoding_cols[i_encoding + 1], "batch C X -> batch X C")
                     next_expanded_tau = current_expanded_tau - 1
-                    next_encoding_and_tau = torch.concat(
-                        [next_expanded_tau, rearranged_next_encoding], dim=-1
-                    )
+                    next_encoding_and_tau = torch.concat([next_expanded_tau, rearranged_next_encoding], dim=-1)
                     next_decoding = decoding_network(next_encoding_and_tau)
 
-                    interpolated_decoding = (
-                        current_decoding * (1 - tau) + next_decoding * tau
-                    )
+                    interpolated_decoding = current_decoding * (1 - tau) + next_decoding * tau
                     reconstructions.append(interpolated_decoding)
                 else:
                     encoding = einops.rearrange(encoding, "batch C X -> batch X C")
@@ -305,9 +261,7 @@ class TrainingMonitor:
                     reconstructions.append(decoding)
 
         # Reconstructions is now a temporally ordered list of 8*n_taus (batch X 1) tensors
-        stacked_reconstructions = torch.stack(
-            reconstructions, dim=0
-        )  # 8*n_taus, batch, X 1
+        stacked_reconstructions = torch.stack(reconstructions, dim=0)  # 8*n_taus, batch, X 1
         images = einops.rearrange(stacked_reconstructions, "T batch X 1 -> batch X T")
         color_images = einops.repeat(images, "batch X T -> batch 3 X T")
         red_strip = einops.repeat(

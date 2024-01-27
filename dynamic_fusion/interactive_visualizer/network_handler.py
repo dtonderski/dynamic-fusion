@@ -65,61 +65,38 @@ class NetworkHandler:
         self.decoding_network.to(self.device)
         print("Loaded networks!")
 
-        self.losses = [
-            get_reconstruction_loss(x, self.device) for x in self.config.losses
-        ]
+        self.losses = [get_reconstruction_loss(x, self.device) for x in self.config.losses]
 
     # Public API
-    def get_reconstruction(
-        self, timestamp: float, interpolation: bool = False
-    ) -> Float[torch.Tensor, "X Y"]:
-        if (
-            self.last_decoding_prediction is not None
-            and self.last_timestamp == timestamp
-        ):
+    def get_reconstruction(self, timestamp: float, interpolation: bool = False) -> Float[torch.Tensor, "X Y"]:
+        if self.last_decoding_prediction is not None and self.last_timestamp == timestamp:
             return self.last_decoding_prediction
 
         # Use previous prediction if needed
         encoding = self.previous_prediction if timestamp < 0 else self.prediction
         if interpolation and self.next_prediction is not None:
-            next_prediction = (
-                self.prediction if timestamp < 0 else self.next_prediction
-            )
+            next_prediction = self.prediction if timestamp < 0 else self.next_prediction
         timestamp = timestamp + 1 if timestamp < 0 else timestamp
 
         with torch.no_grad():
-            expanded_timestamp = torch.tensor([timestamp], device=self.device)[
-                :, None, None, None
-            ].expand(1, 1, *encoding.shape[-2:])
+            expanded_timestamp = torch.tensor([timestamp], device=self.device)[:, None, None, None].expand(1, 1, *encoding.shape[-2:])
             encoding_and_time = torch.concat([encoding, expanded_timestamp], dim=1)
-            encoding_and_time = einops.rearrange(
-                encoding_and_time, "1 C X Y -> 1 X Y C"
-            )
+            encoding_and_time = einops.rearrange(encoding_and_time, "1 C X Y -> 1 X Y C")
             decoding_prediction = self.decoding_network(encoding_and_time)
 
             if interpolation and self.next_prediction is not None:
-                next_encoding_and_time = torch.concat(
-                    [next_prediction, expanded_timestamp - 1], dim=1
-                )
-                next_encoding_and_time = einops.rearrange(
-                    next_encoding_and_time, "1 C X Y -> 1 X Y C"
-                )
-                next_decoding_prediction = self.decoding_network(
-                    next_encoding_and_time
-                )
+                next_encoding_and_time = torch.concat([next_prediction, expanded_timestamp - 1], dim=1)
+                next_encoding_and_time = einops.rearrange(next_encoding_and_time, "1 C X Y -> 1 X Y C")
+                next_decoding_prediction = self.decoding_network(next_encoding_and_time)
 
-                decoding_prediction = next_decoding_prediction * (
-                    timestamp
-                ) + decoding_prediction * (1 - timestamp)
+                decoding_prediction = next_decoding_prediction * (timestamp) + decoding_prediction * (1 - timestamp)
 
             self.last_timestamp = timestamp
             self.last_decoding_prediction = torch.squeeze(decoding_prediction).cpu()
 
             return self.last_decoding_prediction
 
-    def get_ground_truth(
-        self, timestamp: float, total_bins_in_video: int = 100
-    ) -> Float[torch.Tensor, "X Y"]:
+    def get_ground_truth(self, timestamp: float, total_bins_in_video: int = 100) -> Float[torch.Tensor, "X Y"]:
         timestamp_using_bin_time = timestamp + self.end_bin_index
         timestamp_using_video_time = timestamp_using_bin_time / total_bins_in_video
 
@@ -149,12 +126,8 @@ class NetworkHandler:
         return start, np.array(self.sample.video[self.end_bin_index, 0].cpu())
 
     def get_event_image(self) -> Float[torch.Tensor, "3 X Y"]:
-        polarity_sums_in_bin = self.sample.event_polarity_sums[
-            self.end_bin_index
-        ].sum(dim=0)
-        colored_event_polarity_sums = TrainingMonitor.img_to_colormap(
-            polarity_sums_in_bin.numpy(), TrainingMonitor.create_red_blue_cmap(501)
-        )
+        polarity_sums_in_bin = self.sample.event_polarity_sums[self.end_bin_index].sum(dim=0)
+        colored_event_polarity_sums = TrainingMonitor.img_to_colormap(polarity_sums_in_bin.numpy(), TrainingMonitor.create_red_blue_cmap(501))
         return colored_event_polarity_sums
 
     def set_bin_indices(self, start: int, end: int) -> None:
@@ -166,9 +139,7 @@ class NetworkHandler:
         try:
             input_path = path / "input.h5"
             with h5py.File(input_path, "r") as file:
-                self.preprocessed_image: GrayImageFloat = np.array(
-                    file["preprocessed_image"]
-                )
+                self.preprocessed_image: GrayImageFloat = np.array(file["preprocessed_image"])
                 self.transform_definition = TransformDefinition.load_from_file(file)
 
             threshold_path = path / f"discretized_events_{self.threshold}.h5"
@@ -177,13 +148,9 @@ class NetworkHandler:
 
             video_path = path / "ground_truth.h5"
             with h5py.File(video_path, "r") as file:
-                video = torch.from_numpy(np.array(file["synchronized_video"])).to(
-                    torch.float32
-                )
+                video = torch.from_numpy(np.array(file["synchronized_video"])).to(torch.float32)
 
-            event_polarity_sum, timestamp_mean, timestamp_std, event_count = (
-                discretized_events_to_tensors(discretized_events)
-            )
+            event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
 
             self.sample = ReconstructionSample(
                 event_polarity_sum,
@@ -198,9 +165,7 @@ class NetworkHandler:
             print(e)
 
     def get_losses(self) -> List[float]:
-        prediction = einops.rearrange(
-            self.last_decoding_prediction, "X Y -> 1 1 X Y"
-        ).to(self.device)
+        prediction = einops.rearrange(self.last_decoding_prediction, "X Y -> 1 1 X Y").to(self.device)
         gt_tensor = torch.tensor(self.last_ground_truth)
         gt = einops.rearrange(gt_tensor, "X Y -> 1 1 X Y").to(self.device)  # type: ignore
         return [loss(prediction, gt).item() for loss in self.losses]
@@ -223,9 +188,7 @@ class NetworkHandler:
                     counts[:, t] if self.config.use_count else None,
                 )
 
-                unfolded_prediction = torch.nn.functional.unfold(
-                    self.prediction, kernel_size=3, padding=1, stride=1
-                )
+                unfolded_prediction = torch.nn.functional.unfold(self.prediction, kernel_size=3, padding=1, stride=1)
                 self.prediction = einops.rearrange(
                     unfolded_prediction,
                     "B C (X Y) -> B C X Y",
@@ -244,9 +207,7 @@ class NetworkHandler:
                     counts[:, t + 1] if self.config.use_count else None,
                 )
 
-                unfolded_prediction = torch.nn.functional.unfold(
-                    self.next_prediction, kernel_size=3, padding=1, stride=1
-                )
+                unfolded_prediction = torch.nn.functional.unfold(self.next_prediction, kernel_size=3, padding=1, stride=1)
                 self.next_prediction = einops.rearrange(
                     unfolded_prediction,
                     "B C (X Y) -> B C X Y",
@@ -265,26 +226,8 @@ class NetworkHandler:
         Float[torch.Tensor, "1 T SubBins X Y"],
         Float[torch.Tensor, "1 T SubBins X Y"],
     ]:
-        polarity_sums = (
-            self.sample.event_polarity_sums[
-                self.start_bin_index : self.end_bin_index + 2
-            ]
-            .unsqueeze_(0)
-            .to(self.device)
-        )
-        means = (
-            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index + 2]
-            .unsqueeze_(0)
-            .to(self.device)
-        )
-        stds = (
-            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index + 2]
-            .unsqueeze_(0)
-            .to(self.device)
-        )
-        counts = (
-            self.sample.event_counts[self.start_bin_index : self.end_bin_index + 2]
-            .unsqueeze_(0)
-            .to(self.device)
-        )
+        polarity_sums = self.sample.event_polarity_sums[self.start_bin_index : self.end_bin_index + 2].unsqueeze_(0).to(self.device)
+        means = self.sample.timestamp_means[self.start_bin_index : self.end_bin_index + 2].unsqueeze_(0).to(self.device)
+        stds = self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index + 2].unsqueeze_(0).to(self.device)
+        counts = self.sample.event_counts[self.start_bin_index : self.end_bin_index + 2].unsqueeze_(0).to(self.device)
         return polarity_sums, means, stds, counts

@@ -6,18 +6,14 @@ from pydantic import BaseModel, Field, root_validator
 
 
 class SharedConfiguration(BaseModel):
-    target_image_size: Optional[Tuple[int, int]] = Field(
-        ..., description="Target image size."
-    )
+    target_image_size: Optional[Tuple[int, int]] = Field(..., description="Target image size.")
     fps: int = Field(..., description="Framerate of the simulation.")
     number_of_images_to_generate_per_input: int = Field(
         ...,
         description="Number of transformed images generated per input image.",
     )
     seed: int = Field(..., description="Randomness seed.")
-    overwrite: bool = Field(
-        ..., description="Controls whether to overwrite existing data."
-    )
+    overwrite: bool = Field(..., description="Controls whether to overwrite existing data.")
 
 
 class ImageLoaderConfiguration(BaseModel):
@@ -26,72 +22,42 @@ class ImageLoaderConfiguration(BaseModel):
         description="Path to the folder containing the images used to generate data.",
     )
 
-    file_extension: str = Field(
-        ".jpg", description="Extension of the dataset image files."
-    )
+    file_extension: str = Field(".jpg", description="Extension of the dataset image files.")
 
-    number_of_input_images: int = Field(
-        ..., description="Number of images to use for data generation."
-    )
+    number_of_input_images: int = Field(..., description="Number of images to use for data generation.")
 
 
 class ImagePreprocessorConfiguration(BaseModel):
-    downscale_probability: float = Field(
-        ..., description="Probability of downscaling image."
-    )
+    downscale_probability: float = Field(..., description="Probability of downscaling image.")
 
-    downscale_range: List[float] = Field(
-        ..., description="Range of possible scales used for downscaling."
-    )
+    downscale_range: List[float] = Field(..., description="Range of possible scales used for downscaling.")
     max_image_size: Optional[Tuple[int, int]]
 
 
 class VideoGeneratorConfiguration(BaseModel):
-    max_number_of_scale_knots: int = Field(
-        ..., description="Maximum number of scale knots to use."
-    )
+    max_number_of_scale_knots: int = Field(..., description="Maximum number of scale knots to use.")
 
-    max_number_of_shift_knots: int = Field(
-        ..., description="Maximum number of shift knots to use."
-    )
+    max_number_of_shift_knots: int = Field(..., description="Maximum number of shift knots to use.")
 
-    max_number_of_rotation_knots: int = Field(
-        ..., description="Maximum number of rotation knots to use."
-    )
+    max_number_of_rotation_knots: int = Field(..., description="Maximum number of rotation knots to use.")
 
-    max_scale_knot_value: float = Field(
-        ..., description="Maximum value of scale knots."
-    )
+    max_scale_knot_value: float = Field(..., description="Maximum value of scale knots.")
 
-    max_shift_knot_multiplier_value: float = Field(
-        ..., description="Maximum value of shift knot multiplier."
-    )
+    max_shift_knot_multiplier_value: float = Field(..., description="Maximum value of shift knot multiplier.")
 
-    max_rotation_knot_value: float = Field(
-        ..., description="Maximum value of rotation knot."
-    )
+    max_rotation_knot_value: float = Field(..., description="Maximum value of rotation knot.")
 
-    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = Field(
-        ..., description="One of wrap, zeros, border, or reflection"
-    )
+    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = Field(..., description="One of wrap, zeros, border, or reflection")
 
-    interpolation: Literal["bilinear", "nearest", "bicubic"] = Field(
-        ..., description="One of bilinear, nearest, or bicubic"
-    )
+    interpolation: Literal["bilinear", "nearest", "bicubic"] = Field(..., description="One of bilinear, nearest, or bicubic")
 
 
 class EventGeneratorConfiguration(BaseModel):
-    sensor_config_path: Path = Field(
-        ..., description="Path to the sensor config yml."
-    )
+    sensor_config_path: Path = Field(..., description="Path to the sensor config yml.")
 
-    simulator_config_path: Path = Field(
-        ..., description="Path to the simulator config yml."
-    )
+    simulator_config_path: Path = Field(..., description="Path to the simulator config yml.")
 
-    thresholds: List[float] = Field(
-        ..., description="Thresholds to use in data generation."
-    )
+    thresholds: List[float] = Field(..., description="Thresholds to use in data generation.")
 
     min_illuminance_lux_range: List[float] = Field(
         ...,
@@ -105,22 +71,14 @@ class EventGeneratorConfiguration(BaseModel):
 
 
 class EventDiscretizerConfiguration(BaseModel):
-    number_of_temporal_bins: int = Field(
-        ..., description="Number of temporal bins to use in discretizer."
-    )
+    number_of_temporal_bins: int = Field(..., description="Number of temporal bins to use in discretizer.")
     number_of_temporal_sub_bins_per_bin: int = Field(
         ...,
-        description=(
-            "Number of sub-bins to use per temporal bin. If one "
-            "discretized event statistic has shape T D H W, then this is the D "
-            "dimension."
-        ),
+        description="Number of sub-bins to use per temporal bin. If one discretized event statistic has shape T D H W, then this is the D dimension.",
     )
     ground_truth_temporal_location_in_bin: str = Field(
         ...,
-        description=(
-            "Location of ground truth image in the bin, must be center or end."
-        ),
+        description="Location of ground truth image in the bin, must be center or end.",
     )
 
 
@@ -130,9 +88,7 @@ class DataSaverConfiguration(BaseModel):
         description="Path to the folder where to output should be stored.",
     )
 
-    save_events: bool = Field(
-        ..., description="Determines whether to save the raw events."
-    )
+    save_events: bool = Field(..., description="Determines whether to save the raw events.")
     save_video: bool = Field(...)
     h5_compression: int = Field(..., description="Indicates gzip compression level.")
 
@@ -148,9 +104,7 @@ class DataGeneratorConfiguration(BaseModel):
 
     @root_validator(pre=False)
     @classmethod
-    def check_numbers(
-        cls, values: Dict[str, BaseModel]
-    ) -> Dict[str, BaseModel]:  # pylint: disable
+    def check_numbers(cls, values: Dict[str, BaseModel]) -> Dict[str, BaseModel]:  # pylint: disable
         shared = values.get("shared")
         event_discretizer = values.get("event_discretizer")
 

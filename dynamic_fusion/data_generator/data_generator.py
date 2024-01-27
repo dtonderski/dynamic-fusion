@@ -32,25 +32,19 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
         self.config = config
         if config.shared.seed is not None:
             set_seeds(config.shared.seed)
-        self.seeds = np.random.randint(
-            0, np.iinfo(np.int32).max, self.config.image_loader.number_of_input_images
-        )
+        self.seeds = np.random.randint(0, np.iinfo(np.int32).max, self.config.image_loader.number_of_input_images)
 
         self.logger = logging.getLogger("DataGenerator")
 
         self.image_loader = ImageLoader(config.image_loader)
 
-        self.image_preprocessor = ImagePreprocessor(
-            config.image_preprocessor, config.shared
-        )
+        self.image_preprocessor = ImagePreprocessor(config.image_preprocessor, config.shared)
 
         self.video_generator = VideoGenerator(config.video_generator, config.shared)
 
         self.event_generator = EventGenerator(config.event_generator, config.shared)
 
-        self.event_discretizer = EventDiscretizer(
-            config.event_discretizer, config.shared
-        )
+        self.event_discretizer = EventDiscretizer(config.event_discretizer, config.shared)
 
         self.data_saver = DataSaver(config.data_saver)
 
@@ -61,22 +55,16 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
         with tqdm(total=len(self.image_loader)) as progress_bar:
             for i_image in tqdm(range(len(self.image_loader))):
                 set_seeds(self.seeds[i_image])
-                progress_bar.set_description(
-                    f"Processing image {i_image+1} of {len(self.image_loader)}"
-                )
+                progress_bar.set_description(f"Processing image {i_image+1} of {len(self.image_loader)}")
                 print("-------------------------------------")
 
                 image, image_path = next(image_generator)
 
                 if self.data_saver.output_exists(image_path):
                     if self.config.shared.overwrite:
-                        self.logger.warning(
-                            "Output exists but overwrite is true, overwriting!"
-                        )
+                        self.logger.warning("Output exists but overwrite is true, overwriting!")
                     else:
-                        self.logger.info(
-                            "Output exists and overwrite is false, skipping."
-                        )
+                        self.logger.info("Output exists and overwrite is false, skipping.")
                         continue
                 try:
                     preprocessed_image = self.image_preprocessor.run(image)
@@ -84,21 +72,15 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     self.logger.warning(e)
                     continue
 
-                video, transform_definition = self.video_generator.run(
-                    preprocessed_image
-                )
+                video, transform_definition = self.video_generator.run(preprocessed_image)
 
                 event_dict = self.event_generator.run(video)
 
                 image_resolution = video.shape[1:]
 
-                discretized_event_dict, indices_of_label_frames = (
-                    self.event_discretizer.run(event_dict, image_resolution)
-                )
+                discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(event_dict, image_resolution)
 
-                ground_truth_video: GrayVideoFloat = video[
-                    indices_of_label_frames, :, :
-                ]
+                ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
 
                 self.data_saver.run(
                     image_path,
