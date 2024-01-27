@@ -15,7 +15,7 @@ from .configuration import (
     SharedConfiguration,
     AugmentationConfiguration,
 )
-from .dataset import CocoIterableDataset
+from .dataset import CocoIterableDataset, collate_items
 
 
 class CocoAugmentation:
@@ -99,4 +99,4 @@ class DataHandler:
         self.dataset = CocoIterableDataset(augmentation, config.dataset, shared_config)
 
     def run(self) -> DataLoader:  # type: ignore
-        return DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers)
+        return DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers, collate_fn=collate_items)

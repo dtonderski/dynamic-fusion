@@ -133,6 +133,6 @@ def collate_items(
         ],
     ]
 ) -> Batch:
-    tensors = default_collate([(x[i] for i in range(5)) for x in items])
+    tensors = default_collate([tuple(x[i] for i in range(5)) for x in items])
     collated_items = (*tensors, *[[x[i] for x in items] for i in range(5, 8)])
     return collated_items
