@@ -1,5 +1,5 @@
 torch~=1.12
-torchvision~=0.14
+torchvision~=0.13
 
 h5py~=3.9
 einops~=0.5
