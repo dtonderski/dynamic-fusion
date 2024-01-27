@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypedDict
 import numpy as np
 import pandera as pa
 import torch
-from jaxtyping import Bool, Float, Float32, Int, Int64, UInt8
+from jaxtyping import Bool, Float, Float32, Int, Int64, UInt8, Shaped
 from pandera.typing import DataFrame, Series
 from typing_extensions import TypeAlias
 
@@ -62,6 +62,9 @@ class CropDefinition:
     # total_number_of_bins is for convenience, used to calculate time
     # for continuous time training
     total_number_of_bins: int
+
+    def crop_spatial(self, tensor: Shaped[np.ndarray, "... X Y"]) -> Shaped[np.ndarray, "... XCropped YCropped"]:
+        return tensor[..., self.x_start : self.x_start + self.x_size, self.y_start : self.y_start + self.y_size]
 
 
 Batch: TypeAlias = Tuple[
