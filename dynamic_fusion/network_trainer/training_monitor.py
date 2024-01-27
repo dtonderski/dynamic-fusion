@@ -250,14 +250,14 @@ class TrainingMonitor:
         for i in range(1, 6):
             c, c_next = c_cols[i], c_cols[i + 1]  # B X C
             if self.shared_config.temporal_unfolding:
-                c = torch.concat([c_cols[i - 1], c_cols[i], c_cols[i + 1]], dim=-1)  # type: ignore
-                c_next = torch.concat([c_cols[i], c_cols[i + 1], c_cols[i + 2]], dim=-1)  # type: ignore
+                c = torch.concat([c_cols[i - 1], c_cols[i], c_cols[i + 1]], dim=-1)
+                c_next = torch.concat([c_cols[i], c_cols[i + 1], c_cols[i + 2]], dim=-1)
 
             for tau in torch.arange(0, 1 - 1e-5, 1 / n_taus):
                 tau = einops.repeat(torch.tensor([tau]).to(c), "T -> T X 1", X = c.shape[-2])
-                r_t = decoding_network(torch.concat([c, tau], dim=-1))  # type: ignore
+                r_t = decoding_network(torch.concat([c, tau], dim=-1))
                 if self.shared_config.temporal_interpolation:
-                    r_tnext = decoding_network(torch.concat([c_next, tau - 1], dim=-1))  # type: ignore
+                    r_tnext = decoding_network(torch.concat([c_next, tau - 1], dim=-1))
                     r_t = r_t * (1 - tau) + r_tnext * (tau)
                 rs.append(r_t)
 

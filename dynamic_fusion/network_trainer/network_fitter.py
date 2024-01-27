@@ -194,9 +194,9 @@ class NetworkFitter:
                 c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore
                 c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
-            r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))  # type: ignore
+            r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
             if self.shared_config.temporal_interpolation:
-                r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
+                r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))
                 r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
             r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
             image_loss = image_loss + self.reconstruction_loss_function(r_t, ys[t]).mean()  # pylint: disable=not-callable
@@ -228,5 +228,5 @@ class NetworkFitter:
                 np.stack(reconstructions, 1),
                 iteration,
                 encoding_network,
-                decoding_network,  # type: ignore
+                decoding_network,
             )
