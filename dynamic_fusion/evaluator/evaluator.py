@@ -23,10 +23,10 @@ from dynamic_fusion.utils.network import network_data_to_device
 from tqdm import tqdm
 
 TRAIN_DATASET_DIRECTORY = Path("data", "interim", "coco", "2subbins")
-TEST_DATASET_DIRECTORY = Path("data", "interim", "coco", "test", "2subbins")
-IMPLICIT = Path("runs/continuous/third_run_with_mean_std_count/subrun_02/latest_checkpoint.pt")
-UNFOLDING = Path("runs/continuous/fourth_run_with_unfolding/subrun_01/latest_checkpoint.pt")
-EXPLICIT = Path("runs/explicit/real_run/subrun_10/latest_checkpoint.pt")
+TEST_DATASET_DIRECTORY = Path("data", "interim", "coco", "test", "2subbins_new")
+IMPLICIT = Path("runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt")
+UNFOLDING = Path("runs/continuous/fourth_run_with_unfolding/latest_checkpoint.pt")
+EXPLICIT = Path("runs/explicit/latest_checkpoint.pt")
 
 BATCH_SIZE = 1
 NUM_WORKERS = 0
@@ -45,6 +45,7 @@ SKIP_FIRST = 4
 LOSS_BATCH_SIZE = 10
 
 DICT_OUTPUT = "./runs/evaluation/new_explicit_loss_dict.pkl"
+
 
 def load_encoding_network(implicit: bool, checkpoint_path: Path) -> nn.Module:
     total_input_shape = ENCODING_INPUT_SIZE * (1 + USE_MEAN + USE_STD + USE_COUNT)
@@ -92,7 +93,8 @@ def evaluate_network(
     feature_unfolding: bool,
     test: bool,
     loss_names: List[str],
-    interpolation_type: str = "linear"
+    interpolation_type: str = "linear",
+    interpolate_implicit: bool = False,
 ) -> Dict[Tuple[float, str], float]:
     if implicit:
         checkpoint = IMPLICIT if not feature_unfolding else UNFOLDING
@@ -161,6 +163,7 @@ def evaluate_network(
                     losses_dict[(1, loss_name)] += loss.item()
                 continue
 
+            # Implicit
             if feature_unfolding:
                 unfolded_prediction = torch.nn.functional.unfold(
                     encoding_prediction, kernel_size=3, padding=1, stride=1
@@ -171,32 +174,61 @@ def evaluate_network(
                     X=continuous_timestamp_frames.shape[4],
                 )
             losses_added += 1
-            for n, investigated_timestamp in enumerate(investigated_timestamps):
-                t0 = time()
-                expanded_timestamps = einops.repeat(
-                    continuous_timestamps[:, n, t],
-                    "B -> B 1 X Y",
-                    X=continuous_timestamp_frames.shape[4],
-                    Y=continuous_timestamp_frames.shape[5],
-                )
-                encoding_and_time = torch.concat(
-                    [encoding_prediction, expanded_timestamps], dim=1
-                )
 
-                encoding_and_time = einops.rearrange(
-                    encoding_and_time, "B C X Y -> B X Y C"
-                )
-                decoding_prediction = decoding_network(encoding_and_time)
-                prediction = einops.rearrange(
-                    decoding_prediction, "B X Y 1 -> B 1 X Y"
-                )
+            # Non-interpolated implicit
+            if not interpolate_implicit:
+                for n, investigated_timestamp in enumerate(investigated_timestamps):
+                    expanded_timestamps = einops.repeat(
+                        continuous_timestamps[:, n, t],
+                        "B -> B 1 X Y",
+                        X=continuous_timestamp_frames.shape[4],
+                        Y=continuous_timestamp_frames.shape[5],
+                    )
+                    encoding_and_time = torch.concat(
+                        [encoding_prediction, expanded_timestamps], dim=1
+                    )
 
-                for loss_name, loss_function in zip(loss_names, loss_functions):
-                    loss = loss_function(
-                        prediction, continuous_timestamp_frames[:, n, t]
-                    ).mean()
-                    losses_dict[(investigated_timestamp, loss_name)] += loss.item()
+                    encoding_and_time = einops.rearrange(
+                        encoding_and_time, "B C X Y -> B X Y C"
+                    )
+                    decoding_prediction = decoding_network(encoding_and_time)
+                    prediction = einops.rearrange(
+                        decoding_prediction, "B X Y 1 -> B 1 X Y"
+                    )
 
+                    for loss_name, loss_function in zip(loss_names, loss_functions):
+                        loss = loss_function(
+                            prediction, continuous_timestamp_frames[:, n, t]
+                        ).mean()
+                        losses_dict[
+                            (investigated_timestamp, loss_name)
+                        ] += loss.item()
+
+            # Interpolated implicit
+            assert torch.all(continuous_timestamps[:, 0, t] == 0)
+            assert torch.all(continuous_timestamps[:, -1, t] == 1)
+            start_and_end_timestamps = einops.repeat(
+                continuous_timestamps[:, [0, -1], t],
+                "B 2 -> (B 2) 1 X Y",
+                X=continuous_timestamp_frames.shape[4],
+                Y=continuous_timestamp_frames.shape[5],
+            )
+
+            encoding = einops.repeat(encoding_prediction, "B ... -> (B 2) ...")
+
+            encoding_and_time = torch.concat(
+                [encoding, start_and_end_timestamps], dim=1
+            )
+            encoding_and_time = einops.rearrange(
+                encoding_and_time, "(B 2) C X Y -> (B 2) X Y C"
+            )
+            decoding_prediction = decoding_network(encoding_and_time)
+            prediction = einops.rearrange(
+                decoding_prediction, "(B 2) X Y 1 -> (B 2) 1 X Y"
+            )
+
+
+        # Explicit
         if not implicit and investigated_timestamps != [1]:
             # interpolate explicit predictions to get continuous time
             predicted_video = torch.stack(explicit_predictions, dim=1).cpu()
@@ -274,11 +306,21 @@ if __name__ == "__main__":
         test = True
         loss_names = ["LPIPS", "L1", "L2"]
 
-        cubic = evaluate_network(investigated_timestamps, False, False, test, loss_names, "cubic")
-        linear = evaluate_network(investigated_timestamps, False, False, test, loss_names, "linear")
+        cubic = evaluate_network(
+            investigated_timestamps, False, False, test, loss_names, "cubic"
+        )
+        linear = evaluate_network(
+            investigated_timestamps, False, False, test, loss_names, "linear"
+        )
 
-        # implicit = evaluate_network(investigated_timestamps, True, False, test, loss_names)
-        # unfolded = evaluate_network(investigated_timestamps, True, True, test, loss_names)
+        implicit = evaluate_network(
+            investigated_timestamps, True, False, test, loss_names
+        )
+        unfolded = evaluate_network(
+            investigated_timestamps, True, True, test, loss_names
+        )
 
         with open(DICT_OUTPUT, "wb") as f:
-            pickle.dump({"cubic": cubic, "linear": linear}, f)  # "implicit": implicit, "unfolded": unfolded}, f)
+            pickle.dump(
+                {"cubic": cubic, "linear": linear}, f
+            )  # "implicit": implicit, "unfolded": unfolded}, f)
