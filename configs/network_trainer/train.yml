@@ -5,11 +5,12 @@ shared:
   use_std: true
   use_count: true
   implicit: true
-  feature_unfolding: true
+  spatial_feature_unfolding: true
+  temporal_interpolation: true
 
 data_handler:
-  batch_size: 4
-  num_workers: 5
+  batch_size: 1
+  num_workers: 1
   augmentation:
     network_image_size: [96, 96]
 
@@ -43,7 +44,7 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/continuous/fourth_run_with_unfolding"
+  run_directory: "runs/continuous/interpolation/first_try"
   event_colors: [[255, 0, 0], [0, 255, 0]]
 
 seed: 0
