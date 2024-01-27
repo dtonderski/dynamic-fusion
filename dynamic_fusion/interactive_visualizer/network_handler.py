@@ -70,7 +70,9 @@ class NetworkHandler:
         ]
 
     # Public API
-    def get_reconstruction(self, timestamp: float) -> Float[torch.Tensor, "X Y"]:
+    def get_reconstruction(
+        self, timestamp: float, interpolation: bool = False
+    ) -> Float[torch.Tensor, "X Y"]:
         if (
             self.last_decoding_prediction is not None
             and self.last_timestamp == timestamp
@@ -79,19 +81,36 @@ class NetworkHandler:
 
         # Use previous prediction if needed
         encoding = self.previous_prediction if timestamp < 0 else self.prediction
+        if interpolation and self.next_prediction is not None:
+            next_prediction = (
+                self.prediction if timestamp < 0 else self.next_prediction
+            )
         timestamp = timestamp + 1 if timestamp < 0 else timestamp
 
         with torch.no_grad():
             expanded_timestamp = torch.tensor([timestamp], device=self.device)[
                 :, None, None, None
             ].expand(1, 1, *encoding.shape[-2:])
-            encoding_and_time = torch.concat(
-                [encoding, expanded_timestamp], dim=1
-            )
+            encoding_and_time = torch.concat([encoding, expanded_timestamp], dim=1)
             encoding_and_time = einops.rearrange(
                 encoding_and_time, "1 C X Y -> 1 X Y C"
             )
             decoding_prediction = self.decoding_network(encoding_and_time)
+
+            if interpolation and self.next_prediction is not None:
+                next_encoding_and_time = torch.concat(
+                    [next_prediction, expanded_timestamp - 1], dim=1
+                )
+                next_encoding_and_time = einops.rearrange(
+                    next_encoding_and_time, "1 C X Y -> 1 X Y C"
+                )
+                next_decoding_prediction = self.decoding_network(
+                    next_encoding_and_time
+                )
+
+                decoding_prediction = next_decoding_prediction * (
+                    timestamp
+                ) + decoding_prediction * (1 - timestamp)
 
             self.last_timestamp = timestamp
             self.last_decoding_prediction = torch.squeeze(decoding_prediction).cpu()
@@ -189,20 +208,54 @@ class NetworkHandler:
     # Private
     def _run_network(self) -> None:
         with torch.no_grad():
+            self.previous_prediction = None
+            self.next_prediction = None
             self.last_timestamp = None
             self.last_decoding_prediction = None
 
             self.encoding_network.reset_states()
             polarity_sums, means, stds, counts = self._sample_to_device()
-            for t in range(polarity_sums.shape[1]):
+            for t in range(self.end_bin_index - self.start_bin_index + 1):
                 self.prediction = self.encoding_network(
                     polarity_sums[:, t],
                     means[:, t] if self.config.use_mean else None,
                     stds[:, t] if self.config.use_std else None,
                     counts[:, t] if self.config.use_count else None,
                 )
-                if t == polarity_sums.shape[1]-2:
-                    self.previous_prediction = self.prediction.clone()
+
+                unfolded_prediction = torch.nn.functional.unfold(
+                    self.prediction, kernel_size=3, padding=1, stride=1
+                )
+                self.prediction = einops.rearrange(
+                    unfolded_prediction,
+                    "B C (X Y) -> B C X Y",
+                    X=polarity_sums.shape[3],
+                )
+
+                if t == self.end_bin_index - self.start_bin_index - 1:
+                    self.previous_prediction = self.prediction.clone()  # type: ignore
+
+            self.prediction = self.prediction.clone()
+            try:
+                self.next_prediction = self.encoding_network(
+                    polarity_sums[:, t + 1],
+                    means[:, t + 1] if self.config.use_mean else None,
+                    stds[:, t + 1] if self.config.use_std else None,
+                    counts[:, t + 1] if self.config.use_count else None,
+                )
+
+                unfolded_prediction = torch.nn.functional.unfold(
+                    self.next_prediction, kernel_size=3, padding=1, stride=1
+                )
+                self.next_prediction = einops.rearrange(
+                    unfolded_prediction,
+                    "B C (X Y) -> B C X Y",
+                    X=polarity_sums.shape[3],
+                )
+
+            except Exception as e:
+                print(e)
+                return
 
     def _sample_to_device(
         self,
@@ -214,23 +267,23 @@ class NetworkHandler:
     ]:
         polarity_sums = (
             self.sample.event_polarity_sums[
-                self.start_bin_index : self.end_bin_index + 1
+                self.start_bin_index : self.end_bin_index + 2
             ]
             .unsqueeze_(0)
             .to(self.device)
         )
         means = (
-            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index + 1]
+            self.sample.timestamp_means[self.start_bin_index : self.end_bin_index + 2]
             .unsqueeze_(0)
             .to(self.device)
         )
         stds = (
-            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index + 1]
+            self.sample.timestamp_stds[self.start_bin_index : self.end_bin_index + 2]
             .unsqueeze_(0)
             .to(self.device)
         )
         counts = (
-            self.sample.event_counts[self.start_bin_index : self.end_bin_index + 1]
+            self.sample.event_counts[self.start_bin_index : self.end_bin_index + 2]
             .unsqueeze_(0)
             .to(self.device)
         )

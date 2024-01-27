@@ -116,18 +116,24 @@ class Visualizer(ctk.CTk):  # type: ignore
         # self.end_bin_slider.bind("<ButtonRelease-1>", self._new_bin_slider_value)
 
         # Timestamp slider
+        self.time_frame = ctk.CTkFrame(self)
+        self.time_frame.grid(row=self._next_row(), column=0, columnspan=3)
+
         self.timestamp_slider_label = ctk.CTkLabel(
-            self, text=TIMESTAMP_TEMPLATE.format(val=(TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])/2)
+            self.time_frame, text=TIMESTAMP_TEMPLATE.format(val=(TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0])/2)
         )
-        self.timestamp_slider_label.grid(row=self._next_row(), column=1)
+        self.timestamp_slider_label.grid(row=0, column=0)
         self.timestamp_slider = ctk.CTkSlider(
-            self,
+            self.time_frame,
             from_=TIMESTAMP_RANGE[0],
             to=TIMESTAMP_RANGE[1],
             width=300,
             command=self._timestamp_slider_changed,
         )
-        self.timestamp_slider.grid(row=self._next_row(), column=0, columnspan=3)
+        self.timestamp_slider.grid(row=1, column=0)
+
+        self.interpolate_checkbox = ctk.CTkCheckBox(self.time_frame, text="Interpolate", command=self._update_prediction)
+        self.interpolate_checkbox.grid(row=0, column=1)
         # self.timestamp_slider.bind("<ButtonRelease-1>", self._new_slider_value)
 
         # Zoom
@@ -348,7 +354,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         )
 
         print(f"Updating prediction to {timestamp}")
-        prediction = self.network_handler.get_reconstruction(timestamp)
+        prediction = self.network_handler.get_reconstruction(timestamp, self.interpolate_checkbox.get())
         print(f"Prediction range: {prediction.min()} to {prediction.max()}")
         prediction[prediction < 0] = 0
         prediction[prediction > 1] = 1
