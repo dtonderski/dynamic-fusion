@@ -5,7 +5,8 @@ shared:
   use_std: true
   use_count: true
   implicit: true
-  spatial_feature_unfolding: true
+  spatial_unfolding: true
+  temporal_unfolding: true
   temporal_interpolation: true
 
 data_handler:
@@ -15,18 +16,17 @@ data_handler:
     network_image_size: [96, 96]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins"
+    dataset_directory: "data/interim/coco/2subbins_new"
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5
     min_allowed_max_of_mean_polarities_over_times: 0.01
-    data_generator_target_image_size: [180, 240]
 
 network_loader:
   encoding:
     input_size: 2 # should equal to be subbins
     hidden_size: 24
-    output_size: 64 # only used if implicit
+    output_size: 16 # only used if implicit
     kernel_size: 3
   encoding_checkpoint_path: null
   decoding:
@@ -41,10 +41,11 @@ network_fitter:
   skip_first_timesteps: 4
   network_saving_frequency: 100
   visualization_frequency: 200
+  data_generator_target_image_size: [180, 240]
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/continuous/interpolation/first_try"
+  run_directory: "runs/continuous/refactored"
   event_colors: [[255, 0, 0], [0, 255, 0]]
 
 seed: 0
