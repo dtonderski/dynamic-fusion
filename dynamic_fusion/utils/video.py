@@ -53,15 +53,20 @@ def get_video(
     Returns:
         GrayVideoFloat: _description_
     """
+    include_first = True
     if timestamps[0] != 0:
-        raise ValueError("The first timestamp must always be 0!")
+        timestamps = np.array([0, *timestamps])
+        include_first = False
+        # raise ValueError("The first timestamp must always be 0!")
     shifts, rotations, scales = _interpolate_transforms(transform_definition, timestamps)
 
     transformation_matrices = _transforms_to_matrices(shifts, rotations, scales)
+    if not include_first:
+        transformation_matrices = transformation_matrices[1:]
 
     grid = torch.nn.functional.affine_grid(
         torch.tensor(transformation_matrices[:, :2, :]),
-        [shifts.shape[0], 1, *image.shape],
+        [transformation_matrices.shape[0], 1, *image.shape],
         align_corners=False,
     ).to(device)
 
@@ -73,7 +78,7 @@ def get_video(
     image_tensor = einops.repeat(
         torch.tensor(image, device=device, dtype=torch.float),
         "H W -> N 1 H W",
-        N=shifts.shape[0],
+        N=transformation_matrices.shape[0],
     )
     video = torch.nn.functional.grid_sample(image_tensor, grid, interpolation, fill_mode, align_corners=False)
     video = normalize(video.squeeze())
