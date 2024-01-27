@@ -93,9 +93,12 @@ class NetworkFitter:
         iteration: int,
     ) -> None:
         """Variable name explanations:
-            1. T - timestamp in video, in [0, 101] for the default data generation with 100 bins per image
-            2. tau - timestamp in frame, in [0,1].
-            3. t - timestamp in current sequence, in [0, sequence_length]. Note that T = tau + t + crop.T_start
+            1. T - time in video, in [0, 101] for the default data generation with 100 bins per sequence
+            2. tau - time in frame, in [0,1].
+            3. t - time in current sequence, in [0, sequence_length]. Note that T = tau + t + crop.T_start
+            4. c - output of encoding network
+            5. y - ground truth
+            6. r - output of decoding network
 
         Args:
             data_loader_iterator (Iterator[Batch]): _description_
@@ -121,6 +124,7 @@ class NetworkFitter:
                 )
             )
 
+        batch_size = len(preprocessed_images)
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
 
         forward_start = time.time()
@@ -153,42 +157,55 @@ class NetworkFitter:
             c_list.append(c_t.clone())
         if decoding_network is None:
             return
-        t_0 = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
-        t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
-        cs = torch.concat(c_list, dim=2)  # B C T X Y
 
+        # Unfold c
+        cs = torch.stack(c_list, dim=0)  # T B C X Y
         if self.shared_config.spatial_unfolding:
-            cs = torch.nn.functional.unfold(cs, kernel_size=(1, 3, 3), padding=(0, 1, 1), stride=1)
-            cs = einops.rearrange(cs, " B C (T X Y) -> B C T X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
-        if self.shared_config.temporal_unfolding:
-            cs = torch.nn.functional.unfold(cs, kernel_size=(3, 1, 1), padding=(1, 0, 0), stride=1)
-            cs = einops.rearrange(cs, " B C (T X Y) -> B C T X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
+            cs = einops.rearrange(cs, "T B C X Y -> (T B C) X Y")
+            cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
+            cs = einops.rearrange(
+                cs, "(T B C) (X Y) -> T B C X Y", T=self.shared_config.sequence_length, B=batch_size, X=event_polarity_sum.shape[-2]
+            )
+        # Prepare for linear layer
+        cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
 
-        cs = einops.rearrange(cs, "B C T X Y -> T B C X Y")
+        # Sample tau
+        taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
 
-        T_starts = np.array([x.T_start for x in crops])
-        taus = np.random.rand(len(preprocessed_images), t_end - t_0)
-        Ts = einops.rearrange(np.arange(t_0, t_end), "T -> 1 T") + taus + T_starts
-        Ts_normalized = Ts / crops[0].total_number_of_bins  # Normalize from [0,NBinsInSequence] to [0,1]
-        xs_list = []
-        for image, transform, T_normalized_batch in zip(preprocessed_images, transforms, Ts_normalized):
-            xs_list.append(get_video(image, transform, T_normalized_batch, self.config.data_generator_target_image_size, self.device))
-        xs = einops.rearrange(torch.concat(xs_list, dim=0), "B T X Y -> T B 1 X Y")
+        # Generate ground truth for taus
+        T_starts = np.array([crop.T_start for crop in crops])  # B
+        Ts = einops.rearrange(np.arange(self.shared_config.sequence_length), "T -> 1 T") + taus + T_starts
+        Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
+        ys_list = []
+        for image, transform, Ts_normalized, crop in zip(preprocessed_images, transforms, Ts_normalized_batch, crops):
+            video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
+            ys_list.append(crop.crop_spatial(video_batch))
+        ys = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
 
-        taus = einops.rearrange(taus, "B T -> T B 1 X Y")
+        # Calculate start and end index to use for calculating loss
+        t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
+        t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
 
-        for t in range(t_0, t_end):
-            r_t = decoding_network(torch.concat([cs[t], taus[t]], dim=1))  # type: ignore
+        # Calculate loss
+        taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=ys.shape[-2], Y=ys.shape[-1])
+        for t in range(t_start, t_end):
+            c, c_next = cs[t], cs[t + 1]  # type: ignore
+            if self.shared_config.temporal_unfolding:
+                c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore
+                c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
+
+            r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))  # type: ignore
             if self.shared_config.temporal_interpolation:
-                r_tnext = decoding_network(torch.concat([cs[t + 1], taus[t] - 1], dim=1))  # type: ignore
+                r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
                 r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
-            image_loss = image_loss + self.reconstruction_loss_function(r_t, xs[t]).mean()  # pylint: disable=not-callable
+            r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
+            image_loss = image_loss + self.reconstruction_loss_function(r_t, ys[t]).mean()  # pylint: disable=not-callable
 
             if not visualize:
                 continue
 
-            event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-            images.append(to_numpy(xs[:, t, ...]))
+            event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
+            images.append(to_numpy(ys[t]))
             reconstructions.append(to_numpy(r_t))
 
         image_loss /= self.shared_config.sequence_length
@@ -206,5 +223,10 @@ class NetworkFitter:
         self.monitor.on_reconstruction(image_loss.item(), iteration)
         if visualize:
             self.monitor.visualize(
-                np.stack(event_polarity_sum_list, 1), np.stack(images, 1), np.stack(reconstructions, 1), iteration, cs[-8:], decoding_network  # type: ignore
+                np.stack(event_polarity_sum_list, 1),
+                np.stack(images, 1),
+                np.stack(reconstructions, 1),
+                iteration,
+                encoding_network,
+                decoding_network,  # type: ignore
             )

@@ -15,7 +15,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 
 from dynamic_fusion.utils.datatypes import Batch, Checkpoint
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
-from dynamic_fusion.utils.network import to_numpy
+from dynamic_fusion.utils.network import network_data_to_device, to_numpy
 
 from .configuration import SharedConfiguration, TrainerConfiguration
 
@@ -168,7 +168,7 @@ class TrainingMonitor:
         images: Float32[np.ndarray, "batch Time 1 X Y"],
         predictions: Float32[np.ndarray, "batch Time 1 X Y"],
         iteration: int,
-        last_8_encodings: Optional[List[Float32[torch.Tensor, "batch C X Y"]]] = None,
+        encoding_network: Optional[nn.Module] = None,
         decoding_network: Optional[nn.Module] = None,
     ) -> None:
         video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
@@ -180,11 +180,11 @@ class TrainingMonitor:
         montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
         self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]
 
-        if not last_8_encodings or decoding_network is None:
+        if encoding_network is None or decoding_network is None:
             self.writer.flush()  # type: ignore[no-untyped-call]
             return
-        with torch.no_grad():
-            x_t_plot = self._generate_x_t_plot(last_8_encodings, decoding_network)
+
+        x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
 
         self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
         self.writer.flush()  # type: ignore[no-untyped-call]
@@ -209,66 +209,63 @@ class TrainingMonitor:
 
         return colored_event_polarity_sums, images, predictions
 
+    @torch.no_grad()
     def _generate_x_t_plot(
         self,
-        last_8_encodings: List[Float32[torch.Tensor, "batch C X Y"]],
+        encoding_network: nn.Module,
         decoding_network: nn.Module,
     ) -> Float32[torch.Tensor, "X T"]:
-        assert len(last_8_encodings) == 8
-        last_8_encoding_cols = [x[..., 0] for x in last_8_encodings]
-
         n_taus = 5
 
-        reconstructions = []
+        event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops = network_data_to_device(
+            self.sample_batch, self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
+        )
 
-        for i_encoding, encoding in enumerate(last_8_encoding_cols):
-            # avoid floating point errors
-            encoding = einops.rearrange(encoding, "batch C X -> batch X C")
+        cs_list = []
+        for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
+            c_t = encoding_network(
+                event_polarity_sums[:, t],
+                timestamp_means[:, t] if self.shared_config.use_mean else None,
+                timestamp_stds[:, t] if self.shared_config.use_std else None,
+                event_counts[:, t] if self.shared_config.use_count else None,
+            )
+            # Save last 8 encodings
+            if t >= self.shared_config.sequence_length - 8:
+                cs_list.append(c_t.clone())
 
-            for i_tau, tau in enumerate(torch.arange(0, 1 - 1e-5, 1 / n_taus)):
-                tau = torch.tensor([tau]).to(encoding)
-                # These are just used to interpolate and unfold temporally
-                if i_encoding in [0, 6, 7]:
-                    continue
+        # Unfold c
+        batch_size, X_size = event_polarity_sums.shape[0], event_polarity_sums.shape[-2]
+        cs = torch.stack(cs_list, dim=0)  # T B C X Y
+        if self.shared_config.spatial_unfolding:
+            cs = einops.rearrange(cs, "T B C X Y -> (T B C) X Y")
+            cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
+            cs = einops.rearrange(cs, "(T B C) (X Y) -> T B C X Y", T=len(cs_list), B=batch_size, X=X_size)
+        # Prepare for linear layer
+        cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
 
+        c_cols = [x[:, :, 0, :] for x in cs]  # type: ignore
+
+        rs = []
+
+        for i in range(1, 6):
+            c, c_next = c_cols[i], c_cols[i + 1]  # B X C
+            if self.shared_config.temporal_unfolding:
+                c = torch.concat([c_cols[i - 1], c_cols[i], c_cols[i + 1]], dim=-1)  # type: ignore
+                c_next = torch.concat([c_cols[i], c_cols[i + 1], c_cols[i + 2]], dim=-1)  # type: ignore
+
+            for tau in torch.arange(0, 1 - 1e-5, 1 / n_taus):
+                tau = einops.repeat(torch.tensor([tau]).to(c), "T -> T X 1", X = c.shape[-2])
+                r_t = decoding_network(torch.concat([c, tau], dim=-1))  # type: ignore
                 if self.shared_config.temporal_interpolation:
-                    current_expanded_tau = einops.repeat(
-                        tau,
-                        "1 -> batch X 1",
-                        batch=encoding.shape[0],
-                        X=encoding.shape[1],
-                    )
-                    current_encoding_and_tau = torch.concat([current_expanded_tau, encoding], dim=-1)
-                    current_decoding = decoding_network(current_encoding_and_tau)  # batch X 1
-
-                    rearranged_next_encoding = einops.rearrange(last_8_encoding_cols[i_encoding + 1], "batch C X -> batch X C")
-                    next_expanded_tau = current_expanded_tau - 1
-                    next_encoding_and_tau = torch.concat([next_expanded_tau, rearranged_next_encoding], dim=-1)
-                    next_decoding = decoding_network(next_encoding_and_tau)
-
-                    interpolated_decoding = current_decoding * (1 - tau) + next_decoding * tau
-                    reconstructions.append(interpolated_decoding)
-                else:
-                    encoding = einops.rearrange(encoding, "batch C X -> batch X C")
-                    expanded_tau = einops.repeat(
-                        tau,
-                        "() -> batch X 1",
-                        batch=encoding.shape[0],
-                        Y=encoding.shape[2],
-                    )
-                    encoding_and_tau = torch.concat([expanded_tau, encoding], dim=-1)
-                    decoding = decoding_network(encoding_and_tau)  # batch X 1
-                    reconstructions.append(decoding)
+                    r_tnext = decoding_network(torch.concat([c_next, tau - 1], dim=-1))  # type: ignore
+                    r_t = r_t * (1 - tau) + r_tnext * (tau)
+                rs.append(r_t)
 
         # Reconstructions is now a temporally ordered list of 8*n_taus (batch X 1) tensors
-        stacked_reconstructions = torch.stack(reconstructions, dim=0)  # 8*n_taus, batch, X 1
+        stacked_reconstructions = torch.stack(rs, dim=0)  # 8*n_taus, batch, X 1
         images = einops.rearrange(stacked_reconstructions, "T batch X 1 -> batch X T")
         color_images = einops.repeat(images, "batch X T -> batch 3 X T")
-        red_strip = einops.repeat(
-            torch.tensor([1, 0, 0]).to(encoding),
-            "C -> C X 1",
-            X=color_images.shape[2],
-        )
+        red_strip = einops.repeat(torch.tensor([1, 0, 0]).to(c), "C -> C X 1", X=color_images.shape[2])
         images_to_concat = []
         for i, color_image in enumerate(color_images):
             images_to_concat.append(color_image)
