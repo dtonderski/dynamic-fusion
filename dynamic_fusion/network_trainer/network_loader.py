@@ -51,6 +51,8 @@ class NetworkLoader:
         input_shape = self.config.encoding.output_size
         if self.shared_config.spatial_unfolding:
             input_shape *= 9
+        if self.shared_config.temporal_unfolding:
+            input_shape *= 3
         input_shape += 1
 
         decoding_network = MLP(
