@@ -1,8 +1,9 @@
 import argparse
 import logging
+from pathlib import Path
 from typing import Any, List, Tuple
-from pydantic import BaseModel
 
+from pydantic import BaseModel
 from ruamel.yaml import YAML
 
 from dynamic_fusion.interactive_visualizer import Visualizer, VisualizerConfiguration
@@ -55,6 +56,9 @@ def update_nested_config(config: BaseModel, key_list: List[str], value: Any) -> 
     """Recursively update nested dictionary."""
     key = key_list[0]
     if len(key_list) == 1:
+        if isinstance(getattr(config, key), Path):
+            value = Path(value)
+            print(value)
         setattr(config, key, value)
     else:
         if key not in config.__fields__.keys() or not isinstance(getattr(config, key), BaseModel):
