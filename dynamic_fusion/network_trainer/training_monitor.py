@@ -254,7 +254,7 @@ class TrainingMonitor:
                 c_next = torch.concat([c_cols[i], c_cols[i + 1], c_cols[i + 2]], dim=-1)
 
             for tau in torch.arange(0, 1 - 1e-5, 1 / n_taus):
-                tau = einops.repeat(torch.tensor([tau]).to(c), "T -> T X 1", X = c.shape[-2])
+                tau = einops.repeat(torch.tensor([tau]).to(c), "1 -> B X 1", B = c.shape[0], X=c.shape[1])
                 r_t = decoding_network(torch.concat([c, tau], dim=-1))
                 if self.shared_config.temporal_interpolation:
                     r_tnext = decoding_network(torch.concat([c_next, tau - 1], dim=-1))
