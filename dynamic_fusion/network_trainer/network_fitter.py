@@ -187,10 +187,14 @@ class NetworkFitter:
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=ys.shape[-2], Y=ys.shape[-1])
         for t in range(t_start, t_end):
-            c, c_next = cs[t], cs[t + 1]  # type: ignore
+            c = cs[t]   # type: ignore
+            if self.shared_config.temporal_interpolation:
+                c_next = cs[t + 1]
+
             if self.shared_config.temporal_unfolding:
                 c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore
-                c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
+                if self.shared_config.temporal_interpolation:
+                    c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
             r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
             if self.shared_config.temporal_interpolation:
