@@ -171,7 +171,7 @@ class NetworkFitter:
         taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
 
         # Generate ground truth for taus
-        T_starts = np.array([crop.T_start for crop in crops])  # B
+        T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1")
         Ts = einops.rearrange(np.arange(self.shared_config.sequence_length), "T -> 1 T") + taus + T_starts
         Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
         ys_list = []
@@ -179,7 +179,7 @@ class NetworkFitter:
             video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
             ys_list.append(crop.crop_spatial(video_batch))
         ys = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
-
+    
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
         t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
