@@ -161,11 +161,9 @@ class NetworkFitter:
         # Unfold c
         cs = torch.stack(c_list, dim=0)  # T B C X Y
         if self.shared_config.spatial_unfolding:
-            cs = einops.rearrange(cs, "T B C X Y -> (T B C) X Y")
+            cs = einops.rearrange(cs, "T B C X Y -> (T B) C X Y")
             cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
-            cs = einops.rearrange(
-                cs, "(T B C) (X Y) -> T B C X Y", T=self.shared_config.sequence_length, B=batch_size, X=event_polarity_sum.shape[-2]
-            )
+            cs = einops.rearrange(cs, "(T B) C (X Y) -> T B C X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
         # Prepare for linear layer
         cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
 

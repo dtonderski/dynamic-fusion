@@ -237,9 +237,9 @@ class TrainingMonitor:
         batch_size, X_size = event_polarity_sums.shape[0], event_polarity_sums.shape[-2]
         cs = torch.stack(cs_list, dim=0)  # T B C X Y
         if self.shared_config.spatial_unfolding:
-            cs = einops.rearrange(cs, "T B C X Y -> (T B C) X Y")
+            cs = einops.rearrange(cs, "T B C X Y -> (T B) C X Y")
             cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
-            cs = einops.rearrange(cs, "(T B C) (X Y) -> T B C X Y", T=len(cs_list), B=batch_size, X=X_size)
+            cs = einops.rearrange(cs, "(T B) C (X Y) -> T B C X Y", T=len(cs_list), X=X_size)
         # Prepare for linear layer
         cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
 
