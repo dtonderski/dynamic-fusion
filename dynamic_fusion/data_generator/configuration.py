@@ -101,6 +101,7 @@ class DataGeneratorConfiguration(BaseModel):
     event_generator: EventGeneratorConfiguration = Field(...)
     event_discretizer: EventDiscretizerConfiguration = Field(...)
     data_saver: DataSaverConfiguration = Field(...)
+    max_downscaling_factor: float = Field(...)
 
     @root_validator(pre=False)
     @classmethod

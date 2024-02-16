@@ -16,7 +16,7 @@ data_handler:
     network_image_size: [96, 96]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins_new"
+    dataset_directory: "data/interim/coco/2subbins"
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5

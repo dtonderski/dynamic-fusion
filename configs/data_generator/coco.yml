@@ -44,7 +44,9 @@ event_discretizer:
   ground_truth_temporal_location_in_bin: "center" # center or end, doesn't work atm
 
 data_saver:
-  output_dir: "./data/interim/coco/2subbins_new"
+  output_dir: "./data/interim/coco/2subbins_with_scale"
   save_events: True
   save_video: False
   h5_compression: 3
+
+max_downscaling_factor: 4

@@ -179,7 +179,7 @@ class NetworkFitter:
             video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
             ys_list.append(crop.crop_spatial(video_batch))
         ys = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
-    
+
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
         t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
@@ -187,9 +187,9 @@ class NetworkFitter:
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=ys.shape[-2], Y=ys.shape[-1])
         for t in range(t_start, t_end):
-            c = cs[t]   # type: ignore
+            c = cs[t]  # type: ignore
             if self.shared_config.temporal_interpolation:
-                c_next = cs[t + 1]
+                c_next = cs[t + 1]  # type: ignore
 
             if self.shared_config.temporal_unfolding:
                 c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore

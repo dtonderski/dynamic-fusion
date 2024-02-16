@@ -85,7 +85,7 @@ class TrainingMonitor:
         if not checkpoint_path.exists():
             raise ValueError(f"Subrun found, but no {LATEST_CHECKPOINT_FILENAME}!")
 
-        checkpoint: Checkpoint = torch.load(checkpoint_path)
+        checkpoint: Checkpoint = torch.load(checkpoint_path)  # type: ignore
         if checkpoint["encoding_state_dict"]:
             self.logger.info("Loading encoding_state_dict.")
             encoding_network.load_state_dict(checkpoint["encoding_state_dict"])

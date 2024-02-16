@@ -4,18 +4,18 @@ network_loader:
     hidden_size: 24
     output_size: 64
     kernel_size: 3
-  encoding_checkpoint_path: runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
+  encoding_checkpoint_path: runs/continuous/02_implicit_with_interpolation/latest_checkpoint.pt #runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
   decoding:
     hidden_size: 128
     hidden_layers: 4
-  decoding_checkpoint_path: runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
+  decoding_checkpoint_path: runs/continuous/02_implicit_with_interpolation/latest_checkpoint.pt #runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
 
 network_handler:
   use_mean: true
   use_std: true
   use_count: true
   implicit: true
-  spatial_feature_unfolding: false
+  spatial_feature_unfolding: true
   data_generator_target_image_size: null
   losses: ["LPIPS", "L1", "L2"]
 

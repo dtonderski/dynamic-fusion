@@ -28,13 +28,11 @@ class VideoGenerator:
         self.shared_config = shared_config
         self.logger = logging.getLogger("VideoGenerator")
 
-    def run(self, image: GrayImage, progress_bar: Optional[tqdm] = None) -> Tuple[GrayVideoFloat, TransformDefinition]:
-        if progress_bar:
-            progress_bar.set_postfix_str("Generating video")
-        else:
-            self.logger.info("Generating video...")
+    def run(self, image: GrayImage, transform_definition: Optional[TransformDefinition] = None) -> Tuple[GrayVideoFloat, TransformDefinition]:
+        self.logger.info("Generating video...")
 
-        transform_definition = self._define_transforms()
+        if transform_definition is None:
+            transform_definition = self._define_transforms()
 
         video_frame_times = np.linspace(0, 1, self.shared_config.number_of_images_to_generate_per_input)
 

@@ -3,6 +3,7 @@ import logging
 import numpy as np
 from jaxtyping import Int32
 from tqdm import tqdm
+from skimage.transform import resize
 
 from dynamic_fusion.utils.datatypes import GrayVideoFloat
 from dynamic_fusion.utils.seeds import set_seeds
@@ -74,11 +75,17 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
 
                 video, transform_definition = self.video_generator.run(preprocessed_image)
 
+                downscaling_factor = np.random.random() * (self.config.max_downscaling_factor - 1) + 1
+                downscaled_image_size = np.round(np.array(video.shape[1:]) / downscaling_factor)
+                downscaled_video = np.stack(
+                    [resize(video_frame, output_shape=downscaled_image_size, order=3, anti_aliasing=True) for video_frame in video]
+                )
+
                 event_dict = self.event_generator.run(video)
+                downscaled_event_dict = self.event_generator.run(downscaled_video, regenerate_luminance=False)
 
-                image_resolution = video.shape[1:]
-
-                discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(event_dict, image_resolution)
+                discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(event_dict, video.shape[1:])
+                downscaled_discretized_event_dict, _ = self.event_discretizer.run(downscaled_event_dict, downscaled_video.shape[1:])
 
                 ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
 
@@ -86,10 +93,13 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     image_path,
                     image,
                     video,
+                    downscaled_video,
                     preprocessed_image,
                     transform_definition,
                     event_dict,
+                    downscaled_event_dict,
                     discretized_event_dict,
+                    downscaled_discretized_event_dict,
                     ground_truth_video,
                 )
                 print("-------------------------------------")

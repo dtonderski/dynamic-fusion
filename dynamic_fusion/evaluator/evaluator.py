@@ -56,7 +56,7 @@ def load_encoding_network(implicit: bool, checkpoint_path: Path) -> nn.Module:
         out_size=output_size,
         kernel_size=ENCODING_KERNEL_SIZE,
     )
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path)  # type: ignore
     # For backward compatibility (key was changed)
     if "encoding_state_dict" in checkpoint.keys():
         encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
@@ -79,7 +79,7 @@ def load_decoding_network(feature_unfolding: bool, checkpoint_path: Path) -> nn.
         hidden_layers=DECODING_HIDDEN_LAYERS,
     )
 
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path)  # type: ignore
     decoding_network.load_state_dict(checkpoint["decoding_state_dict"])
 
     return decoding_network

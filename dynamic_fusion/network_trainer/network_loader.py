@@ -37,7 +37,7 @@ class NetworkLoader:
         )
 
         if self.config.encoding_checkpoint_path:
-            checkpoint = torch.load(self.config.encoding_checkpoint_path)
+            checkpoint = torch.load(self.config.encoding_checkpoint_path)  # type: ignore
             # For backward compatibility (key was changed)
             if "encoding_state_dict" in checkpoint.keys() and checkpoint["encoding_state_dict"]:
                 encoding_network.load_state_dict(checkpoint["encoding_state_dict"])
@@ -62,7 +62,7 @@ class NetworkLoader:
         )
 
         if self.config.decoding_checkpoint_path:
-            checkpoint = torch.load(self.config.decoding_checkpoint_path)
+            checkpoint = torch.load(self.config.decoding_checkpoint_path)  # type: ignore
             decoding_network.load_state_dict(checkpoint["decoding_state_dict"])
 
         return encoding_network, decoding_network

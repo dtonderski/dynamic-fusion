@@ -31,11 +31,14 @@ class DataSaver:
         self,
         image_path: Path,
         image: Image,
-        video: GrayVideoInt,
+        video: GrayVideoFloat,
+        downscaled_video: GrayVideoFloat,
         preprocessed_image: GrayImageFloat,
         transform_definition: TransformDefinition,
         event_dict: Dict[float, Events],
+        downscaled_event_dict: Dict[float, Events],
         discretized_events_dict: Dict[float, DiscretizedEvents],
+        downscaled_discretized_events_dict: Dict[float, DiscretizedEvents],
         synchronized_video: GrayVideoFloat,
     ) -> None:
         self.logger.info("Saving data...")
@@ -49,46 +52,30 @@ class DataSaver:
                     discretized_events.save_to_file(file, self.config.h5_compression)
 
             with h5py.File(output_dir / "input.h5", "w") as file:
-                file.create_dataset(
-                    "/input_image",
-                    data=image,
-                    compression="gzip",
-                    compression_opts=self.config.h5_compression,
-                )
+                file.create_dataset("/input_image", data=image, compression="gzip", compression_opts=self.config.h5_compression)
 
                 if self.config.save_video:
-                    file.create_dataset(
-                        "/generated_video",
-                        data=video,
-                        compression="gzip",
-                        compression_opts=self.config.h5_compression,
-                    )
+                    file.create_dataset("/generated_video", data=video, compression="gzip", compression_opts=self.config.h5_compression)
 
-                file.create_dataset(
-                    "/preprocessed_image",
-                    data=preprocessed_image,
-                )
+                file.create_dataset("/preprocessed_image", data=preprocessed_image)
 
                 transform_definition.save_to_file(file)
+
+            with h5py.File(output_dir / "downscaled_input.h5", "w") as file:
+                if self.config.save_video:
+                    file.create_dataset("/generated_video", data=video, compression="gzip", compression_opts=self.config.h5_compression)
 
             # Read using data = pd.read_hdf("events.h5", "threshold..."")
             if self.config.save_events:
                 for threshold, event_df in event_dict.items():
-                    event_df.to_hdf(
-                        output_dir / "events.h5",
-                        f"threshold{threshold}",
-                        "a",
-                        complevel=self.config.h5_compression,
-                        complib="zlib",
+                    event_df.to_hdf(output_dir / "events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
+                for threshold, downscaled_event_df in downscaled_event_dict.items():
+                    downscaled_event_df.to_hdf(
+                        output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib"
                     )
 
             with h5py.File(output_dir / "ground_truth.h5", "w") as file:
-                file.create_dataset(
-                    "/synchronized_video",
-                    data=synchronized_video,
-                    compression="gzip",
-                    compression_opts=self.config.h5_compression,
-                )
+                file.create_dataset("/synchronized_video", data=synchronized_video, compression="gzip", compression_opts=self.config.h5_compression)
         except Exception:  # pylint: disable=broad-exception-caught
             logging.error("Exception in data saving - deleting files!")
             shutil.rmtree(output_dir, ignore_errors=True)

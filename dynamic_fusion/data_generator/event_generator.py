@@ -65,13 +65,10 @@ class EventGenerator:
         )  # pyright: ignore
         self.logger = logging.getLogger("EventGenerator")
 
-    def run(self, video: GrayVideoFloat, progress_bar: Optional[tqdm] = None) -> Dict[float, Events]:
-        if progress_bar:
-            progress_bar.set_postfix_str("Generating events")
-        else:
-            self.logger.info("Generating events...")
-
-        self._update_config()
+    def run(self, video: GrayVideoFloat, regenerate_luminance: bool = True) -> Dict[float, Events]:
+        self.logger.info("Generating events...")
+        if regenerate_luminance:
+            self._update_config()
         sensor_data = {}
 
         video = video * 255

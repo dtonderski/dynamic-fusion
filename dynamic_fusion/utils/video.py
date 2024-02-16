@@ -188,41 +188,6 @@ def _transforms_to_matrices(  # pylint: disable=R0913,R0914
     return transformation_matrices
 
 
-def _generate_video_scipy(image: GrayImage, transformation_matrices: Float[np.ndarray, "T 3 3"]) -> GrayVideoInt:
-    video = np.zeros(
-        (transformation_matrices.shape[0], image.shape[0], image.shape[1]),
-        dtype=np.float32,
-    )
-    with tqdm(total=len(transformation_matrices), desc="Generating video") as video_progress_bar:
-        for timestep, matrix in enumerate(transformation_matrices):
-            video[timestep] = affine_transform(image, matrix=matrix)
-            video_progress_bar.update(1)
-
-    return video
-
-
-def _generate_video_torch(
-    image: GrayImage,
-    angles: List[float],
-    translates: List[Tuple[int, int]],
-    scales: List[float],
-    device: torch.device = torch.device("cuda"),
-) -> GrayVideoFloat:
-    videos = torch.zeros(len(angles), *image.shape, device=device)
-    image_tensor = torch.tensor(image, device=device)[None, ...]
-
-    for i, (angle, translate, scale) in enumerate(zip(angles, translates, scales)):
-        videos[i] = affine(
-            image_tensor,
-            angle=angle,
-            translate=translate,
-            shear=[0, 0],
-            scale=scale,
-        )
-
-    return videos.cpu().numpy()
-
-
 def crop_video(video: GrayVideoFloat, target_image_size: Tuple[int, int]) -> GrayVideoFloat:
     cropped_video_border = (video.shape[-2:] - np.array(target_image_size)) // 2
 
