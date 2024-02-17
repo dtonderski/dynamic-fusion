@@ -185,7 +185,6 @@ class NetworkFitter:
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
         t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
 
-        t_0 = time.time()
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
         if self.shared_config.spatial_upsampling:
@@ -198,7 +197,6 @@ class NetworkFitter:
             rows, cols = torch.where(within_bounds_mask)
             xmin, xmax = rows.min(), rows.max()
             ymin, ymax = cols.min(), cols.max()
-        print(time.time() - t_0)
 
         for t in range(t_start, t_end):
             c = cs[t]  # type: ignore  # B X Y C
