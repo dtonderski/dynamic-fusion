@@ -4,7 +4,6 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
-from torchvision.transforms.functional import resize
 
 import einops
 import numpy as np
@@ -13,6 +12,8 @@ from jaxtyping import Float32
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
+from torchvision.transforms import InterpolationMode
+from torchvision.transforms.functional import resize
 
 from dynamic_fusion.utils.datatypes import Batch, Checkpoint
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
@@ -175,7 +176,11 @@ class TrainingMonitor:
         video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
         if self.shared_config.spatial_upsampling:
-            video_event_polarity_sums = resize(video_event_polarity_sums, video_images.shape[-2:])
+            video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
+            video_event_polarity_sums = resize(video_eps, video_images.shape[-2:], interpolation=InterpolationMode.NEAREST).numpy()
+            video_event_polarity_sums = einops.rearrange(
+                video_event_polarity_sums, "(batch Time) C X Y -> batch Time C X Y", batch=video_images.shape[0]
+            )
 
         montage_frames = np.stack(
             (video_event_polarity_sums, video_images, video_predictions),
@@ -188,9 +193,10 @@ class TrainingMonitor:
             self.writer.flush()  # type: ignore[no-untyped-call]
             return
 
-        x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
+        if not self.shared_config.spatial_upsampling:
+            x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
+            self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
 
-        self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
         self.writer.flush()  # type: ignore[no-untyped-call]
 
     def _generate_montage(
@@ -258,7 +264,7 @@ class TrainingMonitor:
                 c_next = torch.concat([c_cols[i], c_cols[i + 1], c_cols[i + 2]], dim=-1)
 
             for tau in torch.arange(0, 1 - 1e-5, 1 / n_taus):
-                tau = einops.repeat(torch.tensor([tau]).to(c), "1 -> B X 1", B = c.shape[0], X=c.shape[1])
+                tau = einops.repeat(torch.tensor([tau]).to(c), "1 -> B X 1", B=c.shape[0], X=c.shape[1])
                 r_t = decoding_network(torch.concat([c, tau], dim=-1))
                 if self.shared_config.temporal_interpolation:
                     r_tnext = decoding_network(torch.concat([c_next, tau - 1], dim=-1))
