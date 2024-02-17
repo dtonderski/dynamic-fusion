@@ -1,5 +1,5 @@
 shared:
-  sequence_length: 48
+  sequence_length: 8
   resume: true
   use_mean: true
   use_std: true
@@ -17,7 +17,7 @@ data_handler:
     network_image_size: [96, 96]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins"
+    dataset_directory: "data/interim/coco/2subbins_with_scale"
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5
@@ -46,7 +46,7 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/continuous/refactored"
+  run_directory: "runs/spatiotemporal/first_attempt"
   event_colors: [[255, 0, 0], [0, 255, 0]]
 
 seed: 0
