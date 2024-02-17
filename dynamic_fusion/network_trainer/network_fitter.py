@@ -1,19 +1,19 @@
 import logging
 import time
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Tuple
 
 import einops
 import numpy as np
 import torch
-from jaxtyping import Float
+from jaxtyping import Bool, Float
 from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
-from dynamic_fusion.utils.dataset import generate_frames_at_continuous_timestamps
 
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import get_reconstruction_loss
 from dynamic_fusion.utils.network import network_data_to_device, to_numpy
+from dynamic_fusion.utils.superresolution import get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.video import get_video
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
@@ -178,16 +178,16 @@ class NetworkFitter:
         for image, transform, Ts_normalized, crop in zip(preprocessed_images, transforms, Ts_normalized_batch, crops):
             video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
             ys_list.append(crop.crop_spatial(video_batch))
-        ys = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
+        gt = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
 
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
         t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
 
         # Calculate loss
-        taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=ys.shape[-2], Y=ys.shape[-1])
+        taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
         for t in range(t_start, t_end):
-            c = cs[t]  # type: ignore
+            c = cs[t]  # type: ignore  # B X Y C
             if self.shared_config.temporal_interpolation:
                 c_next = cs[t + 1]  # type: ignore
 
@@ -196,18 +196,32 @@ class NetworkFitter:
                 if self.shared_config.temporal_interpolation:
                     c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
-            r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
-            if self.shared_config.temporal_interpolation:
-                r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))
-                r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
-            r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
-            image_loss = image_loss + self.reconstruction_loss_function(r_t, ys[t]).mean()  # pylint: disable=not-callable
+            if self.shared_config.spatial_upsampling:
+                r_t, within_bounds = get_spatial_upsampling_output(
+                    decoding_network, c, taus[t, 0, 0, 0].item(), c_next if self.shared_config.temporal_interpolation else None, gt.shape[-2:]
+                )
+                # Crop out any upsampled pixels that are not within bounds
+                rows, cols = np.where(within_bounds)
+                xmin, xmax = rows.min(), rows.max()
+                ymin, ymax = cols.min(), cols.max()
+                r_t_cropped = r_t[:, :, xmin:xmax+1, ymin:ymax+1]
+                gt_cropped = gt[t,:,:,xmin:xmax+1, ymin:ymax+1]
+
+                image_loss = image_loss + self.reconstruction_loss_function(r_t_cropped, gt_cropped).mean()
+
+            else:
+                r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
+                if self.shared_config.temporal_interpolation:
+                    r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))
+                    r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
+                r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
+                image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()  # pylint: disable=not-callable
 
             if not visualize:
                 continue
 
             event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
-            images.append(to_numpy(ys[t]))
+            images.append(to_numpy(gt[t]))
             reconstructions.append(to_numpy(r_t))
 
         image_loss /= self.shared_config.sequence_length
@@ -232,3 +246,47 @@ class NetworkFitter:
                 encoding_network,
                 decoding_network,
             )
+
+
+def get_spatial_upsampling_output(
+    decoding_network: nn.Module,
+    c: Float[torch.Tensor, "B X Y C"],
+    tau: float,
+    c_next: Optional[Float[torch.Tensor, "B X Y C"]],
+    output_shape: Tuple[int, int],
+) -> Tuple[Float[torch.Tensor, "B X Y 1"], Bool[torch.Tensor, "1 1 X Y"]]:
+    original_resolution = c.shape[-3:-1]
+    nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(original_resolution, output_shape)
+
+    nearest_pixels = torch.tensor(nearest_pixels).to(c)
+    nearest_c = c[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]  # B 4 X Y C
+    b, n, x, y, c = nearest_c.shape
+
+    start_to_end_vectors_expanded = einops.rearrange(torch.tensor(start_to_end_vectors), "N X Y Dims -> 1 N X Y Dims")
+    start_to_end_vectors_normalized = start_to_end_vectors_expanded * einops.repeat(
+        torch.tensor(original_resolution), "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y
+    )
+
+    tau_expanded = einops.repeat(torch.tensor([tau]), "1 -> B N X Y 1", B=b, N=n, X=x, Y=y)
+
+    r_t = decoding_network(torch.concat([nearest_c, start_to_end_vectors_normalized, tau_expanded], dim=-1))
+    if c_next is not None:
+        nearest_c_next = c_next[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]
+        r_tnext = decoding_network(torch.concat([nearest_c_next, start_to_end_vectors_normalized, tau_expanded], dim=-1))
+        r_t = r_t * (1 - tau_expanded) + r_tnext * (tau_expanded)
+
+    r_t = spatial_bilinear_interpolate(r_t, start_to_end_vectors_normalized)
+    within_bounds_mask = einops.rearrange(~out_of_bounds.any(axis=0), "X Y -> 1 1 X Y")
+
+    return r_t, torch.tensor(within_bounds_mask).to(r_t)
+
+
+def spatial_bilinear_interpolate(
+    r_t: Float[torch.Tensor, "B 4 X Y C"], start_to_end_vectors_normalized: Float[torch.Tensor, "B 4 X Y 2"]
+) -> Float[torch.Tensor, "B X Y 1"]:
+    distances = 1 - torch.abs(start_to_end_vectors_normalized)
+    weights = distances[..., 0] * distances[..., 1]  # B 4 X Y
+    expanded_weights = einops.rearrange(weights, "B N X Y -> B N X Y 1")
+    weighted_output = expanded_weights * r_t
+
+    return weighted_output.sum(axis=1)

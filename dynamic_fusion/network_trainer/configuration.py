@@ -18,6 +18,7 @@ class SharedConfiguration(BaseModel):
     spatial_unfolding: bool = Field(...)
     temporal_interpolation: bool = Field(...)
     temporal_unfolding: bool = Field(...)
+    spatial_upsampling: bool = Field(...)
 
 
 class AugmentationConfiguration(BaseModel):

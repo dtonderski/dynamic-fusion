@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
+from torchvision.transforms.functional import resize
 
 import einops
 import numpy as np
@@ -172,6 +173,9 @@ class TrainingMonitor:
         decoding_network: Optional[nn.Module] = None,
     ) -> None:
         video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
+
+        if self.shared_config.spatial_upsampling:
+            video_event_polarity_sums = resize(video_event_polarity_sums, video_images.shape[-2:])
 
         montage_frames = np.stack(
             (video_event_polarity_sums, video_images, video_predictions),
