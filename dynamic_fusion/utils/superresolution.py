@@ -18,10 +18,13 @@ def generate_coords_1d(resolution: int) -> Float[np.ndarray, " N"]:
     return np.linspace(0, 1, resolution + 1)[1:] - 1 / (2 * resolution)
 
 
-@jit(cache=True)
+@jit(cache=True)  # type: ignore
 def find_nearest_pixels(
-    start_resolution: np.ndarray, end_resolution: Tuple[int, int], start_coords: np.ndarray, end_coords: np.ndarray
-) -> np.ndarray:
+    start_resolution: Int[np.ndarray, " 2"],
+    end_resolution: Tuple[int, int],
+    start_coords: Float[np.ndarray, "X Y 2"],
+    end_coords: Float[np.ndarray, "X Y 2"],
+) -> Int[np.ndarray, "4 XUpscaled YUpscaled 2"]:
     nearest_pixels = np.zeros((4, *end_resolution, 2))
     for i_end in range(end_resolution[0]):
         for j_end in range(end_resolution[1]):
