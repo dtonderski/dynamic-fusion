@@ -28,6 +28,8 @@ class CocoAugmentation:
 
     def __call__(self, network_data: ReconstructionSample) -> CroppedReconstructionSample:
         # network_data.video = scale_video_to_quantiles(network_data.video)
+        if self.shared_config.spatial_upsampling:
+            return self._crop_time_only(network_data)
         transformed_network_data = self._crop_tensors(network_data)
         return transformed_network_data
 
@@ -52,19 +54,13 @@ class CocoAugmentation:
         x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
         total_number_of_bins = network_data.video.shape[0]
 
-        t_start = np.random.randint(
-            low=0,
-            high=total_number_of_bins - self.shared_config.sequence_length + 1,  # + 1 because exclusive
-        )
+        t_start = np.random.randint(low=0, high=total_number_of_bins - self.shared_config.sequence_length + 1)  # + 1 because exclusive
 
         network_data.event_polarity_sums = self.extract_part_of_tensor(network_data.event_polarity_sums, t_start, x_start, y_start)
-
         if self.shared_config.use_mean:
             network_data.timestamp_means = self.extract_part_of_tensor(network_data.timestamp_means, t_start, x_start, y_start)
-
         if self.shared_config.use_std:
             network_data.timestamp_stds = self.extract_part_of_tensor(network_data.timestamp_stds, t_start, x_start, y_start)
-
         if self.shared_config.use_count:
             network_data.event_counts = self.extract_part_of_tensor(network_data.event_counts, t_start, x_start, y_start)
 
@@ -76,14 +72,26 @@ class CocoAugmentation:
         ]
 
         crop_definition = CropDefinition(
-            x_start,
-            y_start,
-            t_start,
-            *self.config.network_image_size,
-            self.shared_config.sequence_length,
-            total_number_of_bins,
+            x_start, y_start, t_start, *self.config.network_image_size, self.shared_config.sequence_length, total_number_of_bins
         )
 
+        return CroppedReconstructionSample(network_data, crop_definition)
+
+    def _crop_time_only(self, network_data: ReconstructionSample) -> CroppedReconstructionSample:
+        x_start, y_start = 0, 0
+        total_number_of_bins, _, x_size, y_size = network_data.video.shape
+
+        t_start = np.random.randint(low=0, high=total_number_of_bins - self.shared_config.sequence_length + 1)  # + 1 because exclusive
+
+        network_data.event_polarity_sums = network_data.event_polarity_sums[t_start : t_start + self.shared_config.sequence_length]
+        if self.shared_config.use_mean:
+            network_data.timestamp_means = network_data.timestamp_means[t_start : t_start + self.shared_config.sequence_length]
+        if self.shared_config.use_std:
+            network_data.timestamp_stds = network_data.timestamp_stds[t_start : t_start + self.shared_config.sequence_length]
+        if self.shared_config.use_count:
+            network_data.event_counts = network_data.event_counts[t_start : t_start + self.shared_config.sequence_length]
+        network_data.video = network_data.video[t_start : t_start + self.shared_config.sequence_length]
+        crop_definition = CropDefinition(x_start, y_start, t_start, x_size, y_size, self.shared_config.sequence_length, total_number_of_bins)
         return CroppedReconstructionSample(network_data, crop_definition)
 
 
