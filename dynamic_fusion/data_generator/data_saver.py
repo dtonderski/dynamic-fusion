@@ -51,6 +51,10 @@ class DataSaver:
                 with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
                     discretized_events.save_to_file(file, self.config.h5_compression)
 
+            for threshold, discretized_events in discretized_events_dict.items():
+                with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}.h5", "w") as file:
+                    discretized_events.save_to_file(file, self.config.h5_compression)
+
             with h5py.File(output_dir / "input.h5", "w") as file:
                 file.create_dataset("/input_image", data=image, compression="gzip", compression_opts=self.config.h5_compression)
 
