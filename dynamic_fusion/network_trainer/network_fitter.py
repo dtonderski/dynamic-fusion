@@ -1,11 +1,12 @@
 import logging
 import time
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional
 
 import einops
 import numpy as np
 import torch
-from jaxtyping import Bool, Float
+import torch.jit
+from jaxtyping import Float, Int
 from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
@@ -184,10 +185,24 @@ class NetworkFitter:
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
         t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
 
+        t_0 = time.time()
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
+        if self.shared_config.spatial_upsampling:
+            nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(cs.shape[-3:-1]), tuple(gt.shape[-2:]))  # type: ignore
+            nearest_pixels = torch.tensor(nearest_pixels)
+            start_to_end_vectors = torch.tensor(start_to_end_vectors)
+
+            within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(cs)
+            # Crop out any upsampled pixels that are not within bounds
+            rows, cols = torch.where(within_bounds_mask)
+            xmin, xmax = rows.min(), rows.max()
+            ymin, ymax = cols.min(), cols.max()
+        print(time.time() - t_0)
+
         for t in range(t_start, t_end):
             c = cs[t]  # type: ignore  # B X Y C
+            c_next = None
             if self.shared_config.temporal_interpolation:
                 c_next = cs[t + 1]  # type: ignore
 
@@ -197,22 +212,17 @@ class NetworkFitter:
                     c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
             if self.shared_config.spatial_upsampling:
-                r_t, within_bounds = get_spatial_upsampling_output(
-                    decoding_network, c, taus[t, 0, 0, 0].item(), c_next if self.shared_config.temporal_interpolation else None, gt.shape[-2:]
-                )
+                r_t = get_spatial_upsampling_output(decoding_network, c, taus[t, 0, 0, 0].item(), c_next, nearest_pixels, start_to_end_vectors)
                 # Crop out any upsampled pixels that are not within bounds
-                rows, cols = np.where(within_bounds)
-                xmin, xmax = rows.min(), rows.max()
-                ymin, ymax = cols.min(), cols.max()
-                r_t_cropped = r_t[:, :, xmin:xmax+1, ymin:ymax+1]
-                gt_cropped = gt[t,:,:,xmin:xmax+1, ymin:ymax+1]
+                r_t_cropped = r_t[:, :, xmin : xmax + 1, ymin : ymax + 1]
+                gt_cropped = gt[t, :, :, xmin : xmax + 1, ymin : ymax + 1]
 
                 image_loss = image_loss + self.reconstruction_loss_function(r_t_cropped, gt_cropped).mean()
 
             else:
                 r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
                 if self.shared_config.temporal_interpolation:
-                    r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))
+                    r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
                     r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
                 r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
                 image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()  # pylint: disable=not-callable
@@ -253,21 +263,22 @@ def get_spatial_upsampling_output(
     c: Float[torch.Tensor, "B X Y C"],
     tau: float,
     c_next: Optional[Float[torch.Tensor, "B X Y C"]],
-    output_shape: Tuple[int, int],
-) -> Tuple[Float[torch.Tensor, "B X Y 1"], Bool[torch.Tensor, "1 1 X Y"]]:
+    nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+    start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+) -> Float[torch.Tensor, "B 1 X Y"]:
     original_resolution = c.shape[-3:-1]
-    nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(original_resolution, output_shape)
 
-    nearest_pixels = torch.tensor(nearest_pixels).to(c)
+    nearest_pixels = nearest_pixels.to(c).long()
     nearest_c = c[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]  # B 4 X Y C
-    b, n, x, y, c = nearest_c.shape
+    b, n, x, y, _ = nearest_c.shape
 
-    start_to_end_vectors_expanded = einops.rearrange(torch.tensor(start_to_end_vectors), "N X Y Dims -> 1 N X Y Dims")
+    start_to_end_vectors_expanded = einops.rearrange(start_to_end_vectors, "N X Y Dims -> 1 N X Y Dims")
     start_to_end_vectors_normalized = start_to_end_vectors_expanded * einops.repeat(
         torch.tensor(original_resolution), "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y
     )
+    start_to_end_vectors_normalized = start_to_end_vectors_normalized.to(c)
 
-    tau_expanded = einops.repeat(torch.tensor([tau]), "1 -> B N X Y 1", B=b, N=n, X=x, Y=y)
+    tau_expanded = einops.repeat(torch.tensor([tau]).to(c), "1 -> B N X Y 1", B=b, N=n, X=x, Y=y)
 
     r_t = decoding_network(torch.concat([nearest_c, start_to_end_vectors_normalized, tau_expanded], dim=-1))
     if c_next is not None:
@@ -276,9 +287,9 @@ def get_spatial_upsampling_output(
         r_t = r_t * (1 - tau_expanded) + r_tnext * (tau_expanded)
 
     r_t = spatial_bilinear_interpolate(r_t, start_to_end_vectors_normalized)
-    within_bounds_mask = einops.rearrange(~out_of_bounds.any(axis=0), "X Y -> 1 1 X Y")
+    r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
 
-    return r_t, torch.tensor(within_bounds_mask).to(r_t)
+    return r_t
 
 
 def spatial_bilinear_interpolate(
