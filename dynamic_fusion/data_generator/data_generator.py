@@ -38,15 +38,10 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
         self.logger = logging.getLogger("DataGenerator")
 
         self.image_loader = ImageLoader(config.image_loader)
-
         self.image_preprocessor = ImagePreprocessor(config.image_preprocessor, config.shared)
-
         self.video_generator = VideoGenerator(config.video_generator, config.shared)
-
         self.event_generator = EventGenerator(config.event_generator, config.shared)
-
         self.event_discretizer = EventDiscretizer(config.event_discretizer, config.shared)
-
         self.data_saver = DataSaver(config.data_saver)
 
     def run(self) -> None:

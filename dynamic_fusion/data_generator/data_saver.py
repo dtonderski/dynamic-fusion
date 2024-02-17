@@ -51,7 +51,7 @@ class DataSaver:
                 with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
                     discretized_events.save_to_file(file, self.config.h5_compression)
 
-            for threshold, discretized_events in discretized_events_dict.items():
+            for threshold, discretized_events in downscaled_discretized_events_dict.items():
                 with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}.h5", "w") as file:
                     discretized_events.save_to_file(file, self.config.h5_compression)
 
@@ -67,7 +67,7 @@ class DataSaver:
 
             with h5py.File(output_dir / "downscaled_input.h5", "w") as file:
                 if self.config.save_video:
-                    file.create_dataset("/generated_video", data=video, compression="gzip", compression_opts=self.config.h5_compression)
+                    file.create_dataset("/generated_video", data=downscaled_video, compression="gzip", compression_opts=self.config.h5_compression)
 
             # Read using data = pd.read_hdf("events.h5", "threshold..."")
             if self.config.save_events:
