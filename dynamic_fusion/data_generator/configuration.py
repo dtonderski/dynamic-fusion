@@ -14,7 +14,7 @@ class SharedConfiguration(BaseModel):
     )
     seed: int = Field(..., description="Randomness seed.")
     overwrite: bool = Field(..., description="Controls whether to overwrite existing data.")
-
+    only_downscaled_events: bool = Field(..., description="Only generate downscaled event data.")
 
 class ImageLoaderConfiguration(BaseModel):
     dataset_dir: Path = Field(

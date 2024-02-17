@@ -76,11 +76,15 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     [resize(video_frame, output_shape=downscaled_image_size, order=3, anti_aliasing=True) for video_frame in video]
                 )
 
-                event_dict = self.event_generator.run(video)
-                downscaled_event_dict = self.event_generator.run(downscaled_video, regenerate_luminance=False)
+                if self.config.shared.only_downscaled_events:
+                    event_dict, discretized_event_dict = None, None
+                else:
+                    event_dict = self.event_generator.run(video)
+                    discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(event_dict, video.shape[1:])
 
-                discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(event_dict, video.shape[1:])
-                downscaled_discretized_event_dict, _ = self.event_discretizer.run(downscaled_event_dict, downscaled_video.shape[1:])
+                downscaled_event_dict = self.event_generator.run(downscaled_video, regenerate_luminance=self.config.shared.only_downscaled_events)
+                downscaled_discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(downscaled_event_dict, downscaled_video.shape[1:])
+
 
                 ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
 

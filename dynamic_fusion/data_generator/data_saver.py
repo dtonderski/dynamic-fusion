@@ -2,7 +2,7 @@ from dataclasses import asdict
 import logging
 import shutil
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import h5py
 
@@ -35,9 +35,9 @@ class DataSaver:
         downscaled_video: GrayVideoFloat,
         preprocessed_image: GrayImageFloat,
         transform_definition: TransformDefinition,
-        event_dict: Dict[float, Events],
+        event_dict: Optional[Dict[float, Events]],
         downscaled_event_dict: Dict[float, Events],
-        discretized_events_dict: Dict[float, DiscretizedEvents],
+        discretized_events_dict: Optional[Dict[float, DiscretizedEvents]],
         downscaled_discretized_events_dict: Dict[float, DiscretizedEvents],
         synchronized_video: GrayVideoFloat,
     ) -> None:
@@ -47,9 +47,10 @@ class DataSaver:
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            for threshold, discretized_events in discretized_events_dict.items():
-                with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
-                    discretized_events.save_to_file(file, self.config.h5_compression)
+            if discretized_events_dict is not None:
+                for threshold, discretized_events in discretized_events_dict.items():
+                    with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
+                        discretized_events.save_to_file(file, self.config.h5_compression)
 
             for threshold, discretized_events in downscaled_discretized_events_dict.items():
                 with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}.h5", "w") as file:
@@ -71,8 +72,9 @@ class DataSaver:
 
             # Read using data = pd.read_hdf("events.h5", "threshold..."")
             if self.config.save_events:
-                for threshold, event_df in event_dict.items():
-                    event_df.to_hdf(output_dir / "events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
+                if event_dict is not None:
+                    for threshold, event_df in event_dict.items():
+                        event_df.to_hdf(output_dir / "events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
                 for threshold, downscaled_event_df in downscaled_event_dict.items():
                     downscaled_event_df.to_hdf(
                         output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib"
