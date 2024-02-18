@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms.functional import resize
+import skimage.transform
 
 from dynamic_fusion.utils.datatypes import Batch, Checkpoint
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
@@ -176,16 +177,25 @@ class TrainingMonitor:
         video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
         if self.shared_config.spatial_upsampling:
+            dowscaled_size = fused_event_polarity_sums.shape[-2:]
+            video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> B T X Y C")
+            downscaled_frames = [
+                skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True)
+                for video_frame in video_for_downscaling[0]
+            ]
+            upscaled_frames = [skimage.transform.resize(video_frame, video_images.shape[-2:], order=0) for video_frame in downscaled_frames]
+            upscaled_video = np.stack(upscaled_frames)[None]
+            upscaled_video = einops.rearrange(upscaled_video, "B T X Y C -> B T C X Y")
+
             video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
             video_event_polarity_sums = resize(video_eps, video_images.shape[-2:], interpolation=InterpolationMode.NEAREST).numpy()
             video_event_polarity_sums = einops.rearrange(
                 video_event_polarity_sums, "(batch Time) C X Y -> batch Time C X Y", batch=video_images.shape[0]
             )
+            montage_frames = np.stack((upscaled_video, video_event_polarity_sums, video_images, video_predictions), axis=0)  # S B T C X Y
+        else:
+            montage_frames = np.stack((video_event_polarity_sums, video_images, video_predictions), axis=0)  # S B T C X Y
 
-        montage_frames = np.stack(
-            (video_event_polarity_sums, video_images, video_predictions),
-            axis=0,
-        )  # S B T C X Y
         montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
         self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]
 
