@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Tuple
 
 import einops
 import numpy as np
@@ -192,11 +192,19 @@ class NetworkFitter:
             nearest_pixels = torch.tensor(nearest_pixels)
             start_to_end_vectors = torch.tensor(start_to_end_vectors)
 
+            # Define region to upsample
+            # First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
             within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(cs)
-            # Crop out any upsampled pixels that are not within bounds
+
             rows, cols = torch.where(within_bounds_mask)
-            xmin, xmax = rows.min(), rows.max()
-            ymin, ymax = cols.min(), cols.max()
+            xmin_boundary, xmax_boundary = rows.min(), rows.max() - self.config.upscaling_region_size[0] + 1
+            ymin_boundary, ymax_boundary = cols.min(), cols.max() - self.config.upscaling_region_size[1] + 1
+
+            # Then, sample a crop from this region
+            xmin, ymin = np.random.randint(
+                low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
+            )
+            xmax, ymax = xmin + self.config.upscaling_region_size[0], ymin + self.config.upscaling_region_size[1]
 
         for t in range(t_start, t_end):
             c = cs[t]  # type: ignore  # B X Y C
@@ -210,32 +218,36 @@ class NetworkFitter:
                     c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
             if self.shared_config.spatial_upsampling:
-                r_t = get_spatial_upsampling_output(decoding_network, c, taus[t, 0, 0, 0].item(), c_next, nearest_pixels, start_to_end_vectors)
+                r_t = get_spatial_upsampling_output(
+                    decoding_network, c, taus[t, 0, 0, 0].item(), c_next, nearest_pixels, start_to_end_vectors, (xmin, xmax, ymin, ymax)
+                )
                 # Crop out any upsampled pixels that are not within bounds
-                r_t_cropped = r_t[:, :, xmin : xmax + 1, ymin : ymax + 1]
-                gt_cropped = gt[t, :, :, xmin : xmax + 1, ymin : ymax + 1]
+                gt_cropped = gt[t, :, :, xmin:xmax, ymin:ymax]
 
-                image_loss = image_loss + self.reconstruction_loss_function(r_t_cropped, gt_cropped).mean()
-                # For visualization
-                indices_to_zero_x, indices_to_zero_y = torch.where(1-within_bounds_mask)
-                r_t[0,0,indices_to_zero_x, indices_to_zero_y] = 0
+                image_loss = image_loss + self.reconstruction_loss_function(r_t, gt_cropped).mean()
 
-            else:
-                r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
-                if self.shared_config.temporal_interpolation:
-                    r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
-                    r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
-                r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
-                image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()  # pylint: disable=not-callable
+                if visualize:
+                    event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
+                    images.append(to_numpy(gt[t]))
+                    reconstructions.append(to_numpy(r_t))
 
-            if not visualize:
+                continue
+
+            r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
+            if self.shared_config.temporal_interpolation:
+                r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
+                r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
+            r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
+            image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()  # pylint: disable=not-callable
+
+            if visualize:
                 continue
 
             event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
             images.append(to_numpy(gt[t]))
             reconstructions.append(to_numpy(r_t))
 
-        image_loss /= (t_end - t_start)
+        image_loss /= t_end - t_start
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
@@ -249,6 +261,18 @@ class NetworkFitter:
 
         self.monitor.on_reconstruction(image_loss.item(), iteration)
         if visualize:
+            if self.shared_config.spatial_upsampling:
+                self.monitor.visualize_upsampling(
+                    np.stack(event_polarity_sum_list, 1),
+                    np.stack(images, 1),
+                    np.stack(reconstructions, 1),
+                    iteration,
+                    encoding_network,
+                    decoding_network,
+                    (xmin, xmax, ymin, ymax) if self.shared_config.spatial_upsampling else None,
+                )
+                return
+
             self.monitor.visualize(
                 np.stack(event_polarity_sum_list, 1),
                 np.stack(images, 1),
@@ -266,8 +290,13 @@ def get_spatial_upsampling_output(
     c_next: Optional[Float[torch.Tensor, "B X Y C"]],
     nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
-) -> Float[torch.Tensor, "B 1 X Y"]:
+    region_to_upsample: Optional[Tuple[int, int, int, int]],  # Defines x_start, x_stop, y_start, y_stop of region to upsample. Right exclusive
+) -> Float[torch.Tensor, "B 1 XUpscaled YUpscaled"]:
     original_resolution = c.shape[-3:-1]
+
+    if region_to_upsample is not None:
+        nearest_pixels = nearest_pixels[:, region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
+        start_to_end_vectors = start_to_end_vectors[:, region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
 
     nearest_pixels = nearest_pixels.to(c).long()
     nearest_c = c[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]  # B 4 X Y C

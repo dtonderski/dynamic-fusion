@@ -1,5 +1,5 @@
 shared:
-  sequence_length: 8
+  sequence_length: 48
   resume: true
   use_mean: true
   use_std: true
@@ -17,7 +17,7 @@ data_handler:
     network_image_size: [96, 96]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins_with_scale"
+    dataset_directory: "data/interim/coco/2subbins_downscaled"
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5
@@ -39,14 +39,15 @@ network_fitter:
   lr_reconstruction: 0.0005
   number_of_training_iterations: 80_000
   reconstruction_loss_name: "LPIPS"
-  skip_first_timesteps: 4
+  skip_first_timesteps: 2
   network_saving_frequency: 100
   visualization_frequency: 200
   data_generator_target_image_size: [180, 240]
+  upscaling_region_size: [96, 96]
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/spatiotemporal/first_attempt"
+  run_directory: "runs/spatiotemporal/slurm"
   event_colors: [[255, 0, 0], [0, 255, 0]]
 
 seed: 0

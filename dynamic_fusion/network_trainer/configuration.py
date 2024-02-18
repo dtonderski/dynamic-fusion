@@ -81,7 +81,7 @@ class NetworkFitterConfiguration(BaseModel):
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
     data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
-
+    upscaling_region_size: Tuple[int, int] = Field(..., description="Size of region to upscale. Used to limit memory usage in spatial upsampling")
 
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)

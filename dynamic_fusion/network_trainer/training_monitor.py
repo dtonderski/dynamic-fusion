@@ -169,32 +169,62 @@ class TrainingMonitor:
         self,
         fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 X Y"],
         images: Float32[np.ndarray, "batch Time 1 X Y"],
-        predictions: Float32[np.ndarray, "batch Time 1 X Y"],
+        predictions: Float32[np.ndarray, "batch Time 1 XUpscaledCropped YUpscaledCropped"],
         iteration: int,
         encoding_network: Optional[nn.Module] = None,
         decoding_network: Optional[nn.Module] = None,
     ) -> None:
         video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
-        if self.shared_config.spatial_upsampling:
-            dowscaled_size = fused_event_polarity_sums.shape[-2:]
-            video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> B T X Y C")
-            downscaled_frames = [
-                skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True)
-                for video_frame in video_for_downscaling[0]
-            ]
-            upscaled_frames = [skimage.transform.resize(video_frame, video_images.shape[-2:], order=0) for video_frame in downscaled_frames]
-            upscaled_video = np.stack(upscaled_frames)[None]
-            upscaled_video = einops.rearrange(upscaled_video, "B T X Y C -> B T C X Y")
+        montage_frames = np.stack((video_event_polarity_sums, video_images, video_predictions), axis=0)  # S B T C X Y
 
-            video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
-            video_event_polarity_sums = resize(video_eps, video_images.shape[-2:], interpolation=InterpolationMode.NEAREST).numpy()
-            video_event_polarity_sums = einops.rearrange(
-                video_event_polarity_sums, "(batch Time) C X Y -> batch Time C X Y", batch=video_images.shape[0]
-            )
-            montage_frames = np.stack((upscaled_video, video_event_polarity_sums, video_images, video_predictions), axis=0)  # S B T C X Y
-        else:
-            montage_frames = np.stack((video_event_polarity_sums, video_images, video_predictions), axis=0)  # S B T C X Y
+        montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
+        self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]
+
+        if encoding_network is None or decoding_network is None:
+            self.writer.flush()  # type: ignore[no-untyped-call]
+            return
+
+        if not self.shared_config.spatial_upsampling:
+            x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
+            self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
+
+        self.writer.flush()  # type: ignore[no-untyped-call]
+
+    def visualize_upsampling(
+        self,
+        fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 XOriginal YOriginal"],
+        images: Float32[np.ndarray, "batch Time 1 XUpscaled YUpscaled"],
+        predictions: Float32[np.ndarray, "batch Time 1 XUpscaledCropped YUpscaledCropped"],
+        iteration: int,
+        encoding_network: Optional[nn.Module],
+        decoding_network: Optional[nn.Module],
+        region_to_upsample: Optional[Tuple[int, int, int, int]] = None,  # Defines x_start, x_stop, y_start, y_stop of upsampling. Right exclusive
+    ) -> None:
+        video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
+
+        dowscaled_size = fused_event_polarity_sums.shape[-2:]
+        upscaled_size = images.shape[-2:]
+
+        video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> B T X Y C")
+        downscaled_frames = [
+            skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True)
+            for video_frame in video_for_downscaling[0]
+        ]
+        upscaled_frames = [skimage.transform.resize(video_frame, upscaled_size, order=0) for video_frame in downscaled_frames]
+        upscaled_video = np.stack(upscaled_frames)[None]
+        upscaled_video = einops.rearrange(upscaled_video, "B T X Y C -> B T C X Y")
+
+        video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
+        video_eps = resize(video_eps, upscaled_size, interpolation=InterpolationMode.NEAREST).numpy()
+        video_eps = einops.rearrange(video_eps, "(batch Time) C X Y -> batch Time C X Y", batch=video_images.shape[0])
+
+        if region_to_upsample:
+            upscaled_video = upscaled_video[..., region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
+            video_eps = video_eps[..., region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
+            video_images = video_images[..., region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
+
+        montage_frames = np.stack((upscaled_video, video_eps, video_images, video_predictions), axis=0)  # S B T C X Y
 
         montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
         self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]
