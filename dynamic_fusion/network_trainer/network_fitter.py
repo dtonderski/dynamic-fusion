@@ -216,6 +216,9 @@ class NetworkFitter:
                 gt_cropped = gt[t, :, :, xmin : xmax + 1, ymin : ymax + 1]
 
                 image_loss = image_loss + self.reconstruction_loss_function(r_t_cropped, gt_cropped).mean()
+                # For visualization
+                indices_to_zero_x, indices_to_zero_y = torch.where(1-within_bounds_mask)
+                r_t[0,0,indices_to_zero_x, indices_to_zero_y] = 0
 
             else:
                 r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
@@ -232,7 +235,7 @@ class NetworkFitter:
             images.append(to_numpy(gt[t]))
             reconstructions.append(to_numpy(r_t))
 
-        image_loss /= self.shared_config.sequence_length
+        image_loss /= (t_end - t_start)
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
