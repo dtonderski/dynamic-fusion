@@ -87,15 +87,15 @@ class Visualizer(ctk.CTk):  # type: ignore
         # self.start_bin_slider.bind("<ButtonRelease-1>", self._new_bin_slider_value)
 
         # End bin slider
-        self.end_bin_slider_label = ctk.CTkLabel(self.bins_frame, text=END_BIN_INDEX_TEMPLATE.format(val=0))
+        self.end_bin_slider_label = ctk.CTkLabel(self.bins_frame, text=END_BIN_INDEX_TEMPLATE.format(val=4))
         self.end_bin_slider_label.grid(row=3, column=0)
         command = lambda val: self._slider_changed(self.end_bin_slider_label, val, END_BIN_INDEX_TEMPLATE)
 
-        self.end_bin_var = ctk.IntVar(value=0)
+        self.end_bin_var = ctk.IntVar(value=4)
         self.end_bin_slider = ctk.CTkSlider(
             self.bins_frame,
-            from_=0,
-            to=self.config.total_bins_in_video - 1,
+            from_=4,
+            to=self.config.total_bins_in_video - 2,
             variable=self.end_bin_var,
             width=300,
             command=command,
@@ -118,8 +118,8 @@ class Visualizer(ctk.CTk):  # type: ignore
         )
         self.timestamp_slider.grid(row=1, column=0)
 
-        self.interpolate_checkbox = ctk.CTkCheckBox(self.time_frame, text="Interpolate", command=self._update_prediction)
-        self.interpolate_checkbox.grid(row=0, column=1)
+        self.temporally_interpolate_checkbox = ctk.CTkCheckBox(self.time_frame, text="Temporally interpolate", command=self._update_prediction)
+        self.temporally_interpolate_checkbox.grid(row=0, column=1)
         # self.timestamp_slider.bind("<ButtonRelease-1>", self._new_slider_value)
 
         # Zoom
@@ -205,7 +205,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         return self.row - 1
 
     def _change_directory(self) -> None:
-        result = filedialog.askdirectory(initialdir="data/interim/coco/2subbins")
+        result = filedialog.askdirectory(initialdir="data/interim/coco")
         result = NO_DATA_TEXT if isinstance(result, tuple) or result == "" else result
         self.data_directory = result
         self.filedialog_textbox.configure(text=result)
@@ -307,7 +307,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         timestamp = self.timestamp_slider._value * (TIMESTAMP_RANGE[1] - TIMESTAMP_RANGE[0]) + TIMESTAMP_RANGE[0]
 
         print(f"Updating prediction to {timestamp}")
-        prediction = self.network_handler.get_reconstruction(timestamp, self.interpolate_checkbox.get())
+        prediction = self.network_handler.get_reconstruction(timestamp, self.temporally_interpolate_checkbox.get())
         print(f"Prediction range: {prediction.min()} to {prediction.max()}")
         prediction[prediction < 0] = 0
         prediction[prediction > 1] = 1

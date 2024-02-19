@@ -41,11 +41,13 @@ class NetworkHandler:
     network_loader: NetworkLoader
     preprocessed_image: GrayImageFloat
     transform_definition: TransformDefinition
-    last_decoding_prediction: Optional[Float[torch.Tensor, "X Y"]] = None
-    last_timestamp: Optional[float] = None
+    last_r: Optional[Float[torch.Tensor, "X Y"]] = None
+    last_tau: Optional[float] = None
+    last_used_temporal_interpolation: Optional[bool] = None
     last_ground_truth: Optional[Float[torch.Tensor, "X Y"]] = None
     device: torch.device
     losses: List[nn.Module]
+    cs: Float[torch.Tensor, "T B X Y C"]
 
     def __init__(
         self,
@@ -68,36 +70,44 @@ class NetworkHandler:
         self.losses = [get_reconstruction_loss(x, self.device) for x in self.config.losses]
 
     # Public API
-    def get_reconstruction(self, timestamp: float, interpolation: bool = False) -> Float[torch.Tensor, "X Y"]:
-        if self.last_decoding_prediction is not None and self.last_timestamp == timestamp:
-            return self.last_decoding_prediction
+    def get_reconstruction(self, tau: float, temporal_interpolation: bool = False) -> Float[torch.Tensor, "X Y"]:
+        if (
+            self.last_r is not None
+            and self.last_tau == tau
+            and self.last_used_temporal_interpolation == temporal_interpolation
+        ):
+            return self.last_r
 
         # Use previous prediction if needed
-        encoding = self.previous_prediction if timestamp < 0 else self.prediction
-        if interpolation and self.next_prediction is not None:
-            next_prediction = self.prediction if timestamp < 0 else self.next_prediction
-        timestamp = timestamp + 1 if timestamp < 0 else timestamp
+        t = 2
+        if tau < 0:
+            t = t - 1
+
+        c = self.cs[t]
+        c_next = self.cs[t + 1]
+
+        tau = tau + 1 if tau < 0 else tau
 
         with torch.no_grad():
-            expanded_timestamp = torch.tensor([timestamp], device=self.device)[:, None, None, None].expand(1, 1, *encoding.shape[-2:])
-            encoding_and_time = torch.concat([encoding, expanded_timestamp], dim=1)
-            encoding_and_time = einops.rearrange(encoding_and_time, "1 C X Y -> 1 X Y C")
-            decoding_prediction = self.decoding_network(encoding_and_time)
+            b, x, y, _ = c.shape
+            tau_expanded = einops.repeat(torch.tensor([tau], device = self.device), "1 -> B X Y 1", B=b, X=x, Y=y)
+            if self.config.temporal_unfolding:
+                c = torch.concat([self.cs[t - 1], self.cs[t], self.cs[t + 1]], dim=-1)  # type: ignore
+                if temporal_interpolation:
+                    c_next = torch.concat([self.cs[t], self.cs[t + 1], self.cs[t + 2]], dim=-1)  # type: ignore
 
-            if interpolation and self.next_prediction is not None:
-                next_encoding_and_time = torch.concat([next_prediction, expanded_timestamp - 1], dim=1)
-                next_encoding_and_time = einops.rearrange(next_encoding_and_time, "1 C X Y -> 1 X Y C")
-                next_decoding_prediction = self.decoding_network(next_encoding_and_time)
+            r = self.decoding_network(torch.concat([c, tau_expanded], dim=-1))
+            if temporal_interpolation:
+                r_next = self.decoding_network(torch.concat([c_next, tau_expanded - 1], dim=-1))  # type: ignore
+                r = r * (1 - tau_expanded) + r_next * (tau_expanded)
 
-                decoding_prediction = next_decoding_prediction * (timestamp) + decoding_prediction * (1 - timestamp)
+            self.last_tau = tau
+            self.last_r = torch.squeeze(r).cpu()
 
-            self.last_timestamp = timestamp
-            self.last_decoding_prediction = torch.squeeze(decoding_prediction).cpu()
-
-            return self.last_decoding_prediction
+            return self.last_r
 
     def get_ground_truth(self, timestamp: float, total_bins_in_video: int = 100) -> Float[torch.Tensor, "X Y"]:
-        timestamp_using_bin_time = timestamp + self.end_bin_index
+        timestamp_using_bin_time = timestamp + self.end_bin_index - 2
         timestamp_using_video_time = timestamp_using_bin_time / total_bins_in_video
 
         self.last_ground_truth = get_video(
@@ -112,18 +122,9 @@ class NetworkHandler:
     def get_start_and_end_images(
         self,
     ) -> Tuple[GrayImageFloat, GrayImageFloat]:
-        if self.end_bin_index == 0:
-            start = get_video(
-                self.preprocessed_image,
-                self.transform_definition,
-                np.zeros(1),
-                self.config.data_generator_target_image_size,
-                device=torch.device("cpu"),
-            )[0]
-        else:
-            start = np.array(self.sample.video[self.end_bin_index - 1, 0].cpu())
+        start = np.array(self.sample.video[self.end_bin_index - 3, 0].cpu())
 
-        return start, np.array(self.sample.video[self.end_bin_index, 0].cpu())
+        return start, np.array(self.sample.video[self.end_bin_index-2, 0].cpu())
 
     def get_event_image(self) -> Float[torch.Tensor, "3 X Y"]:
         polarity_sums_in_bin = self.sample.event_polarity_sums[self.end_bin_index].sum(dim=0)
@@ -165,7 +166,7 @@ class NetworkHandler:
             print(e)
 
     def get_losses(self) -> List[float]:
-        prediction = einops.rearrange(self.last_decoding_prediction, "X Y -> 1 1 X Y").to(self.device)
+        prediction = einops.rearrange(self.last_r, "X Y -> 1 1 X Y").to(self.device)
         gt_tensor = torch.tensor(self.last_ground_truth)
         gt = einops.rearrange(gt_tensor, "X Y -> 1 1 X Y").to(self.device)  # type: ignore
         return [loss(prediction, gt).item() for loss in self.losses]
@@ -175,48 +176,33 @@ class NetworkHandler:
         with torch.no_grad():
             self.previous_prediction = None
             self.next_prediction = None
-            self.last_timestamp = None
-            self.last_decoding_prediction = None
+            self.last_tau = None
+            self.last_r = None
 
             self.encoding_network.reset_states()
             polarity_sums, means, stds, counts = self._sample_to_device()
+            c_list = []
+
             for t in range(self.end_bin_index - self.start_bin_index + 1):
-                self.prediction = self.encoding_network(
-                    polarity_sums[:, t],
-                    means[:, t] if self.config.use_mean else None,
-                    stds[:, t] if self.config.use_std else None,
-                    counts[:, t] if self.config.use_count else None,
+                c_list.append(
+                    self.encoding_network(
+                        polarity_sums[:, t],
+                        means[:, t] if self.config.use_mean else None,
+                        stds[:, t] if self.config.use_std else None,
+                        counts[:, t] if self.config.use_count else None,
+                    )
                 )
 
-                unfolded_prediction = torch.nn.functional.unfold(self.prediction, kernel_size=3, padding=1, stride=1)
-                self.prediction = einops.rearrange(
-                    unfolded_prediction,
-                    "B C (X Y) -> B C X Y",
-                    X=polarity_sums.shape[3],
-                )
-
-                if t == self.end_bin_index - self.start_bin_index - 1:
-                    self.previous_prediction = self.prediction.clone()  # type: ignore
-
-            self.prediction = self.prediction.clone()
-            try:
-                self.next_prediction = self.encoding_network(
-                    polarity_sums[:, t + 1],
-                    means[:, t + 1] if self.config.use_mean else None,
-                    stds[:, t + 1] if self.config.use_std else None,
-                    counts[:, t + 1] if self.config.use_count else None,
-                )
-
-                unfolded_prediction = torch.nn.functional.unfold(self.next_prediction, kernel_size=3, padding=1, stride=1)
-                self.next_prediction = einops.rearrange(
-                    unfolded_prediction,
-                    "B C (X Y) -> B C X Y",
-                    X=polarity_sums.shape[3],
-                )
-
-            except Exception as e:
-                print(e)
-                return
+            # the 5 last encodings is enough to get temporal interpolation + unfolding for both this and previous
+                
+            cs = torch.stack(c_list[-5:], dim=0)  # T B C X Y
+            if self.config.spatial_unfolding:
+                cs = einops.rearrange(cs, "T B C X Y -> (T B) C X Y")
+                cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
+                self.cs = einops.rearrange(cs, "(T B) C (X Y) -> T B X Y C", T=5, X=polarity_sums.shape[-2])
+            else:
+                # Prepare for linear layer
+                self.cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
 
     def _sample_to_device(
         self,

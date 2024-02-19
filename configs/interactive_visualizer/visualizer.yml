@@ -2,21 +2,27 @@ network_loader:
   encoding:
     input_size: 2 # should equal to be subbins
     hidden_size: 24
-    output_size: 64
+    output_size: 16
     kernel_size: 3
-  encoding_checkpoint_path: runs/continuous/02_implicit_with_interpolation/latest_checkpoint.pt #runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
+  # encoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
+  encoding_checkpoint_path: runs/00_ready_for_evaluation/03_implicit_msc_st-un_t-interp/latest_checkpoint.pt
+  # encoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
   decoding:
     hidden_size: 128
     hidden_layers: 4
-  decoding_checkpoint_path: runs/continuous/02_implicit_with_interpolation/latest_checkpoint.pt #runs/continuous/third_run_with_mean_std_count/latest_checkpoint.pt
+  # decoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
+  decoding_checkpoint_path: runs/00_ready_for_evaluation/03_implicit_msc_st-un_t-interp/latest_checkpoint.pt
+  # decoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
 
 network_handler:
   use_mean: true
   use_std: true
   use_count: true
   implicit: true
-  spatial_feature_unfolding: true
-  data_generator_target_image_size: null
+  spatial_unfolding: true
+  temporal_unfolding: true
+  spatial_upsampling: false
+  data_generator_target_image_size: [180, 240]
   losses: ["LPIPS", "L1", "L2"]
 
-total_bins_in_video: 150
+total_bins_in_video: 100
