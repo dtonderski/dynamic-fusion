@@ -23,6 +23,7 @@ from dynamic_fusion.utils.network import network_data_to_device, to_numpy
 from .configuration import SharedConfiguration, TrainerConfiguration
 
 LATEST_CHECKPOINT_FILENAME = "latest_checkpoint.pt"
+PERSISTENT_CHECKPOINT_TEMPLATE = "checkpoint_{i}"
 
 
 class TrainingMonitor:
@@ -118,10 +119,10 @@ class TrainingMonitor:
 
     def save_checkpoint(
         self,
+        iteration: int,
         encoding_network: Optional[nn.Module] = None,
         optimizer: Optional[torch.optim.Optimizer] = None,
         decoding_network: Optional[nn.Module] = None,
-        iteration: Optional[int] = None,
     ) -> None:
         checkpoint_path = self.subrun_directory / LATEST_CHECKPOINT_FILENAME
         checkpoint: Checkpoint = {
@@ -131,6 +132,10 @@ class TrainingMonitor:
             "iteration": iteration,
         }
         torch.save(checkpoint, checkpoint_path)
+
+        if iteration % self.config.persistent_saving_frequency == 0:
+            persistent_checkpoint_path = self.subrun_directory / PERSISTENT_CHECKPOINT_TEMPLATE.format(i=iteration)
+            torch.save(checkpoint, persistent_checkpoint_path)
 
     def _get_previous_and_current_subrun_directories(
         self,

@@ -1,5 +1,5 @@
 shared:
-  sequence_length: 48
+  sequence_length: 20
   resume: true
   use_mean: true
   use_std: true
@@ -9,6 +9,7 @@ shared:
   temporal_unfolding: true
   temporal_interpolation: true
   spatial_upsampling: true
+  min_allowed_max_of_mean_polarities_over_times: 0.01
 
 data_handler:
   batch_size: 1
@@ -21,7 +22,6 @@ data_handler:
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5
-    min_allowed_max_of_mean_polarities_over_times: 0.01
 
 network_loader:
   encoding:
@@ -49,5 +49,6 @@ network_fitter:
 training_monitor:
   run_directory: "runs/spatiotemporal/slurm"
   event_colors: [[255, 0, 0], [0, 255, 0]]
+  persistent_saving_frequency: 5000
 
 seed: 0

@@ -75,7 +75,7 @@ class NetworkFitter:
                 self._reconstruction_step(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
 
             if iteration % self.config.network_saving_frequency == 0:
-                self.monitor.save_checkpoint(encoding_network, optimizer, decoding_network, iteration)
+                self.monitor.save_checkpoint(iteration, encoding_network, optimizer, decoding_network)
 
     def _reconstruction_step(
         self,
@@ -109,11 +109,7 @@ class NetworkFitter:
         with Timer() as timer_batch:
             (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = (
                 network_data_to_device(
-                    next(data_loader_iterator),
-                    self.device,
-                    self.shared_config.use_mean,
-                    self.shared_config.use_std,
-                    self.shared_config.use_count,
+                    next(data_loader_iterator), self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
                 )
             )
 
@@ -252,48 +248,61 @@ class NetworkFitter:
         optimizer.zero_grad()
         encoding_network.reset_states()
 
-        with Timer() as timer_batch:
-            (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = (
-                network_data_to_device(
-                    next(data_loader_iterator),
-                    self.device,
-                    self.shared_config.use_mean,
-                    self.shared_config.use_std,
-                    self.shared_config.use_count,
-                )
-            )
+        # region Load data, define used regions in downscaled and upscaled images, and validate that they have enough events
+        batch_start = time.time()
 
-        batch_size = len(preprocessed_images)
-        image_loss = torch.tensor(0.0).to(event_polarity_sums)
+        # 1. Load data
+        (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = network_data_to_device(
+            next(data_loader_iterator), self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
+        )
 
-        forward_start = time.time()
-
-        # region Define used regions in downscaled and upscaled images
-        # 1. Calculate required quantities for each pixel location in the upscaled image
+        # 2. Calculate required quantities for each pixel location in the upscaled image
         nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(video.shape[-2:]))  # type: ignore
         nearest_pixels = torch.tensor(nearest_pixels)
         start_to_end_vectors = torch.tensor(start_to_end_vectors)
 
-        # 2. Define region in upscaled image to use
-        # 2a. First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
-        within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(event_counts)
+        # 3. Sample a valid region
+        # 3a. First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
+        within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(self.device)
 
         rows, cols = torch.where(within_bounds_mask)
         xmin_boundary, xmax_boundary = rows.min(), rows.max() - self.config.upscaling_region_size[0] + 1
         ymin_boundary, ymax_boundary = cols.min(), cols.max() - self.config.upscaling_region_size[1] + 1
 
-        # 2b. Then, sample a crop from this region
-        xmin_upscaled, ymin_upscaled = np.random.randint(
-            low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
-        )
-        xmax_upscaled, ymax_upscaled = xmin_upscaled + self.config.upscaling_region_size[0], ymin_upscaled + self.config.upscaling_region_size[1]
+        # 3b. Try sampling a crop at most 5 times
+        for _ in range(5):
+            # 3b i. Sample a crop in the upscaled image
+            xmin_upscaled, ymin_upscaled = np.random.randint(
+                low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
+            )
+            xmax_upscaled, ymax_upscaled = xmin_upscaled + self.config.upscaling_region_size[0], ymin_upscaled + self.config.upscaling_region_size[1]
 
-        # 3. Calculate required region in downscaled image
-        used_nearest_pixels = nearest_pixels[:, xmin_upscaled:xmax_upscaled, ymin_upscaled:ymax_upscaled]
-        xmin_downscaled, ymin_downscaled = used_nearest_pixels.amin(dim=(0, 1, 2))
-        xmax_downscaled, ymax_downscaled = used_nearest_pixels.amax(dim=(0, 1, 2))
+            # 3b ii. Calculate corresponding region in downscaled image
+            used_nearest_pixels = nearest_pixels[:, xmin_upscaled:xmax_upscaled, ymin_upscaled:ymax_upscaled]
+            xmin_downscaled, ymin_downscaled = used_nearest_pixels.amin(dim=(0, 1, 2))
+            xmax_downscaled, ymax_downscaled = used_nearest_pixels.amax(dim=(0, 1, 2))
+
+            # 3b iii. Validate that there's enough events in the downscaled image
+            max_of_mean_polarities_over_times = einops.reduce(
+                (event_polarity_sums[..., xmin_downscaled:xmax_downscaled, ymin_downscaled:ymax_downscaled] != 0).to(torch.float32),
+                "Time D X Y -> Time",
+                "mean",
+            ).max()
+
+            if max_of_mean_polarities_over_times < self.shared_config.min_allowed_max_of_mean_polarities_over_times:
+                break
+        else:
+            # 3b iv. (optional) If no crop with enough events was found after 5 tries, skip this iteration
+            self.logger.info(f"No valid crop found after 5 tries in iteration {iteration}, skipping.")
+            return
+
+        batch_size = len(preprocessed_images)
+        image_loss = torch.tensor(0.0).to(event_polarity_sums)
+        time_batch = time.time() - batch_start
         # endregion
 
+        # region Forward
+        forward_start = time.time()
         visualize = iteration % self.config.visualization_frequency == 0
         event_polarity_sum_list, images, reconstructions = [], [], []
         c_list = []
@@ -373,12 +382,13 @@ class NetworkFitter:
 
         image_loss /= t_end - t_start
         time_forward = time.time() - forward_start
+        # endregion
 
         with Timer() as timer_backward:
             image_loss.backward()  # type: ignore
             optimizer.step()
 
-        time_batch, time_backward = timer_batch.interval, timer_backward.interval
+        time_backward = timer_backward.interval
         self.logger.info(
             f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)"
         )

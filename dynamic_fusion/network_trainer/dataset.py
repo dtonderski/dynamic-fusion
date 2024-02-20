@@ -113,7 +113,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
             "mean",
         ).max()
 
-        if max_of_mean_polarities_over_times < self.config.min_allowed_max_of_mean_polarities_over_times:
+        if max_of_mean_polarities_over_times < self.shared_config.min_allowed_max_of_mean_polarities_over_times:
             return False
 
         return True

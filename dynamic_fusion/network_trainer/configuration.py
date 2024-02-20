@@ -19,6 +19,10 @@ class SharedConfiguration(BaseModel):
     temporal_interpolation: bool = Field(...)
     temporal_unfolding: bool = Field(...)
     spatial_upsampling: bool = Field(...)
+    min_allowed_max_of_mean_polarities_over_times: float = Field(
+        ...,
+        description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds.",
+    )
 
 
 class AugmentationConfiguration(BaseModel):
@@ -35,11 +39,6 @@ class DatasetConfiguration(BaseModel):
     )
 
     video_tries: int = Field(..., description="Number of videos to try before raising an exception.")
-
-    min_allowed_max_of_mean_polarities_over_times: float = Field(
-        ...,
-        description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds.",
-    )
 
 
 class DataHandlerConfiguration(BaseModel):
@@ -83,9 +82,11 @@ class NetworkFitterConfiguration(BaseModel):
     data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
     upscaling_region_size: Tuple[int, int] = Field(..., description="Size of region to upscale. Used to limit memory usage in spatial upsampling")
 
+
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)
     event_colors: List[List[float]] = Field(...)
+    persistent_saving_frequency: int = Field(...)
 
 
 class TrainerConfiguration(BaseModel):

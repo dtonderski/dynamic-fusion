@@ -8,6 +8,8 @@ shared:
   spatial_unfolding: true
   temporal_unfolding: true
   temporal_interpolation: true
+  spatial_upsampling: true
+  min_allowed_max_of_mean_polarities_over_times: 0.01
 
 data_handler:
   batch_size: 1
@@ -20,7 +22,6 @@ data_handler:
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5
-    min_allowed_max_of_mean_polarities_over_times: 0.01
 
 network_loader:
   encoding:
@@ -42,10 +43,12 @@ network_fitter:
   network_saving_frequency: 100
   visualization_frequency: 200
   data_generator_target_image_size: [180, 240]
+  upscaling_region_size: [0,0]
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
   run_directory: "runs/continuous/refactored"
   event_colors: [[255, 0, 0], [0, 255, 0]]
+  persistent_saving_frequency: 5000
 
 seed: 0
