@@ -27,7 +27,7 @@ video_generator:
   max_shift_knot_multiplier_value: 1.2 # max_val_shift_mul
   max_rotation_knot_value: 1.7 # max_val_rot
 
-  fill_mode: "zeros"
+  fill_mode: "wrap"
   interpolation: "bicubic"
 
 event_generator:
