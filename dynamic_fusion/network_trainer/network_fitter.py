@@ -268,32 +268,58 @@ class NetworkFitter:
 
         forward_start = time.time()
 
+        # region Define used regions in downscaled and upscaled images
+        # 1. Calculate required quantities for each pixel location in the upscaled image
+        nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(video.shape[-2:]))  # type: ignore
+        nearest_pixels = torch.tensor(nearest_pixels)
+        start_to_end_vectors = torch.tensor(start_to_end_vectors)
+
+        # 2. Define region in upscaled image to use
+        # 2a. First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
+        within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(event_counts)
+
+        rows, cols = torch.where(within_bounds_mask)
+        xmin_boundary, xmax_boundary = rows.min(), rows.max() - self.config.upscaling_region_size[0] + 1
+        ymin_boundary, ymax_boundary = cols.min(), cols.max() - self.config.upscaling_region_size[1] + 1
+
+        # 2b. Then, sample a crop from this region
+        xmin_upscaled, ymin_upscaled = np.random.randint(
+            low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
+        )
+        xmax_upscaled, ymax_upscaled = xmin_upscaled + self.config.upscaling_region_size[0], ymin_upscaled + self.config.upscaling_region_size[1]
+
+        # 3. Calculate required region in downscaled image
+        used_nearest_pixels = nearest_pixels[:, xmin_upscaled:xmax_upscaled, ymin_upscaled:ymax_upscaled]
+        xmin_downscaled, ymin_downscaled = used_nearest_pixels.amin(dim=(0, 1, 2))
+        xmax_downscaled, ymax_downscaled = used_nearest_pixels.amax(dim=(0, 1, 2))
+        # endregion
+
         visualize = iteration % self.config.visualization_frequency == 0
         event_polarity_sum_list, images, reconstructions = [], [], []
         c_list = []
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
-            event_polarity_sum = event_polarity_sums[:, t]
-
-            # TODO: fix variable names. Non-trivial because this might be output video
-            # or latent codes
             c_t = encoding_network(
-                event_polarity_sum,
-                timestamp_means[:, t] if self.shared_config.use_mean else None,
-                timestamp_stds[:, t] if self.shared_config.use_std else None,
-                event_counts[:, t] if self.shared_config.use_count else None,
+                event_polarity_sums[:, t, :, xmin_downscaled:xmax_downscaled, ymin_downscaled:ymax_downscaled],
+                timestamp_means[:, t, :, xmin_downscaled:xmax_downscaled, ymin_downscaled:ymax_downscaled] if self.shared_config.use_mean else None,
+                timestamp_stds[:, t, :, xmin_downscaled:xmax_downscaled, ymin_downscaled:ymax_downscaled] if self.shared_config.use_std else None,
+                event_counts[:, t, :, xmin_downscaled:xmax_downscaled, ymin_downscaled:ymax_downscaled] if self.shared_config.use_count else None,
             )
 
             c_list.append(c_t.clone())
 
         # Unfold c
-        cs = torch.stack(c_list, dim=0)  # T B C X Y
+        cs_cropped = torch.stack(c_list, dim=0)  # T B C XDownscaledCropped YDownscaledCropped
         if self.shared_config.spatial_unfolding:
-            cs = einops.rearrange(cs, "T B C X Y -> (T B) C X Y")
-            cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
-            cs = einops.rearrange(cs, "(T B) C (X Y) -> T B C X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
+            cs_cropped = einops.rearrange(cs_cropped, "T B C X Y -> (T B) C X Y")
+            cs_cropped = torch.nn.functional.unfold(cs_cropped, kernel_size=(3, 3), padding=(1, 1), stride=1)
+            cs_cropped = einops.rearrange(cs_cropped, "(T B) C (X Y) -> T B C X Y", T=self.shared_config.sequence_length, X=c_t.shape[-2])
+
         # Prepare for linear layer
-        cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
+        cs_cropped = einops.rearrange(cs_cropped, "T B C X Y -> T B X Y C")
+        cs = torch.zeros(cs_cropped.shape[0], cs_cropped.shape[1], event_polarity_sums.shape[-2], event_polarity_sums.shape[-1], cs_cropped.shape[4])  # type: ignore
+        cs = cs.to(cs_cropped)
+        cs[:, :, xmin_downscaled:xmax_downscaled, ymin_downscaled:ymax_downscaled] = cs_cropped
 
         # Sample tau
         taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
@@ -315,24 +341,6 @@ class NetworkFitter:
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
 
-        nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(cs.shape[-3:-1]), tuple(gt.shape[-2:]))  # type: ignore
-        nearest_pixels = torch.tensor(nearest_pixels)
-        start_to_end_vectors = torch.tensor(start_to_end_vectors)
-
-        # Define region to upsample
-        # First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
-        within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(cs)
-
-        rows, cols = torch.where(within_bounds_mask)
-        xmin_boundary, xmax_boundary = rows.min(), rows.max() - self.config.upscaling_region_size[0] + 1
-        ymin_boundary, ymax_boundary = cols.min(), cols.max() - self.config.upscaling_region_size[1] + 1
-
-        # Then, sample a crop from this region
-        xmin, ymin = np.random.randint(
-            low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
-        )
-        xmax, ymax = xmin + self.config.upscaling_region_size[0], ymin + self.config.upscaling_region_size[1]
-
         for t in range(t_start, t_end):
             c = cs[t]  # type: ignore  # B X Y C
             c_next = None
@@ -345,10 +353,16 @@ class NetworkFitter:
                     c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
             r_t = get_spatial_upsampling_output(
-                decoding_network, c, taus[t, 0, 0, 0].item(), c_next, nearest_pixels, start_to_end_vectors, (xmin, xmax, ymin, ymax)
+                decoding_network,
+                c,
+                taus[t, 0, 0, 0].item(),
+                c_next,
+                nearest_pixels,
+                start_to_end_vectors,
+                (xmin_upscaled, xmax_upscaled, ymin_upscaled, ymax_upscaled),
             )
             # Crop out any upsampled pixels that are not within bounds
-            gt_cropped = gt[t, :, :, xmin:xmax, ymin:ymax]
+            gt_cropped = gt[t, :, :, xmin_upscaled:xmax_upscaled, ymin_upscaled:ymax_upscaled]
 
             image_loss = image_loss + self.reconstruction_loss_function(r_t, gt_cropped).mean()
 
@@ -378,6 +392,6 @@ class NetworkFitter:
                 iteration,
                 encoding_network,
                 decoding_network,
-                (xmin, xmax, ymin, ymax),
+                (xmin_upscaled, xmax_upscaled, ymin_upscaled, ymax_upscaled),
             )
             return
