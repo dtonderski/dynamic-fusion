@@ -68,21 +68,14 @@ class NetworkFitter:
         data_loader_iterator = iter(data_loader)
 
         for iteration in range(start_iteration, self.config.number_of_training_iterations):
-            self._reconstruction_step(
-                data_loader_iterator,
-                encoding_network,
-                optimizer,
-                decoding_network,
-                iteration,
-            )
+            if self.shared_config.spatial_upsampling:
+                assert decoding_network is not None, "Need decoding network for spatial upsampling!"
+                self._reconstruction_step_with_spatial_upsampling(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
+            else:
+                self._reconstruction_step(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
 
             if iteration % self.config.network_saving_frequency == 0:
-                self.monitor.save_checkpoint(
-                    encoding_network,
-                    optimizer,
-                    decoding_network,
-                    iteration,
-                )
+                self.monitor.save_checkpoint(encoding_network, optimizer, decoding_network, iteration)
 
     def _reconstruction_step(
         self,
@@ -186,24 +179,6 @@ class NetworkFitter:
 
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
-        if self.shared_config.spatial_upsampling:
-            nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(cs.shape[-3:-1]), tuple(gt.shape[-2:]))  # type: ignore
-            nearest_pixels = torch.tensor(nearest_pixels)
-            start_to_end_vectors = torch.tensor(start_to_end_vectors)
-
-            # Define region to upsample
-            # First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
-            within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(cs)
-
-            rows, cols = torch.where(within_bounds_mask)
-            xmin_boundary, xmax_boundary = rows.min(), rows.max() - self.config.upscaling_region_size[0] + 1
-            ymin_boundary, ymax_boundary = cols.min(), cols.max() - self.config.upscaling_region_size[1] + 1
-
-            # Then, sample a crop from this region
-            xmin, ymin = np.random.randint(
-                low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
-            )
-            xmax, ymax = xmin + self.config.upscaling_region_size[0], ymin + self.config.upscaling_region_size[1]
 
         for t in range(t_start, t_end):
             c = cs[t]  # type: ignore  # B X Y C
@@ -216,22 +191,6 @@ class NetworkFitter:
                 if self.shared_config.temporal_interpolation:
                     c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
 
-            if self.shared_config.spatial_upsampling:
-                r_t = get_spatial_upsampling_output(
-                    decoding_network, c, taus[t, 0, 0, 0].item(), c_next, nearest_pixels, start_to_end_vectors, (xmin, xmax, ymin, ymax)
-                )
-                # Crop out any upsampled pixels that are not within bounds
-                gt_cropped = gt[t, :, :, xmin:xmax, ymin:ymax]
-
-                image_loss = image_loss + self.reconstruction_loss_function(r_t, gt_cropped).mean()
-
-                if visualize:
-                    event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
-                    images.append(to_numpy(gt[t]))
-                    reconstructions.append(to_numpy(r_t))
-
-                continue
-
             r_t = decoding_network(torch.concat([c, taus[t]], dim=-1))
             if self.shared_config.temporal_interpolation:
                 r_tnext = decoding_network(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
@@ -239,7 +198,7 @@ class NetworkFitter:
             r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
             image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()  # pylint: disable=not-callable
 
-            if visualize:
+            if not visualize:
                 continue
 
             event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
@@ -260,18 +219,6 @@ class NetworkFitter:
 
         self.monitor.on_reconstruction(image_loss.item(), iteration)
         if visualize:
-            if self.shared_config.spatial_upsampling:
-                self.monitor.visualize_upsampling(
-                    np.stack(event_polarity_sum_list, 1),
-                    np.stack(images, 1),
-                    np.stack(reconstructions, 1),
-                    iteration,
-                    encoding_network,
-                    decoding_network,
-                    (xmin, xmax, ymin, ymax) if self.shared_config.spatial_upsampling else None,
-                )
-                return
-
             self.monitor.visualize(
                 np.stack(event_polarity_sum_list, 1),
                 np.stack(images, 1),
@@ -280,3 +227,157 @@ class NetworkFitter:
                 encoding_network,
                 decoding_network,
             )
+
+    def _reconstruction_step_with_spatial_upsampling(
+        self, data_loader_iterator: Iterator[Batch], encoding_network: nn.Module, optimizer: Optimizer, decoding_network: nn.Module, iteration: int
+    ) -> None:
+        """Variable name explanations:
+            1. T - time in video, in [0, 101] for the default data generation with 100 bins per sequence
+            2. tau - time in frame, in [0,1].
+            3. t - time in current sequence, in [0, sequence_length]. Note that T = tau + t + crop.T_start
+            4. c - output of encoding network
+            5. y - ground truth
+            6. r - output of decoding network
+
+        Args:
+            data_loader_iterator (Iterator[Batch]): _description_
+            encoding_network (nn.Module): _description_
+            optimizer (Optimizer): _description_
+            decoding_network (nn.Module): _description_
+            iteration (int): _description_
+
+        Raises:
+            ValueError: _description_
+        """
+        optimizer.zero_grad()
+        encoding_network.reset_states()
+
+        with Timer() as timer_batch:
+            (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = (
+                network_data_to_device(
+                    next(data_loader_iterator),
+                    self.device,
+                    self.shared_config.use_mean,
+                    self.shared_config.use_std,
+                    self.shared_config.use_count,
+                )
+            )
+
+        batch_size = len(preprocessed_images)
+        image_loss = torch.tensor(0.0).to(event_polarity_sums)
+
+        forward_start = time.time()
+
+        visualize = iteration % self.config.visualization_frequency == 0
+        event_polarity_sum_list, images, reconstructions = [], [], []
+        c_list = []
+
+        for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
+            event_polarity_sum = event_polarity_sums[:, t]
+
+            # TODO: fix variable names. Non-trivial because this might be output video
+            # or latent codes
+            c_t = encoding_network(
+                event_polarity_sum,
+                timestamp_means[:, t] if self.shared_config.use_mean else None,
+                timestamp_stds[:, t] if self.shared_config.use_std else None,
+                event_counts[:, t] if self.shared_config.use_count else None,
+            )
+
+            c_list.append(c_t.clone())
+
+        # Unfold c
+        cs = torch.stack(c_list, dim=0)  # T B C X Y
+        if self.shared_config.spatial_unfolding:
+            cs = einops.rearrange(cs, "T B C X Y -> (T B) C X Y")
+            cs = torch.nn.functional.unfold(cs, kernel_size=(3, 3), padding=(1, 1), stride=1)
+            cs = einops.rearrange(cs, "(T B) C (X Y) -> T B C X Y", T=self.shared_config.sequence_length, X=event_polarity_sum.shape[-2])
+        # Prepare for linear layer
+        cs = einops.rearrange(cs, "T B C X Y -> T B X Y C")
+
+        # Sample tau
+        taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
+
+        # Generate ground truth for taus
+        T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1")
+        Ts = einops.rearrange(np.arange(self.shared_config.sequence_length), "T -> 1 T") + taus + T_starts
+        Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
+        ys_list = []
+        for image, transform, Ts_normalized, crop in zip(preprocessed_images, transforms, Ts_normalized_batch, crops):
+            video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
+            ys_list.append(crop.crop_spatial(video_batch))
+        gt = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
+
+        # Calculate start and end index to use for calculating loss
+        t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
+        t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
+
+        # Calculate loss
+        taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
+
+        nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(cs.shape[-3:-1]), tuple(gt.shape[-2:]))  # type: ignore
+        nearest_pixels = torch.tensor(nearest_pixels)
+        start_to_end_vectors = torch.tensor(start_to_end_vectors)
+
+        # Define region to upsample
+        # First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
+        within_bounds_mask = torch.tensor(~out_of_bounds.any(axis=0)).to(cs)
+
+        rows, cols = torch.where(within_bounds_mask)
+        xmin_boundary, xmax_boundary = rows.min(), rows.max() - self.config.upscaling_region_size[0] + 1
+        ymin_boundary, ymax_boundary = cols.min(), cols.max() - self.config.upscaling_region_size[1] + 1
+
+        # Then, sample a crop from this region
+        xmin, ymin = np.random.randint(
+            low=(xmin_boundary.item(), ymin_boundary.item()), high=(xmax_boundary.item() + 1, ymax_boundary.item() + 1)  # type: ignore
+        )
+        xmax, ymax = xmin + self.config.upscaling_region_size[0], ymin + self.config.upscaling_region_size[1]
+
+        for t in range(t_start, t_end):
+            c = cs[t]  # type: ignore  # B X Y C
+            c_next = None
+            if self.shared_config.temporal_interpolation:
+                c_next = cs[t + 1]  # type: ignore
+
+            if self.shared_config.temporal_unfolding:
+                c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore
+                if self.shared_config.temporal_interpolation:
+                    c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
+
+            r_t = get_spatial_upsampling_output(
+                decoding_network, c, taus[t, 0, 0, 0].item(), c_next, nearest_pixels, start_to_end_vectors, (xmin, xmax, ymin, ymax)
+            )
+            # Crop out any upsampled pixels that are not within bounds
+            gt_cropped = gt[t, :, :, xmin:xmax, ymin:ymax]
+
+            image_loss = image_loss + self.reconstruction_loss_function(r_t, gt_cropped).mean()
+
+            if visualize:
+                event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
+                images.append(to_numpy(gt[t]))
+                reconstructions.append(to_numpy(r_t))
+
+        image_loss /= t_end - t_start
+        time_forward = time.time() - forward_start
+
+        with Timer() as timer_backward:
+            image_loss.backward()  # type: ignore
+            optimizer.step()
+
+        time_batch, time_backward = timer_batch.interval, timer_backward.interval
+        self.logger.info(
+            f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)"
+        )
+
+        self.monitor.on_reconstruction(image_loss.item(), iteration)
+        if visualize:
+            self.monitor.visualize_upsampling(
+                np.stack(event_polarity_sum_list, 1),
+                np.stack(images, 1),
+                np.stack(reconstructions, 1),
+                iteration,
+                encoding_network,
+                decoding_network,
+                (xmin, xmax, ymin, ymax),
+            )
+            return
