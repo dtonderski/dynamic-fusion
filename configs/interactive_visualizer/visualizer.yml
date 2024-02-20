@@ -5,14 +5,14 @@ network_loader:
     output_size: 16
     kernel_size: 3
   # encoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
-  encoding_checkpoint_path: runs/00_ready_for_evaluation/03_implicit_msc_st-un_t-interp/latest_checkpoint.pt
-  # encoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
+  # encoding_checkpoint_path: runs/00_ready_for_evaluation/03_implicit_msc_st-un_t-interp/latest_checkpoint.pt
+  encoding_checkpoint_path: runs/00_ready_for_evaluation/04_implicit_msc_st-un_st-interp/latest_checkpoint.pt
   decoding:
     hidden_size: 128
     hidden_layers: 4
   # decoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
-  decoding_checkpoint_path: runs/00_ready_for_evaluation/03_implicit_msc_st-un_t-interp/latest_checkpoint.pt
-  # decoding_checkpoint_path: runs/00_ready_for_evaluation/02_implicit_msc_st-un/latest_checkpoint.pt
+  # decoding_checkpoint_path: runs/00_ready_for_evaluation/03_implicit_msc_st-un_t-interp/latest_checkpoint.pt
+  decoding_checkpoint_path: runs/00_ready_for_evaluation/04_implicit_msc_st-un_st-interp/latest_checkpoint.pt
 
 network_handler:
   use_mean: true
@@ -21,7 +21,7 @@ network_handler:
   implicit: true
   spatial_unfolding: true
   temporal_unfolding: true
-  spatial_upsampling: false
+  spatial_upsampling: true
   data_generator_target_image_size: [180, 240]
   losses: ["LPIPS", "L1", "L2"]
 

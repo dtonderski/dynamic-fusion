@@ -1,8 +1,11 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
+import einops
 import numpy as np
+import torch
 from jaxtyping import Bool, Float, Int
 from numba import jit
+from torch import nn
 
 
 def generate_coords_2d(resolution: Tuple[int, int]) -> Float[np.ndarray, "X Y 2"]:
@@ -60,3 +63,53 @@ def get_upscaling_pixel_indices_and_distances(
     start_to_end_vectors = end_coords[None, :] - nearest_start_coords
 
     return nearest_pixels, start_to_end_vectors, out_of_bounds
+
+
+def spatial_bilinear_interpolate(
+    r_t: Float[torch.Tensor, "B 4 X Y C"], start_to_end_vectors_normalized: Float[torch.Tensor, "B 4 X Y 2"]
+) -> Float[torch.Tensor, "B X Y 1"]:
+    distances = 1 - torch.abs(start_to_end_vectors_normalized)
+    weights = distances[..., 0] * distances[..., 1]  # B 4 X Y
+    expanded_weights = einops.rearrange(weights, "B N X Y -> B N X Y 1")
+    weighted_output = expanded_weights * r_t
+
+    return weighted_output.sum(axis=1)
+
+
+def get_spatial_upsampling_output(
+    decoding_network: nn.Module,
+    c: Float[torch.Tensor, "B X Y C"],
+    tau: float,
+    c_next: Optional[Float[torch.Tensor, "B X Y C"]],
+    nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+    start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+    region_to_upsample: Optional[Tuple[int, int, int, int]] = None,  # Defines x_start, x_stop, y_start, y_stop of region to upsample. Right exclusive
+) -> Float[torch.Tensor, "B 1 XUpscaled YUpscaled"]:
+    original_resolution = c.shape[-3:-1]
+
+    if region_to_upsample is not None:
+        nearest_pixels = nearest_pixels[:, region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
+        start_to_end_vectors = start_to_end_vectors[:, region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
+
+    nearest_pixels = nearest_pixels.to(c).long()
+    nearest_c = c[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]  # B 4 X Y C
+    b, n, x, y, _ = nearest_c.shape
+
+    start_to_end_vectors_expanded = einops.rearrange(start_to_end_vectors, "N X Y Dims -> 1 N X Y Dims")
+    start_to_end_vectors_normalized = start_to_end_vectors_expanded * einops.repeat(
+        torch.tensor(original_resolution), "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y
+    )
+    start_to_end_vectors_normalized = start_to_end_vectors_normalized.to(c)
+
+    tau_expanded = einops.repeat(torch.tensor([tau]).to(c), "1 -> B N X Y 1", B=b, N=n, X=x, Y=y)
+
+    r_t = decoding_network(torch.concat([nearest_c, start_to_end_vectors_normalized, tau_expanded], dim=-1))
+    if c_next is not None:
+        nearest_c_next = c_next[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]
+        r_tnext = decoding_network(torch.concat([nearest_c_next, start_to_end_vectors_normalized, tau_expanded], dim=-1))
+        r_t = r_t * (1 - tau_expanded) + r_tnext * (tau_expanded)
+
+    r_t = spatial_bilinear_interpolate(r_t, start_to_end_vectors_normalized)
+    r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
+
+    return r_t
