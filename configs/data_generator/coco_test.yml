@@ -4,6 +4,7 @@ shared: # used by more than one step in the pipeline
   number_of_images_to_generate_per_input: 3001 # N_high
   seed: 0
   overwrite: False
+  only_downscaled_events: True
 
 image_loader:
   dataset_dir: "./data/raw/coco/test2014/"
@@ -44,6 +45,9 @@ event_discretizer:
   ground_truth_temporal_location_in_bin: "center" # center or end, doesn't work atm
 
 data_saver:
-  output_dir: "./data/interim/coco/test/2subbins_new"
+  output_dir: "./data/interim/coco/2subbins_downscaled"
   save_events: True
+  save_video: True
   h5_compression: 3
+
+max_downscaling_factor: 4
