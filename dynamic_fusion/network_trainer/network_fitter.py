@@ -257,7 +257,9 @@ class NetworkFitter:
         )
 
         # 2. Calculate required quantities for each pixel location in the upscaled image
-        nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(video.shape[-2:]))  # type: ignore
+        nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(
+            tuple(event_counts.shape[-2:]), tuple(video.shape[-2:])
+        )
         nearest_pixels = torch.tensor(nearest_pixels)
         start_to_end_vectors = torch.tensor(start_to_end_vectors)
 
@@ -351,15 +353,15 @@ class NetworkFitter:
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
 
         for t in range(t_start, t_end):
-            c = cs[t]  # type: ignore  # B X Y C
+            c = cs[t]  # B X Y C
             c_next = None
             if self.shared_config.temporal_interpolation:
-                c_next = cs[t + 1]  # type: ignore
+                c_next = cs[t + 1]
 
             if self.shared_config.temporal_unfolding:
-                c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore
+                c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)
                 if self.shared_config.temporal_interpolation:
-                    c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
+                    c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)
 
             r_t = get_spatial_upsampling_output(
                 decoding_network,
