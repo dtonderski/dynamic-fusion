@@ -10,11 +10,11 @@ from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 
+from dynamic_fusion.utils.dataset import get_ground_truth
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import get_reconstruction_loss
 from dynamic_fusion.utils.network import network_data_to_device, to_numpy
 from dynamic_fusion.utils.superresolution import get_spatial_upsampling_output, get_upscaling_pixel_indices_and_distances
-from dynamic_fusion.utils.video import get_video
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
 from .training_monitor import TrainingMonitor
@@ -160,14 +160,8 @@ class NetworkFitter:
         taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
 
         # Generate ground truth for taus
-        T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1")
-        Ts = einops.rearrange(np.arange(self.shared_config.sequence_length), "T -> 1 T") + taus + T_starts
-        Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
-        ys_list = []
-        for image, transform, Ts_normalized, crop in zip(preprocessed_images, transforms, Ts_normalized_batch, crops):
-            video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
-            ys_list.append(crop.crop_spatial(video_batch))
-        gt = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
+        gt = get_ground_truth(taus, preprocessed_images, transforms, self.device, crops, self.config.data_generator_target_image_size)
+        gt = einops.rearrange(gt, "B T X Y -> T B 1 X Y")
 
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
@@ -336,14 +330,8 @@ class NetworkFitter:
         taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
 
         # Generate ground truth for taus
-        T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1")
-        Ts = einops.rearrange(np.arange(self.shared_config.sequence_length), "T -> 1 T") + taus + T_starts
-        Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
-        ys_list = []
-        for image, transform, Ts_normalized, crop in zip(preprocessed_images, transforms, Ts_normalized_batch, crops):
-            video_batch = get_video(image, transform, Ts_normalized, self.config.data_generator_target_image_size, self.device)
-            ys_list.append(crop.crop_spatial(video_batch))
-        gt = einops.rearrange(torch.stack(ys_list, dim=0), "B T X Y -> T B 1 X Y")
+        gt = get_ground_truth(taus, preprocessed_images, transforms, self.device, crops, self.config.data_generator_target_image_size)
+        gt = einops.rearrange(gt, "B T X Y -> T B 1 X Y")
 
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding

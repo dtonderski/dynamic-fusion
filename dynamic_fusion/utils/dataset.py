@@ -63,3 +63,21 @@ def generate_frames_at_continuous_timestamps(
     ]
 
     return einops.rearrange(cropped_frames, "Time X Y -> Time 1 X Y")
+
+def get_ground_truth(
+    taus: Float[torch.Tensor, "B T"],
+    preprocessed_images: List[GrayImageFloat],
+    transforms: List[TransformDefinition],
+    device: torch.device,
+    crops: Optional[List[CropDefinition]],
+    data_generator_target_image_size: Optional[Tuple[int, int]],
+) -> Float[torch.Tensor, "B T X Y"]:
+    T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1")
+    Ts = einops.rearrange(np.arange(taus.shape[1]), "T -> 1 T") + taus + T_starts
+    Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
+    ys_list = []
+    for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
+        video_batch = get_video(image, transform, Ts_normalized, data_generator_target_image_size, device)
+        ys_list.append(crops[i].crop_spatial(video_batch) if crops is not None else video_batch)
+
+    return torch.stack(ys_list, dim=0)
