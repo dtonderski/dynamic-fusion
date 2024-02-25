@@ -64,6 +64,72 @@ def generate_frames_at_continuous_timestamps(
 
     return einops.rearrange(cropped_frames, "Time X Y -> Time 1 X Y")
 
+
+class CocoTestDataset(Dataset):  # type: ignore
+    directory_list: List[Path]
+    threshold: float
+    logger: logging.Logger
+
+    def __init__(self, dataset_directory: Path, threshold: float = 1.4) -> None:
+        self.directory_list = sorted([path for path in dataset_directory.glob("**/*") if path.is_dir()])
+        self.logger = logging.getLogger("CocoDataset")
+        self.threshold = threshold
+
+    def __len__(self) -> int:
+        return len(self.directory_list)
+
+    def __getitem__(self, index: int) -> Tuple[
+        Float[torch.Tensor, "Time SubBin X Y"],  # polarity sum
+        Float[torch.Tensor, "Time SubBin X Y"],  # mean
+        Float[torch.Tensor, "Time SubBin X Y"],  # std
+        Float[torch.Tensor, "Time SubBin X Y"],  # event count
+        Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # polarity sum
+        Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # mean
+        Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # std
+        Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # event count
+        GrayImageFloat,
+        TransformDefinition,
+    ]:
+        with h5py.File(self.directory_list[index] / f"discretized_events_{self.threshold}.h5", "r") as file:
+            discretized_events = DiscretizedEvents.load_from_file(file)
+
+        with h5py.File(self.directory_list[index] / f"downscaled_discretized_events_{self.threshold}.h5", "r") as file:
+            downscaled_discretized_events = DiscretizedEvents.load_from_file(file)
+
+        input_path = self.directory_list[index] / "input.h5"
+        with h5py.File(input_path, "r") as file:
+            preprocessed_image: GrayImageFloat = np.array(file["preprocessed_image"])
+            transform_definition = TransformDefinition.load_from_file(file)
+
+        return (
+            *discretized_events_to_tensors(discretized_events),
+            *discretized_events_to_tensors(downscaled_discretized_events),
+            preprocessed_image,
+            transform_definition,
+        )
+
+
+def collate_test_items(
+    items: List[
+        Tuple[
+            Float[torch.Tensor, "Time SubBin X Y"],  # polarity sum
+            Float[torch.Tensor, "Time SubBin X Y"],  # mean
+            Float[torch.Tensor, "Time SubBin X Y"],  # std
+            Float[torch.Tensor, "Time SubBin X Y"],  # event count
+            Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # polarity sum
+            Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # mean
+            Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # std
+            Float[torch.Tensor, "Time SubBin XDownscaled YDownscaled"],  # event count
+            GrayImageFloat,
+            TransformDefinition,
+        ],
+    ],
+) -> TestBatch:
+    tensors = default_collate([tuple(x[i] for i in range(4)) for x in items])
+    collated_items = (*tensors, *[[x[i] for x in items] for i in range(4, 10)])
+    return collated_items
+
+
 def get_ground_truth(
     taus: Float[torch.Tensor, "B T"],
     preprocessed_images: List[GrayImageFloat],
