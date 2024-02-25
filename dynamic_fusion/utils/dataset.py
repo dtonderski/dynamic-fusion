@@ -9,7 +9,8 @@ import torch
 from jaxtyping import Float
 from torch.utils.data import Dataset, default_collate
 
-from dynamic_fusion.utils.datatypes import CropDefinition, GrayImageFloat, TestBatch
+from dynamic_fusion.utils.datatypes import (CropDefinition, GrayImageFloat,
+                                            TestBatch)
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video
@@ -48,9 +49,7 @@ def generate_frames_at_continuous_timestamps(
 
     timestamps_and_zero = torch.concat([torch.zeros(1), continuous_timestamps_using_video_time])
 
-    frames_and_zero = get_video(
-        preprocessed_image, transform_definition, timestamps_and_zero, data_generator_target_image_size, device=torch.device("cuda")
-    )
+    frames_and_zero = get_video(preprocessed_image, transform_definition, timestamps_and_zero, data_generator_target_image_size, device=torch.device("cuda"))
 
     cropped_frames = frames_and_zero[1:, crop.x_start : crop.x_start + crop.x_size, crop.y_start : crop.y_start + crop.y_size]
 
@@ -126,11 +125,11 @@ def get_ground_truth(
     taus: Float[torch.Tensor, "B T"],
     preprocessed_images: List[GrayImageFloat],
     transforms: List[TransformDefinition],
+    crops: List[CropDefinition],
     device: torch.device,
-    crops: Optional[List[CropDefinition]],
-    data_generator_target_image_size: Optional[Tuple[int, int]],
+    data_generator_target_image_size: Optional[Tuple[int, int]] = None,
 ) -> Float[torch.Tensor, "B T X Y"]:
-    T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1")
+    T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1") if crops else 0
     Ts = einops.rearrange(np.arange(taus.shape[1]), "T -> 1 T") + taus + T_starts
     Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
     ys_list = []

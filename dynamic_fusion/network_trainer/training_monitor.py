@@ -3,22 +3,22 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import einops
 import numpy as np
+import skimage.transform
 import torch
 from jaxtyping import Float32
 from torch import nn
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms.functional import resize
-import skimage.transform
 
-from dynamic_fusion.utils.datatypes import Batch, Checkpoint
+from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items
+from dynamic_fusion.utils.datatypes import Checkpoint, TestBatch
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
-from dynamic_fusion.utils.network import network_data_to_device, to_numpy
+from dynamic_fusion.utils.network import network_data_to_device, network_test_data_to_device, to_numpy
 
 from .configuration import SharedConfiguration, TrainerConfiguration
 
@@ -31,7 +31,7 @@ class TrainingMonitor:
 
     training_config: TrainerConfiguration
     writer: SummaryWriter
-    sample_batch: Batch
+    sample_batch: TestBatch
     device: torch.device
     shared_config: SharedConfiguration
     logger: logging.Logger
@@ -46,7 +46,7 @@ class TrainingMonitor:
 
     def initialize(
         self,
-        data_loader: DataLoader,  # type: ignore
+        test_dataset: CocoTestDataset,  # type: ignore
         reconstruction_network: nn.Module,
         optimizer: torch.optim.Optimizer,
         decoding_network: Optional[nn.Module],
@@ -69,7 +69,7 @@ class TrainingMonitor:
                 self.logger.warning(ex)
 
         self.writer = SummaryWriter(self.subrun_directory)  # type: ignore[no-untyped-call]
-        self.sample_batch = next(iter(data_loader))
+        self.sample_batch = collate_test_items([test_dataset[i] for i in [0, 1, 2]])
         self.logger.info(f"Starting at iteration {iteration}")
         return iteration
 
@@ -272,24 +272,24 @@ class TrainingMonitor:
     ) -> Float32[torch.Tensor, "X T"]:
         n_taus = 5
 
-        event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops = network_data_to_device(
+        eps, means, stds, counts, down_eps, down_means, down_stds, down_counts, preprocessed_image, transform = network_test_data_to_device(
             self.sample_batch, self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
         )
 
         cs_list = []
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             c_t = encoding_network(
-                event_polarity_sums[:, t],
-                timestamp_means[:, t] if self.shared_config.use_mean else None,
-                timestamp_stds[:, t] if self.shared_config.use_std else None,
-                event_counts[:, t] if self.shared_config.use_count else None,
+                eps[:, t],
+                means[:, t] if self.shared_config.use_mean else None,
+                stds[:, t] if self.shared_config.use_std else None,
+                counts[:, t] if self.shared_config.use_count else None,
             )
             # Save last 8 encodings
             if t >= self.shared_config.sequence_length - 8:
                 cs_list.append(c_t.clone())
 
         # Unfold c
-        batch_size, X_size = event_polarity_sums.shape[0], event_polarity_sums.shape[-2]
+        batch_size, X_size = eps.shape[0], eps.shape[-2]
         cs = torch.stack(cs_list, dim=0)  # T B C X Y
         if self.shared_config.spatial_unfolding:
             cs = einops.rearrange(cs, "T B C X Y -> (T B) C X Y")

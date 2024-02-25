@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypedDict
 import numpy as np
 import pandera as pa
 import torch
-from jaxtyping import Bool, Float, Float32, Int, Int64, UInt8, Shaped
+from jaxtyping import Bool, Float, Float32, Int, Int64, Shaped, UInt8
 from pandera.typing import DataFrame, Series
 from typing_extensions import TypeAlias
 
@@ -53,17 +53,19 @@ class Checkpoint(TypedDict):
 
 @dataclass
 class CropDefinition:
-    x_start: int
-    y_start: int
-    T_start: int
-    x_size: int
-    y_size: int
-    t_size: int
+    x_start: int = 0
+    y_start: int = 0
+    T_start: int = 0
+    x_size: int = 0
+    y_size: int = 0
     # total_number_of_bins is for convenience, used to calculate time
     # for continuous time training
-    total_number_of_bins: int
+    total_number_of_bins: int = 0
+    placeholder: bool = False
 
     def crop_spatial(self, tensor: Shaped[np.ndarray, "... X Y"]) -> Shaped[np.ndarray, "... XCropped YCropped"]:
+        if self.placeholder:
+            return tensor
         return tensor[..., self.x_start : self.x_start + self.x_size, self.y_start : self.y_start + self.y_size]
 
 
@@ -76,6 +78,19 @@ Batch: TypeAlias = Tuple[
     List[GrayImageFloat],
     List[TransformDefinition],
     List[CropDefinition],
+]
+
+TestBatch: TypeAlias = Tuple[
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # polarity sum
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # mean
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # std
+    Float32[torch.Tensor, "Batch Time SubBin X Y"],  # event count
+    List[Float32[torch.Tensor, "Time SubBin XDownscaled YDownscaled"]],  # polarity sum
+    List[Float32[torch.Tensor, "Time SubBin XDownscaled YDownscaled"]],  # mean
+    List[Float32[torch.Tensor, "Time SubBin XDownscaled YDownscaled"]],  # std
+    List[Float32[torch.Tensor, "Time SubBin XDownscaled YDownscaled"]],  # event count
+    List[GrayImageFloat],
+    List[TransformDefinition],
 ]
 
 

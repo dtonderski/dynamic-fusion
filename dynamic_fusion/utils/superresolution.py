@@ -46,7 +46,7 @@ def find_nearest_pixels(
 
 def get_upscaling_pixel_indices_and_distances(
     start_resolution: Tuple[int, int], end_resolution: Tuple[int, int]
-) -> Tuple[Int[np.ndarray, "4 XUpscaled YUpscaled 2"], Float[np.ndarray, "4 XUpscaled YUpscaled 2"], Bool[np.ndarray, "4 XUpscaled YUpscaled"]]:
+) -> Tuple[Int[torch.Tensor, "4 XUpscaled YUpscaled 2"], Float[torch.Tensor, "4 XUpscaled YUpscaled 2"], Bool[torch.Tensor, "4 XUpscaled YUpscaled"]]:
     start_coords = generate_coords_2d(start_resolution)
     end_coords = generate_coords_2d(end_resolution)
 
@@ -62,7 +62,7 @@ def get_upscaling_pixel_indices_and_distances(
     nearest_start_coords = start_coords[nearest_pixels[..., 0], nearest_pixels[..., 1]]
     start_to_end_vectors = end_coords[None, :] - nearest_start_coords
 
-    return nearest_pixels, start_to_end_vectors, out_of_bounds
+    return torch.tensor(nearest_pixels), torch.tensor(start_to_end_vectors), torch.tensor(out_of_bounds)
 
 
 def spatial_bilinear_interpolate(
@@ -79,7 +79,7 @@ def spatial_bilinear_interpolate(
 def get_spatial_upsampling_output(
     decoding_network: nn.Module,
     c: Float[torch.Tensor, "B X Y C"],
-    tau: float,
+    tau: Float[torch.Tensor, " B"],
     c_next: Optional[Float[torch.Tensor, "B X Y C"]],
     nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
@@ -101,7 +101,7 @@ def get_spatial_upsampling_output(
     )
     start_to_end_vectors_normalized = start_to_end_vectors_normalized.to(c)
 
-    tau_expanded = einops.repeat(torch.tensor([tau]).to(c), "1 -> B N X Y 1", B=b, N=n, X=x, Y=y)
+    tau_expanded = einops.repeat(tau, "B -> B N X Y 1", N=n, X=x, Y=y)
 
     r_t = decoding_network(torch.concat([nearest_c, start_to_end_vectors_normalized, tau_expanded], dim=-1))
     if c_next is not None:
@@ -113,3 +113,43 @@ def get_spatial_upsampling_output(
     r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
 
     return r_t
+
+
+def get_crop_region(
+    eps: Float[torch.Tensor, "Batch Time SubBin X Y"],
+    out_of_bounds: Bool[torch.Tensor, "4 XUpscaled YUpscaled"],
+    nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+    upscaling_region_size: Tuple[int, int],
+    min_allowed_max_of_mean_polarities_over_times: float = 0,
+    deterministic: bool = False
+) -> Tuple[Tuple[int, int, int, int], Tuple[int, int, int, int]]:
+    # 1. First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
+    within_bounds_mask = torch.logical_not(out_of_bounds.any(axis=0))
+
+    rows, cols = torch.where(within_bounds_mask)
+    xmin_boundary, xmax_boundary = rows.min().item(), (rows.max() - upscaling_region_size[0] + 1).item()
+    ymin_boundary, ymax_boundary = cols.min().item(), (cols.max() - upscaling_region_size[1] + 1).item()
+
+    # 2. Try sampling a crop at most 5 times
+    for _ in range(5):
+        # 2a. Sample a crop in the upscaled image
+        if deterministic:
+            xmin_upscaled, ymin_upscaled = int(xmin_boundary), int(ymin_boundary)
+        else:
+            xmin_upscaled, ymin_upscaled = np.random.randint(low=(xmin_boundary, ymin_boundary), high=(xmax_boundary + 1, ymax_boundary + 1))  # type: ignore
+        xmax_upscaled, ymax_upscaled = xmin_upscaled + upscaling_region_size[0], ymin_upscaled + upscaling_region_size[1]
+
+        # 2b. Calculate corresponding region in downscaled image
+        used_nearest_pixels = nearest_pixels[:, xmin_upscaled:xmax_upscaled, ymin_upscaled:ymax_upscaled]
+        xmin, ymin = used_nearest_pixels.amin(dim=(0, 1, 2))
+        xmax, ymax = used_nearest_pixels.amax(dim=(0, 1, 2))
+
+        # 2c. Validate that there's enough events in the downscaled image
+        max_of_mean_polarities_over_times = einops.reduce((eps[..., xmin:xmax, ymin:ymax] != 0).float(), "Time D X Y -> Time", "mean").max()
+
+        if max_of_mean_polarities_over_times < min_allowed_max_of_mean_polarities_over_times:
+            continue
+        return ((xmin, xmax, ymin, ymax), (xmin_upscaled, xmax_upscaled, ymin_upscaled, ymax_upscaled))
+
+    # 2d. (optional) If no crop with enough events was found after 5 tries, skip this iteration
+    raise ValueError()

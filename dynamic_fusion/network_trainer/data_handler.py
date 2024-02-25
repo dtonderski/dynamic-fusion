@@ -2,19 +2,13 @@ import numpy as np
 import torch
 from jaxtyping import Float32
 from torch.utils.data import DataLoader, Dataset
-from dynamic_fusion.utils.datatypes import (
-    CropDefinition,
-    CroppedReconstructionSample,
-    ReconstructionSample,
-)
 
-from dynamic_fusion.utils.image import scale_video_to_quantiles
+from dynamic_fusion.utils.datatypes import (CropDefinition,
+                                            CroppedReconstructionSample,
+                                            ReconstructionSample)
 
-from .configuration import (
-    DataHandlerConfiguration,
-    SharedConfiguration,
-    AugmentationConfiguration,
-)
+from .configuration import (AugmentationConfiguration,
+                            DataHandlerConfiguration, SharedConfiguration)
 from .dataset import CocoIterableDataset, collate_items
 
 
@@ -72,7 +66,7 @@ class CocoAugmentation:
         ]
 
         crop_definition = CropDefinition(
-            x_start, y_start, t_start, *self.config.network_image_size, self.shared_config.sequence_length, total_number_of_bins
+            x_start, y_start, t_start, *self.config.network_image_size, total_number_of_bins
         )
 
         return CroppedReconstructionSample(network_data, crop_definition)
@@ -91,7 +85,7 @@ class CocoAugmentation:
         if self.shared_config.use_count:
             network_data.event_counts = network_data.event_counts[t_start : t_start + self.shared_config.sequence_length]
         network_data.video = network_data.video[t_start : t_start + self.shared_config.sequence_length]
-        crop_definition = CropDefinition(x_start, y_start, t_start, x_size, y_size, self.shared_config.sequence_length, total_number_of_bins)
+        crop_definition = CropDefinition(x_start, y_start, t_start, x_size, y_size, total_number_of_bins)
         return CroppedReconstructionSample(network_data, crop_definition)
 
 

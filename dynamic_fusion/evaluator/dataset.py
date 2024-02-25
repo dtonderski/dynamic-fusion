@@ -100,7 +100,6 @@ class CocoTestDataset(Dataset):  # type: ignore
             network_data.video.shape[2],
             network_data.video.shape[3],
             network_data.video.shape[0],
-            network_data.video.shape[0],
         )
 
         if self.implicit or self.timesteps_in_bin != [1]:

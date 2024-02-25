@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
 class SharedConfiguration(BaseModel):
@@ -18,9 +18,9 @@ class SharedConfiguration(BaseModel):
     spatial_unfolding: bool = Field(...)
     temporal_interpolation: bool = Field(...)
     temporal_unfolding: bool = Field(...)
-    spatial_upsampling: bool = Field(...)
+    spatial_upsampling: bool = Field(False)
     min_allowed_max_of_mean_polarities_over_times: float = Field(
-        ...,
+        0.05,
         description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds.",
     )
 
@@ -80,13 +80,13 @@ class NetworkFitterConfiguration(BaseModel):
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
     data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
-    upscaling_region_size: Tuple[int, int] = Field(..., description="Size of region to upscale. Used to limit memory usage in spatial upsampling")
+    upscaling_region_size: Tuple[int, int] = Field((0, 0), description="Size of region to upscale. Used to limit memory usage in spatial upsampling")
 
 
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)
     event_colors: List[List[float]] = Field(...)
-    persistent_saving_frequency: int = Field(...)
+    persistent_saving_frequency: int = Field(10000)
 
 
 class TrainerConfiguration(BaseModel):
