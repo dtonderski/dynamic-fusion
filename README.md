@@ -7,6 +7,10 @@
 - Python 3.9.*
 
 ## Installation
+Install ffmpeg
+"""
+sudo apt install ffmpeg
+"""
 Create a virtual environment:
 ```
 python3 -m venv venv
