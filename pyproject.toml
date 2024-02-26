@@ -41,9 +41,16 @@ extend-select = ['B950']
 
 [tool.black]
 # 80 or 86 is not suitable for scientific code IMO
-line-length = 150
+line-length = 172
 target-version = ['py39']
 preview = true
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 172
+disable = """
+    invalid-name,
+    not-callable
+"""
 
 [tool.mypy]
 # If this is set to 3.9, mypy fails on jaxtyping + ndarray for some reason
