@@ -3,5 +3,4 @@ From: python:3.9
 
 %post
     apt update
-    apt install libopenexr-dev
-    apt -y install tmux
+    apt -y install libopenexr-dev tmux ffmpeg
