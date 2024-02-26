@@ -130,6 +130,9 @@ def get_crop_region(
     xmin_boundary, xmax_boundary = rows.min().item(), (rows.max() - upscaling_region_size[0] + 1).item()
     ymin_boundary, ymax_boundary = cols.min().item(), (cols.max() - upscaling_region_size[1] + 1).item()
 
+    if xmin_boundary > xmax_boundary or ymin_boundary > ymax_boundary:
+        raise ValueError("Impossible to find crop region!")
+
     # 2. Try sampling a crop at most 5 times
     for _ in range(5):
         # 2a. Sample a crop in the upscaled image
