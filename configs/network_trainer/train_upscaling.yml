@@ -14,6 +14,7 @@ shared:
 data_handler:
   batch_size: 1
   num_workers: 1
+  test_dataset_directory: "data/interim/coco/test/2subbins"
   augmentation:
     network_image_size: [96, 96]
 
@@ -47,8 +48,12 @@ network_fitter:
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/spatiotemporal/slurm"
+  run_directory: "runs/spatiotemporal_with_visualization/test"
   event_colors: [[255, 0, 0], [0, 255, 0]]
-  persistent_saving_frequency: 5000
+  persistent_saving_frequency: 10000
+  Ts_to_visualize: 20
+  taus_to_visualize: 5
+  Ts_to_evaluate: 100
+  taus_to_evaluate: 5
 
 seed: 0

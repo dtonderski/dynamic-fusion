@@ -14,11 +14,12 @@ shared:
 data_handler:
   batch_size: 1
   num_workers: 1
+  test_dataset_directory: "data/interim/coco/2subbins/test"
   augmentation:
     network_image_size: [96, 96]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins"
+    dataset_directory: "data/interim/coco/2subbins_downscaled"
     threshold: 1.4 # 1.4
     augmentation_tries: 2
     video_tries: 5
@@ -49,6 +50,10 @@ network_fitter:
 training_monitor:
   run_directory: "runs/continuous/refactored"
   event_colors: [[255, 0, 0], [0, 255, 0]]
-  persistent_saving_frequency: 5000
+  persistent_saving_frequency: 10000
+  Ts_to_visualize: 20
+  taus_to_visualize: 5
+  Ts_to_evaluate: 100
+  taus_to_evaluate: 5
 
 seed: 0
