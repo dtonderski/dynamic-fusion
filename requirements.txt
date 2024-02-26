@@ -19,9 +19,5 @@ customtkinter~=5.2
 tables~=3.9
 Pillow==9.5.0 # tensorboard reasons
 numba
-# # CARLA
-# carla>=0.9.14
-# pygame~=2.5
-# pygame_gui~=0.6
-# PyQt5~=5.15
-# pyqtgraph~=0.13
+pytorch-ignite # for SSIM and PSNR
+av # for reading video
