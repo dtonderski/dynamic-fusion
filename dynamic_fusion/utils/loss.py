@@ -1,3 +1,5 @@
+from typing import List
+
 import einops
 import lpips
 import torch
@@ -7,6 +9,8 @@ from torch import nn
 
 class LPIPS(nn.Module):
     loss_function_vgg: lpips.LPIPS
+    values: List[float] = []
+    weights: List[int] = []
 
     def __init__(self) -> None:
         super(LPIPS, self).__init__()
@@ -16,6 +20,15 @@ class LPIPS(nn.Module):
         x = einops.repeat(x, "B C X Y -> B (C three) X Y", three=3)
         y = einops.repeat(y, "B C X Y -> B (C three) X Y", three=3)
         return self.loss_function_vgg(2 * (x - 0.5), 2 * (y - 0.5))
+
+    @torch.no_grad()
+    def update(self, x: Float32[torch.Tensor, "B C X Y"], y: Float32[torch.Tensor, "B C X Y"]) -> None:
+        self.values.append(self(x, y).mean().item())
+        self.weights.append(x.numel())
+
+    @torch.no_grad()
+    def compute(self) -> float:
+        return sum(value * weight / sum(self.weights) for value, weight in zip(self.values, self.weights))
 
 
 def get_reconstruction_loss(loss_name: str, device: torch.device) -> nn.Module:
