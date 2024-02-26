@@ -42,8 +42,9 @@ class DatasetConfiguration(BaseModel):
 
 
 class DataHandlerConfiguration(BaseModel):
-    augmentation: AugmentationConfiguration = Field(...)  # pyright: ignore
-    dataset: DatasetConfiguration = Field(...)  # pyright: ignore
+    augmentation: AugmentationConfiguration = Field(...)
+    dataset: DatasetConfiguration = Field(...)
+    test_dataset_directory: Path = Field(Path("."))
     batch_size: int = Field(..., description="Batch size used in training.")
     num_workers: int = Field(..., description="Workers used by DataLoader")
 
@@ -86,7 +87,11 @@ class NetworkFitterConfiguration(BaseModel):
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)
     event_colors: List[List[float]] = Field(...)
-    persistent_saving_frequency: int = Field(10000)
+    persistent_saving_frequency: int = Field(5000)
+    Ts_to_visualize: int = Field(50)
+    taus_to_visualize: int = Field(3)
+    Ts_to_evaluate: int = Field(100)
+    taus_to_evaluate: int = Field(5)
 
 
 class TrainerConfiguration(BaseModel):

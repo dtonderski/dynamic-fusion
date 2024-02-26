@@ -56,12 +56,7 @@ class NetworkFitter:
 
         optimizer = Adam(params, lr=self.config.lr_reconstruction)
 
-        start_iteration = self.monitor.initialize(
-            test_dataset,
-            encoding_network,
-            optimizer,
-            decoding_network,
-        )
+        start_iteration = self.monitor.initialize(test_dataset, encoding_network, optimizer, decoding_network)
 
         encoding_network.to(self.device)
         if decoding_network is not None:
@@ -75,7 +70,6 @@ class NetworkFitter:
                 self._reconstruction_step_with_spatial_upsampling(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
             else:
                 self._reconstruction_step(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
-
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(iteration, encoding_network, optimizer, decoding_network)
 
@@ -279,7 +273,7 @@ class NetworkFitter:
 
         # Calculate loss
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
-        taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
+        taus = einops.rearrange(torch.tensor(taus).to(cs), "B T -> T B")
 
         for t, r_t in run_decoder_with_spatial_upsampling(
             decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end, upscaled_used_region

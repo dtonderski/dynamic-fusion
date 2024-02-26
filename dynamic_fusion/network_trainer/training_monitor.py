@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
@@ -10,15 +11,19 @@ import numpy as np
 import skimage.transform
 import torch
 from jaxtyping import Float32
+from matplotlib import pyplot as plt
 from torch import nn
 from torch.utils.tensorboard.writer import SummaryWriter
+from torchvision.io import read_video
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms.functional import resize
 
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items
 from dynamic_fusion.utils.datatypes import Checkpoint, TestBatch
+from dynamic_fusion.utils.evaluation import get_evaluation_image, get_evaluation_video, get_metrics, get_reconstructions_and_gt
 from dynamic_fusion.utils.image import scale_to_quantiles_numpy
-from dynamic_fusion.utils.network import network_data_to_device, network_test_data_to_device, to_numpy
+from dynamic_fusion.utils.network import network_test_data_to_device, to_numpy
+from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 from .configuration import SharedConfiguration, TrainerConfiguration
 
@@ -31,6 +36,7 @@ class TrainingMonitor:
 
     training_config: TrainerConfiguration
     writer: SummaryWriter
+    test_dataset: CocoTestDataset
     sample_batch: TestBatch
     device: torch.device
     shared_config: SharedConfiguration
@@ -51,6 +57,7 @@ class TrainingMonitor:
         optimizer: torch.optim.Optimizer,
         decoding_network: Optional[nn.Module],
     ) -> int:
+        plt.ioff()
         previous_subrun_directory, self.subrun_directory = self._get_previous_and_current_subrun_directories()
         self.subrun_directory.mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +76,8 @@ class TrainingMonitor:
                 self.logger.warning(ex)
 
         self.writer = SummaryWriter(self.subrun_directory)  # type: ignore[no-untyped-call]
-        self.sample_batch = collate_test_items([test_dataset[i] for i in [0, 1, 2]])
+        self.test_dataset = test_dataset
+        self.sample_batch = collate_test_items([test_dataset[i] for i in [0]])
         self.logger.info(f"Starting at iteration {iteration}")
         return iteration
 
@@ -120,13 +128,13 @@ class TrainingMonitor:
     def save_checkpoint(
         self,
         iteration: int,
-        encoding_network: Optional[nn.Module] = None,
+        encoding_network: nn.Module,
         optimizer: Optional[torch.optim.Optimizer] = None,
         decoding_network: Optional[nn.Module] = None,
     ) -> None:
         checkpoint_path = self.subrun_directory / LATEST_CHECKPOINT_FILENAME
         checkpoint: Checkpoint = {
-            "encoding_state_dict": encoding_network.state_dict() if encoding_network else None,
+            "encoding_state_dict": encoding_network.state_dict(),
             "optimizer_state_dict": optimizer.state_dict() if optimizer else None,
             "decoding_state_dict": decoding_network.state_dict() if decoding_network else None,
             "iteration": iteration,
@@ -136,6 +144,8 @@ class TrainingMonitor:
         if iteration % self.config.persistent_saving_frequency == 0:
             persistent_checkpoint_path = self.subrun_directory / PERSISTENT_CHECKPOINT_TEMPLATE.format(i=iteration)
             torch.save(checkpoint, persistent_checkpoint_path)
+            if decoding_network is not None:
+                self._visualize_persistent(iteration, encoding_network, decoding_network)
 
     def _get_previous_and_current_subrun_directories(
         self,
@@ -212,10 +222,7 @@ class TrainingMonitor:
         upscaled_size = images.shape[-2:]
 
         video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> B T X Y C")
-        downscaled_frames = [
-            skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True)
-            for video_frame in video_for_downscaling[0]
-        ]
+        downscaled_frames = [skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True) for video_frame in video_for_downscaling[0]]
         upscaled_frames = [skimage.transform.resize(video_frame, upscaled_size, order=0) for video_frame in downscaled_frames]
         upscaled_video = np.stack(upscaled_frames)[None]
         upscaled_video = einops.rearrange(upscaled_video, "B T X Y C -> B T C X Y")
@@ -254,7 +261,7 @@ class TrainingMonitor:
         Float32[np.ndarray, "batch Time 3 X Y"],
         Float32[np.ndarray, "batch Time 3 X Y"],
     ]:
-        colored_event_polarity_sums = self.img_to_colormap(fused_event_polarity_sums[:, :, 0, :, :], self.create_red_blue_cmap(501))
+        colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums[:, :, 0, :, :], create_red_blue_cmap(501))
         colored_event_polarity_sums = einops.rearrange(colored_event_polarity_sums, "B T X Y C -> B T C X Y")
         images = scale_to_quantiles_numpy(images, [1, 2, 3, 4], 0.005, 0.995)
         predictions = scale_to_quantiles_numpy(predictions, [1, 2, 3, 4], 0.005, 0.995)
@@ -329,24 +336,35 @@ class TrainingMonitor:
 
         return torch.concat(images_to_concat, dim=2)
 
-    # TODO: this can be reused and should be rewritten
-    @staticmethod
-    def create_red_blue_cmap(N) -> np.ndarray:  # type: ignore
-        assert N % 2 == 1
-        cm = np.zeros([N, 3])
-        cm[: N // 2, 0] = np.sqrt(np.linspace(N / 2, 1, N // 2) * 2 / N)
-        cm[N // 2 :, 2] = np.sqrt(np.linspace(1, N / 2, N - N // 2) * 2 / N)
-        cm[N // 2, :] = 0.5
-        return cm
+    @torch.no_grad()
+    def _visualize_persistent(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> None:
+        self.logger.info("Calculating metrics...")
+        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device)
+        self.logger.info(f"Calculated metrics: {metrics}")
 
-    @staticmethod
-    def img_to_colormap(img, cmap, clims=None) -> np.ndarray:  # type: ignore
-        if clims is None:
-            clims = np.array([-1, 1]) * np.max(np.abs(img))
-        N, C = cmap.shape
-        # assert N % 2 == 1
-        grid_x = np.linspace(clims[0], clims[1], N)
-        img_colored = np.zeros(img.shape + (C,))
-        for i in range(C):  # 3 color channels
-            img_colored[..., i] = np.interp(img, grid_x, cmap[:, i])
-        return img_colored
+        I = 3
+        for i in range(I):
+            self.logger.info(f"{i}/{I} - getting data...")
+            batch = collate_test_items([self.test_dataset[i]])
+            name = self.test_dataset.directory_list[i].name
+            recon, gt, gt_down, eps = get_reconstructions_and_gt(
+                batch, encoder, decoder, self.shared_config, self.device, None, self.config.Ts_to_visualize, self.config.taus_to_visualize
+            )
+
+            self.logger.info(f"{i}/{I} - generating video...")
+            ani = get_evaluation_video(recon, gt, gt_down, eps, frames=range(self.config.Ts_to_visualize * self.config.taus_to_visualize))
+
+            self.logger.info(f"{i}/{I} - saving video...")
+            with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_file:
+                ani.save(temp_file.name, writer="ffmpeg", fps=10)
+                vid, _, _ = read_video(temp_file.name)
+
+            vid = einops.rearrange(vid, "T H W C -> 1 T C H W")
+            self.writer.add_video(f"video_{name}", vid, iteration)  # type: ignore
+
+            self.logger.info(f"{i}/{I} - generating figure...")
+            figure = get_evaluation_image(metrics, recon, gt, gt_down, eps)
+            plt.close()
+            self.logger.info(f"{i}/{I} - saving figure...")
+            self.writer.add_figure(f"figure_{name}", figure, iteration)  # type: ignore
+            self.writer.flush()  # type: ignore

@@ -116,7 +116,7 @@ def get_spatial_upsampling_output(
 
 
 def get_crop_region(
-    eps: Float[torch.Tensor, "Batch Time SubBin X Y"],
+    eps: Float[torch.Tensor, "1 Time SubBin X Y"],
     out_of_bounds: Bool[torch.Tensor, "4 XUpscaled YUpscaled"],
     nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     upscaling_region_size: Tuple[int, int],
@@ -148,7 +148,7 @@ def get_crop_region(
         xmax, ymax = used_nearest_pixels.amax(dim=(0, 1, 2))
 
         # 2c. Validate that there's enough events in the downscaled image
-        max_of_mean_polarities_over_times = einops.reduce((eps[..., xmin:xmax, ymin:ymax] != 0).float(), "Time D X Y -> Time", "mean").max()
+        max_of_mean_polarities_over_times = einops.reduce((eps[..., xmin:xmax, ymin:ymax] != 0).float(), "1 Time D X Y -> Time", "mean").max()
 
         if max_of_mean_polarities_over_times < min_allowed_max_of_mean_polarities_over_times:
             continue

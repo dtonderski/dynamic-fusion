@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import Field, asdict, dataclass, fields
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import h5py
 import numpy as np

@@ -25,6 +25,6 @@ class Trainer:
         self.network_fitter = NetworkFitter(self.training_monitor, config.network_fitter, config.shared)
 
     def run(self) -> None:
-        data_loader = self.data_handler.run()
+        data_loader, test_dataset = self.data_handler.run()
         reconstruction_network, decoding_network = self.network_loader.run()
-        self.network_fitter.run(data_loader, reconstruction_network, decoding_network)
+        self.network_fitter.run(data_loader, test_dataset, reconstruction_network, decoding_network)

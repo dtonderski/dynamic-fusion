@@ -1,14 +1,14 @@
+from typing import Tuple
+
 import numpy as np
 import torch
 from jaxtyping import Float32
 from torch.utils.data import DataLoader, Dataset
 
-from dynamic_fusion.utils.datatypes import (CropDefinition,
-                                            CroppedReconstructionSample,
-                                            ReconstructionSample)
+from dynamic_fusion.utils.dataset import CocoTestDataset
+from dynamic_fusion.utils.datatypes import CropDefinition, CroppedReconstructionSample, ReconstructionSample
 
-from .configuration import (AugmentationConfiguration,
-                            DataHandlerConfiguration, SharedConfiguration)
+from .configuration import AugmentationConfiguration, DataHandlerConfiguration, SharedConfiguration
 from .dataset import CocoIterableDataset, collate_items
 
 
@@ -65,9 +65,7 @@ class CocoAugmentation:
             y_start : y_start + self.config.network_image_size[1],
         ]
 
-        crop_definition = CropDefinition(
-            x_start, y_start, t_start, *self.config.network_image_size, total_number_of_bins
-        )
+        crop_definition = CropDefinition(x_start, y_start, t_start, *self.config.network_image_size, total_number_of_bins)
 
         return CroppedReconstructionSample(network_data, crop_definition)
 
@@ -99,6 +97,7 @@ class DataHandler:
         self.shared_config = shared_config
         augmentation = CocoAugmentation(config.augmentation, shared_config)
         self.dataset = CocoIterableDataset(augmentation, config.dataset, shared_config)
+        self.test_dataset = CocoTestDataset(config.test_dataset_directory)
 
-    def run(self) -> DataLoader:  # type: ignore
-        return DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers, collate_fn=collate_items)
+    def run(self) -> Tuple[DataLoader, CocoTestDataset]:  # type: ignore
+        return DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers, collate_fn=collate_items), self.test_dataset
