@@ -1,4 +1,5 @@
 # dynamic-fusion
+This repository is about Implicit Image Reconstruction and SpatioTemporal Superresolution using EVS.
 
 # Installation
 
@@ -31,6 +32,15 @@ Install package:
 ```
 pip install -e .
 ```
+
+## Data
+The training data was generated using a proprietary Sony EVS Simulator. It will be made available for download here. After downloading, extract it to a directory of your choice and adjust the `yml` configuration files. The default 
+
+# Running
+All code is run through a single entry mode, the `main.py` file.
+
+### Training
+To train a model, 
 
 # Troubleshooting
 
