@@ -60,11 +60,12 @@ def get_video(
     transformation_matrices = _transforms_to_matrices(shifts, rotations, scales)
     if not include_first:
         transformation_matrices = transformation_matrices[1:]
+    transformation_matrices = torch.tensor(transformation_matrices[:, :2, :], device=device)
 
     # Grid creation and manipulation
     T, (X, Y) = transformation_matrices.shape[0], image.shape
 
-    grid = torch.nn.functional.affine_grid(torch.tensor(transformation_matrices[:, :2, :]), [T, 1, X, Y], align_corners=True).to(device)
+    grid = torch.nn.functional.affine_grid(transformation_matrices, [T, 1, X, Y], align_corners=True)
     if downscale:
         # This is equivalent to downscaling the output video, see notebooks/12_interpolation_testing.ipynb
         grid = einops.rearrange(
