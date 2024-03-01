@@ -28,58 +28,37 @@ class ImagePreprocessorConfiguration(BaseModel):
 
 class VideoGeneratorConfiguration(BaseModel):
     max_number_of_scale_knots: int = Field(..., description="Maximum number of scale knots to use.")
-
     max_number_of_shift_knots: int = Field(..., description="Maximum number of shift knots to use.")
 
     max_number_of_rotation_knots: int = Field(..., description="Maximum number of rotation knots to use.")
-
-    max_scale_knot_value: float = Field(..., description="Maximum value of scale knots.")
-
-    max_shift_knot_multiplier_value: float = Field(..., description="Maximum value of shift knot multiplier.")
-
     max_rotation_knot_value: float = Field(..., description="Maximum value of rotation knot.")
 
-    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = Field(..., description="One of wrap, zeros, border, or reflection")
+    max_scale_knot_value: float = Field(..., description="Maximum value of scale knots.")
+    max_shift_knot_multiplier_value: float = Field(..., description="Maximum value of shift knot multiplier.")
 
+    fill_mode: Literal["wrap", "zeros", "border", "reflection"] = Field(..., description="One of wrap, zeros, border, or reflection")
     interpolation: Literal["bilinear", "nearest", "bicubic"] = Field(..., description="One of bilinear, nearest, or bicubic")
 
 
 class EventGeneratorConfiguration(BaseModel):
     sensor_config_path: Path = Field(..., description="Path to the sensor config yml.")
-
     simulator_config_path: Path = Field(..., description="Path to the simulator config yml.")
 
     thresholds: List[float] = Field(..., description="Thresholds to use in data generation.")
 
-    min_illuminance_lux_range: List[float] = Field(
-        ...,
-        description="Range of values from which to sample min illuminance.",
-    )
-
-    max_illuminance_lux_range: List[float] = Field(
-        ...,
-        description="Range of values from which to sample max illuminance.",
-    )
+    min_illuminance_lux_range: List[float] = Field(..., description="Range of values from which to sample min illuminance.")
+    max_illuminance_lux_range: List[float] = Field(..., description="Range of values from which to sample max illuminance.")
 
 
 class EventDiscretizerConfiguration(BaseModel):
     number_of_temporal_bins: int = Field(..., description="Number of temporal bins to use in discretizer.")
     number_of_temporal_sub_bins_per_bin: int = Field(
-        ...,
-        description="Number of sub-bins to use per temporal bin. If one discretized event statistic has shape T D H W, then this is the D dimension.",
-    )
-    ground_truth_temporal_location_in_bin: str = Field(
-        ...,
-        description="Location of ground truth image in the bin, must be center or end.",
+        ..., description="Number of sub-bins to use per temporal bin. If one discretized event statistic has shape T D H W, then this is the D dimension."
     )
 
 
 class DataSaverConfiguration(BaseModel):
-    output_dir: Path = Field(
-        ...,
-        description="Path to the folder where to output should be stored.",
-    )
-
+    output_dir: Path = Field(..., description="Path to the folder where to output should be stored.")
     save_events: bool = Field(..., description="Determines whether to save the raw events.")
     save_video: bool = Field(...)
     h5_compression: int = Field(..., description="Indicates gzip compression level.")
