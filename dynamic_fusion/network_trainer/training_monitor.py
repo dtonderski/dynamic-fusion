@@ -21,7 +21,6 @@ from torchvision.transforms.functional import resize
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items
 from dynamic_fusion.utils.datatypes import Checkpoint, TestBatch
 from dynamic_fusion.utils.evaluation import get_evaluation_image, get_evaluation_video, get_metrics, get_reconstructions_and_gt
-from dynamic_fusion.utils.image import scale_to_quantiles_numpy
 from dynamic_fusion.utils.network import network_test_data_to_device, to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
