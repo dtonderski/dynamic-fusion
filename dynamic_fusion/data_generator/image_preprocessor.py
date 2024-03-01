@@ -34,7 +34,7 @@ class ImagePreprocessor:
 
         minimum_image_shape = np.array(self.shared_config.minimum_downscaled_image_size) * self.shared_config.downscaling_factor
         if self.shared_config.target_unscaled_image_size is not None:
-            minimum_image_shape = np.minimum(minimum_image_shape, np.array(self.shared_config.target_unscaled_image_size))
+            minimum_image_shape = np.maximum(minimum_image_shape, np.array(self.shared_config.target_unscaled_image_size))
 
         if np.any(image.shape[:2] < minimum_image_shape):
             raise ValueError(f"Skipping image - image shape: {image.shape[:2]}, minimum shape: {minimum_image_shape}")
