@@ -158,8 +158,9 @@ def get_crop_region(
 
 def get_grid(low_res: Tuple[int, int], high_res: Tuple[int, int], crops_low: Tuple[Tuple[int, int], Tuple[int, int]]) -> Float[torch.Tensor, "N X Y 2"]:
     # Recommend notebooks/11_grid_testing.ipynb to play around with this
-    boundaries = [[crop / low * 2 - 1 for crop, low in zip(crop_dim, low_res)] for crop_dim in crops_low]
+    boundaries = [[crop / low * 2 - 1 for crop in crop_dim] for crop_dim, low in zip(crops_low, low_res)]
     pixel_positions = [torch.linspace(boundary[0], boundary[1], res) for boundary, res in zip(boundaries, high_res)]
 
+    # This combination of ordering and indexing was arrived at partly by trial and error, likely source of bug
     X, Y = torch.meshgrid(*pixel_positions, indexing="ij")
     return torch.stack((Y, X), dim=-1)[None]
