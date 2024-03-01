@@ -93,8 +93,8 @@ gamma_correction:
 
 optics:
     enabled: true # Optics active (otherwise assume that the input is in W/m2), required for attenuation, vignetting and distortion
-    attenuation_enabled: true # Enables Attenuation (f-number, lens transmission coefficient)
-    vignetting_enabled: true # Enables Vignetting (radial attenuation)
+    attenuation_enabled: false # Enables Attenuation (f-number, lens transmission coefficient)
+    vignetting_enabled: false # Enables Vignetting (radial attenuation)
     distortion_enabled: false # Optical distortion (barrel distortion)
     max_illuminance_lux: 500.0 # Illuminance for photometry (lux). Value in range: [0.001; 100000.0]
     min_illuminance_lux: 15.0 # Illuminance for photometry (lux) 30000/32 looking at DAVIS biases. Value in range: [0.001; 100000.0]
