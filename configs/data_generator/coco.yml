@@ -1,10 +1,11 @@
 shared: # used by more than one step in the pipeline
-  target_image_size: [180, 240] # imsz
+  target_unscaled_image_size: [192, 256] # imsz
+  minimum_downscaled_image_size: [96, 96]
   fps: 100
   number_of_images_to_generate_per_input: 2001 # N_high
   seed: 0
   overwrite: False
-  only_downscaled_events: True
+  downscaling_factor: 4
 
 image_loader:
   dataset_dir: "./data/raw/coco/val2014/"
@@ -12,8 +13,6 @@ image_loader:
   number_of_input_images: 500 # Nimgs: 500 # number of images to use for generation
 
 image_preprocessor:
-  downscale_probability: 0.7 # downscale_prob
-  downscale_range: [0.7, 0.85] # downscale_range
   max_image_size: null
 
 video_generator:
@@ -28,26 +27,22 @@ video_generator:
   max_rotation_knot_value: 1.7 # max_val_rot
 
   fill_mode: "wrap"
-  interpolation: "bicubic"
 
 event_generator:
   sensor_config_path: "configs/data_generator/simulator/davis_model.yml"
   simulator_config_path: "configs/data_generator/simulator/evs_explorer.yml"
 
-  thresholds: [1.4] #1.25, 1.4, 1.7, 2.2] # delta
+  thresholds: [1.3] #1.25, 1.4, 1.7, 2.2] # delta
 
-  min_illuminance_lux_range: [650., 850.] # lum_min_range
-  max_illuminance_lux_range: [5_100., 5_500.] # lum_max_range
+  min_illuminance_lux_range: [450., 850.] # lum_min_range
+  max_illuminance_lux_range: [10_000., 15_000.] # lum_max_range
 
 event_discretizer:
   number_of_temporal_bins: 100 # N_low
   number_of_temporal_sub_bins_per_bin: 2
-  ground_truth_temporal_location_in_bin: "center" # center or end, doesn't work atm
 
 data_saver:
-  output_dir: "./data/interim/coco/2subbins_downscaled"
+  output_dir: "./data/interim/coco/train/2subbins_new"
   save_events: True
   save_video: False
   h5_compression: 3
-
-max_downscaling_factor: 4

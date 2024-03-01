@@ -37,7 +37,6 @@ class VideoGeneratorConfiguration(BaseModel):
     max_shift_knot_multiplier_value: float = Field(..., description="Maximum value of shift knot multiplier.")
 
     fill_mode: Literal["wrap", "zeros", "border", "reflection"] = Field(..., description="One of wrap, zeros, border, or reflection")
-    interpolation: Literal["bilinear", "nearest", "bicubic"] = Field(..., description="One of bilinear, nearest, or bicubic")
 
 
 class EventGeneratorConfiguration(BaseModel):
