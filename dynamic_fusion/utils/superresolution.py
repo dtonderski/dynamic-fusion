@@ -96,9 +96,7 @@ def get_spatial_upsampling_output(
     b, n, x, y, _ = nearest_c.shape
 
     start_to_end_vectors_expanded = einops.rearrange(start_to_end_vectors, "N X Y Dims -> 1 N X Y Dims")
-    start_to_end_vectors_normalized = start_to_end_vectors_expanded * einops.repeat(
-        torch.tensor(original_resolution), "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y
-    )
+    start_to_end_vectors_normalized = start_to_end_vectors_expanded * einops.repeat(torch.tensor(original_resolution), "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y)
     start_to_end_vectors_normalized = start_to_end_vectors_normalized.to(c)
 
     tau_expanded = einops.repeat(tau, "B -> B N X Y 1", N=n, X=x, Y=y)
@@ -121,7 +119,7 @@ def get_crop_region(
     nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     upscaling_region_size: Tuple[int, int],
     min_allowed_max_of_mean_polarities_over_times: float = 0,
-    deterministic: bool = False
+    deterministic: bool = False,
 ) -> Tuple[Tuple[int, int, int, int], Tuple[int, int, int, int]]:
     # 1. First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
     within_bounds_mask = torch.logical_not(out_of_bounds.any(axis=0))
@@ -156,3 +154,12 @@ def get_crop_region(
 
     # 2d. (optional) If no crop with enough events was found after 5 tries, skip this iteration
     raise ValueError()
+
+
+def get_grid(low_res: Tuple[int, int], high_res: Tuple[int, int], crops_low: Tuple[Tuple[int, int], Tuple[int, int]]) -> Float[torch.Tensor, "N X Y 2"]:
+    # Recommend notebooks/11_grid_testing.ipynb to play around with this
+    boundaries = [[crop / low * 2 - 1 for crop, low in zip(crop_dim, low_res)] for crop_dim in crops_low]
+    pixel_positions = [torch.linspace(boundary[0], boundary[1], res) for boundary, res in zip(boundaries, high_res)]
+
+    X, Y = torch.meshgrid(*pixel_positions, indexing="ij")
+    return torch.stack((Y, X), dim=-1)[None]
