@@ -46,20 +46,14 @@ class EventDiscretizer:
 
         self.logger = logging.getLogger("EventDiscretizer")
 
-    def run(
-        self,
-        events_dict: Dict[float, Events],
-        image_resolution: Tuple[int, int],
-    ) -> Tuple[Dict[float, DiscretizedEvents], Int64[torch.Tensor, " N"]]:
+    def run(self, events_dict: Dict[float, Events], image_resolution: Tuple[int, int]) -> Dict[float, DiscretizedEvents]:
         self.logger.info("Discretizing events...")
 
         discretized_events_dict = {}
         for threshold, events in events_dict.items():
             discretized_events_dict[threshold] = self._discretize_events(events, threshold, image_resolution)
 
-        indices_of_label_frames = self._calculate_indices_of_label_frames()
-
-        return discretized_events_dict, indices_of_label_frames
+        return discretized_events_dict
 
     def _calculate_indices_of_label_frames(self) -> Int64[torch.Tensor, " N"]:
         r"""This function calculates the indices of the video frames that are
@@ -115,9 +109,7 @@ class EventDiscretizer:
         normalized_timestamps = timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
 
         # Normalize so events in each sub-bin lie between [0, 1]
-        timestamps_in_sub_bins = (
-            normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
-        ).float()
+        timestamps_in_sub_bins = (normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin).float()
 
         resolution = (
             self.config.number_of_temporal_bins,
@@ -188,8 +180,7 @@ class EventDiscretizer:
         indices_with_events = event_count > 0
         timestamp_mean[indices_with_events] = timestamp_sum[indices_with_events] / event_count[indices_with_events]
         timestamp_std[indices_with_events] = torch.sqrt(
-            (timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events]))
-            / event_count[indices_with_events]
+            (timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events])) / event_count[indices_with_events]
         )
 
         return timestamp_mean, timestamp_std, event_count
@@ -237,9 +228,7 @@ class EventDiscretizer:
         return temporal_bin_indices
 
     def _calculate_temporal_sub_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> TemporalBinIndices:
-        total_sub_bin_indices = torch.floor(
-            timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
-        )
+        total_sub_bin_indices = torch.floor(timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin)
 
         sub_bin_indices_in_bins = torch.remainder(total_sub_bin_indices, self.config.number_of_temporal_sub_bins_per_bin)
         sub_bin_indices_in_bins = torch.clip(

@@ -10,14 +10,14 @@ from typing_extensions import TypeAlias
 
 from dynamic_fusion.utils.transform import TransformDefinition
 
-Image: TypeAlias = UInt8[np.ndarray, "H W 3"]
-GrayImage: TypeAlias = UInt8[np.ndarray, "H W"]
-GrayImageFloat: TypeAlias = Float[np.ndarray, "H W"]
-GrayVideoInt: TypeAlias = UInt8[np.ndarray, "T H W"]
-GrayVideoFloat: TypeAlias = Float[np.ndarray, "T H W"]
-GrayVideoTorch: TypeAlias = Float[torch.Tensor, "T H W"]
+Image: TypeAlias = UInt8[np.ndarray, "X Y 3"]
+GrayImage: TypeAlias = UInt8[np.ndarray, "X Y"]
+GrayImageFloat: TypeAlias = Float[np.ndarray, "X Y"]
+GrayVideoInt: TypeAlias = UInt8[np.ndarray, "T X Y"]
+GrayVideoFloat: TypeAlias = Float[np.ndarray, "T X Y"]
+GrayVideoTorch: TypeAlias = Float[torch.Tensor, "T X Y"]
 
-SegmentationMask: TypeAlias = UInt8[np.ndarray, "H W"]
+SegmentationMask: TypeAlias = UInt8[np.ndarray, "X Y"]
 
 
 class EventSchema(pa.DataFrameModel):
@@ -37,7 +37,7 @@ EventTensors = Tuple[TimeStamps, Indices, Indices, Polarities]
 SensorState: TypeAlias = Dict[str, Any]
 VideoSensorData: TypeAlias = Tuple[List[Events], List[GrayImage]]
 
-DiscretizedEventsStatistics: TypeAlias = Float[torch.Tensor, "T D H W"]
+DiscretizedEventsStatistics: TypeAlias = Float[torch.Tensor, "T D X Y"]
 
 EventMask: TypeAlias = Bool[torch.Tensor, " N"]
 TemporalBinIndices: TypeAlias = Int64[torch.Tensor, " N"]
@@ -107,3 +107,4 @@ class ReconstructionSample:
 class CroppedReconstructionSample:
     sample: ReconstructionSample
     crop_definition: CropDefinition
+    

@@ -25,6 +25,8 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
     augmentation: Callable[[ReconstructionSample], CroppedReconstructionSample]
     logger: logging.Logger
 
+    scale: float
+
     def __init__(
         self,
         augmentation: Callable[[ReconstructionSample], CroppedReconstructionSample],
@@ -74,13 +76,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
 
             event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
 
-            network_data = ReconstructionSample(
-                event_polarity_sum,
-                timestamp_mean,
-                timestamp_std,
-                event_count,
-                einops.rearrange(video, "Time X Y -> Time 1 X Y"),
-            )
+            network_data = ReconstructionSample(event_polarity_sum, timestamp_mean, timestamp_std, event_count, einops.rearrange(video, "Time X Y -> Time 1 X Y"))
             for _ in range(self.config.augmentation_tries):
                 try:
                     augmented_network_data = self.augmentation(network_data)
@@ -107,11 +103,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         if torch.all(sample.event_counts == 0):
             return False
 
-        max_of_mean_polarities_over_times = einops.reduce(
-            (sample.event_polarity_sums != 0).to(torch.float32),
-            "Time D X Y -> Time",
-            "mean",
-        ).max()
+        max_of_mean_polarities_over_times = einops.reduce((sample.event_polarity_sums != 0).to(torch.float32), "Time D X Y -> Time", "mean").max()
 
         if max_of_mean_polarities_over_times < self.shared_config.min_allowed_max_of_mean_polarities_over_times:
             return False
@@ -131,7 +123,7 @@ def collate_items(
             TransformDefinition,
             CropDefinition,
         ],
-    ]
+    ],
 ) -> Batch:
     tensors = default_collate([tuple(x[i] for i in range(5)) for x in items])
     collated_items = (*tensors, *[[x[i] for x in items] for i in range(5, 8)])

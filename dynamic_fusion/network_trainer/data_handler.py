@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -11,6 +11,32 @@ from dynamic_fusion.utils.datatypes import CropDefinition, CroppedReconstruction
 from .configuration import AugmentationConfiguration, DataHandlerConfiguration, SharedConfiguration
 from .dataset import CocoIterableDataset, collate_items
 
+class CocoAugmentationWithSpatialUpsampling:
+    config: AugmentationConfiguration
+    shared_config: SharedConfiguration
+
+    def __init__(self, config: AugmentationConfiguration, shared_config: SharedConfiguration):
+        self.config = config
+        self.shared_config = shared_config
+
+    def __call__(self, network_data: ReconstructionSample, scale: Optional[int] = None) -> CroppedReconstructionSample:
+        downscaled_size = tuple(x // scale for x in network_data.video.shape)
+        
+
+
+        max_x_start = network_data.video.shape[2] - self.config.network_image_size[0]
+        max_y_start = network_data.video.shape[3] - self.config.network_image_size[1]
+
+        x_start, y_start = np.random.randint(low=0, high=(max_x_start, max_y_start))
+
+
+
+
+
+        if self.shared_config.spatial_upsampling:
+            return self._crop_time_only(network_data)
+        transformed_network_data = self._crop_tensors(network_data)
+        return transformed_network_data
 
 class CocoAugmentation:
     config: AugmentationConfiguration
@@ -28,11 +54,7 @@ class CocoAugmentation:
         return transformed_network_data
 
     def extract_part_of_tensor(
-        self,
-        tensor: Float32[torch.Tensor, "Time SubBin X Y"],
-        t_start: int,
-        x_start: int,
-        y_start: int,
+        self, tensor: Float32[torch.Tensor, "Time SubBin X Y"], t_start: int, x_start: int, y_start: int
     ) -> Float32[torch.Tensor, "Time SubBin X Y"]:
         return tensor[
             t_start : t_start + self.shared_config.sequence_length,

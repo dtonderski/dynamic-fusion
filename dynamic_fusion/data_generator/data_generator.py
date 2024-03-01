@@ -68,25 +68,16 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     self.logger.warning(e)
                     continue
 
-                video, transform_definition = self.video_generator.run(preprocessed_image)
+                downscaling_factor = self.config.shared.downscaling_factor
+                downscaled_resolution = tuple(np.round(np.array(preprocessed_image.shape[1:]) / downscaling_factor))
 
-                downscaling_factor = np.random.random() * (self.config.max_downscaling_factor - 1) + 1
-                downscaled_image_size = np.round(np.array(video.shape[1:]) / downscaling_factor)
-                downscaled_video = np.stack(
-                    [resize(video_frame, output_shape=downscaled_image_size, order=3, anti_aliasing=True) for video_frame in video]
-                )
+                video, downscaled_video, transform_definition = self.video_generator.run(preprocessed_image, downscaled_resolution)
 
-                if self.config.shared.only_downscaled_events:
-                    event_dict, discretized_event_dict = None, None
-                else:
-                    event_dict = self.event_generator.run(video)
-                    discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(event_dict, video.shape[1:])
+                unscaled_event_dict = self.event_generator.run(video)
+                unscaled_discretized_event_dict = self.event_discretizer.run(unscaled_event_dict, video.shape[1:])
 
-                downscaled_event_dict = self.event_generator.run(downscaled_video, regenerate_luminance=self.config.shared.only_downscaled_events)
-                downscaled_discretized_event_dict, indices_of_label_frames = self.event_discretizer.run(downscaled_event_dict, downscaled_video.shape[1:])
-
-
-                ground_truth_video: GrayVideoFloat = video[indices_of_label_frames, :, :]
+                downscaled_event_dict = self.event_generator.run(downscaled_video, regenerate_luminance=False)
+                downscaled_discretized_event_dict = self.event_discretizer.run(downscaled_event_dict, downscaled_video.shape[1:])
 
                 self.data_saver.run(
                     image_path,
@@ -95,10 +86,9 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     downscaled_video,
                     preprocessed_image,
                     transform_definition,
-                    event_dict,
+                    unscaled_event_dict,
                     downscaled_event_dict,
-                    discretized_event_dict,
+                    unscaled_discretized_event_dict,
                     downscaled_discretized_event_dict,
-                    ground_truth_video,
                 )
                 print("-------------------------------------")

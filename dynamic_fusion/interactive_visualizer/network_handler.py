@@ -4,25 +4,22 @@ from typing import List, Optional, Tuple
 import einops
 import h5py
 import numpy as np
-from skimage.transform import resize
 import torch
 from jaxtyping import Float
+from skimage.transform import resize
 from torch import nn
 
-from dynamic_fusion.interactive_visualizer.configuration import (
-    NetworkHandlerConfiguration,
-)
+from dynamic_fusion.interactive_visualizer.configuration import NetworkHandlerConfiguration
 from dynamic_fusion.network_trainer.configuration import NetworkLoaderConfiguration
 from dynamic_fusion.network_trainer.network_loader import NetworkLoader
 from dynamic_fusion.network_trainer.training_monitor import TrainingMonitor
 from dynamic_fusion.utils.dataset import discretized_events_to_tensors
 from dynamic_fusion.utils.datatypes import GrayImageFloat, ReconstructionSample
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
-from dynamic_fusion.utils.image import scale_video_to_quantiles
 from dynamic_fusion.utils.loss import get_reconstruction_loss
+from dynamic_fusion.utils.superresolution import get_spatial_upsampling_output, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video
-from dynamic_fusion.utils.superresolution import get_spatial_upsampling_output, get_upscaling_pixel_indices_and_distances
 
 
 class NetworkHandler:
@@ -73,9 +70,7 @@ class NetworkHandler:
         self.losses = [get_reconstruction_loss(x, self.device) for x in self.config.losses]
 
     # Public API
-    def get_reconstruction(
-        self, tau: float, temporal_interpolation: bool = False, upsampled_resolution: Tuple[int, int] = (180, 240)
-    ) -> Float[torch.Tensor, "X Y"]:
+    def get_reconstruction(self, tau: float, temporal_interpolation: bool = False, upsampled_resolution: Tuple[int, int] = (180, 240)) -> Float[torch.Tensor, "X Y"]:
         if self.last_r is not None and self.last_tau == tau and self.last_used_temporal_interpolation == temporal_interpolation:
             if not self.config.spatial_upsampling:
                 return self.last_r
@@ -167,7 +162,7 @@ class NetworkHandler:
 
             name = "downscaled_discretized_events" if self.config.spatial_upsampling else "discretized_events"
             threshold_path = path / f"{name}_{self.threshold}.h5"
-            
+
             with h5py.File(threshold_path, "r") as file:
                 discretized_events = DiscretizedEvents.load_from_file(file)
 

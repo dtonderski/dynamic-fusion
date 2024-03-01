@@ -35,11 +35,10 @@ class DataSaver:
         downscaled_video: GrayVideoFloat,
         preprocessed_image: GrayImageFloat,
         transform_definition: TransformDefinition,
-        event_dict: Optional[Dict[float, Events]],
+        event_dict: Dict[float, Events],
         downscaled_event_dict: Dict[float, Events],
-        discretized_events_dict: Optional[Dict[float, DiscretizedEvents]],
+        discretized_events_dict: Dict[float, DiscretizedEvents],
         downscaled_discretized_events_dict: Dict[float, DiscretizedEvents],
-        synchronized_video: GrayVideoFloat,
     ) -> None:
         self.logger.info("Saving data...")
         output_dir = self.config.output_dir / image_path.stem
@@ -47,10 +46,9 @@ class DataSaver:
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            if discretized_events_dict is not None:
-                for threshold, discretized_events in discretized_events_dict.items():
-                    with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
-                        discretized_events.save_to_file(file, self.config.h5_compression)
+            for threshold, discretized_events in discretized_events_dict.items():
+                with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
+                    discretized_events.save_to_file(file, self.config.h5_compression)
 
             for threshold, discretized_events in downscaled_discretized_events_dict.items():
                 with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}.h5", "w") as file:
@@ -80,8 +78,6 @@ class DataSaver:
                         output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib"
                     )
 
-            with h5py.File(output_dir / "ground_truth.h5", "w") as file:
-                file.create_dataset("/synchronized_video", data=synchronized_video, compression="gzip", compression_opts=self.config.h5_compression)
         except Exception:  # pylint: disable=broad-exception-caught
             logging.error("Exception in data saving - deleting files!")
             shutil.rmtree(output_dir, ignore_errors=True)

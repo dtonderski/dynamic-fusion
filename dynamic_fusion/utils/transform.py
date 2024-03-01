@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import Field, asdict, dataclass, fields
-from typing import Any, Literal
+from typing import Any, Literal, Optional, Tuple
 
 import h5py
 import numpy as np
@@ -18,6 +18,8 @@ class TransformDefinition:
     shift_interpolation: Literal["linear", "cubic"]
     rotation_interpolation: Literal["linear", "cubic"]
     scale_interpolation: Literal["linear", "cubic"]
+    target_unscaled_video_size: Optional[Tuple[int, int]]
+    down_resolution: Tuple[int, int]
 
     def save_to_file(self, file: h5py.File) -> None:
         transform_definition_group = file.create_group(GROUP_NAME)

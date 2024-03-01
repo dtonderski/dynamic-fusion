@@ -1,21 +1,13 @@
-from typing import List, Literal, Optional, Tuple
-import einops
+from typing import Literal, Optional, Tuple
 
+import einops
 import numpy as np
 import torch
 from jaxtyping import Float, Shaped
 from numpy.random import uniform
 from scipy.interpolate import interp1d  # pyright: ignore
-from scipy.ndimage import affine_transform  # pyright: ignore
-from torchvision.transforms.functional import affine
-from tqdm import tqdm
 
-from dynamic_fusion.utils.datatypes import (
-    GrayImage,
-    GrayVideoFloat,
-    GrayVideoInt,
-    GrayVideoTorch,
-)
+from dynamic_fusion.utils.datatypes import GrayImage, GrayVideoFloat, GrayVideoTorch
 from dynamic_fusion.utils.transform import TransformDefinition
 
 
@@ -28,31 +20,36 @@ def normalize(data: Shaped[np.ndarray, "..."]) -> Shaped[np.ndarray, "..."]:
     data = data - data.min()
     return data / data.max()
 
-
 def get_video(
     image: GrayImage,
     transform_definition: TransformDefinition,
     timestamps: Float[np.ndarray, " T"],
-    target_image_size: Optional[Tuple[int, int]],
+    downscale: bool,
+    try_center_crop: bool,
     device: torch.device = torch.device("cuda"),
     fill_mode: Literal["wrap", "zeros", "border", "reflection"] = "wrap",
-    interpolation: Literal["bilinear", "nearest", "bicubic"] = "bicubic",
 ) -> GrayVideoTorch:
-    """Used to generate images at arbitrary timestamps from an initial
-    image and a transform definition. Note that the time of the video
-    is assumed to be in [0, 1], where 0 is the timestamp of the first
-    frame and 1 is the last frame. Also note that timestamps[0] must be
-    0, because when calculating the final transforms, we subtract the
-    initial one so that we begin from the start image.
+    """Used to generate images at arbitrary timestamps given an initial image and a transform definition. Note that the timestamps have to be in [0, 1].
+
+    Notes:
+    1. Grid downscaling happens before cropping. So if image.shape = (512, 512), transform_definition.down_resolution=(256, 128), and 
+        transform_definition.target_image_size=(96, 96), downscale=True, try_center_crop=True, then the generated video will have shape 
+        (256,128) and will then be centrally cropped to (96, 96). This is so that no part of the initial image is lost when generating the
+        video.
 
     Args:
-        image (GrayImage): _description_
-        transform_definition (TransformDefinition): _description_
-        timestamps (Float[np.ndarray, " T"]): _description_
+        image (GrayImage): Input image.
+        transform_definition (TransformDefinition): Definition of the affine transforms.
+        timestamps (Float[np.ndarray, " T"]): Timestamps at which to evaluate transform and transform image.
+        downscale (bool): if set, the video will be downscaled to transform_definition.down_resolution.
+        try_center_crop (bool): if set, the video will be center cropped to transform_definition.target_unscaled_video_size if the attribute is not None.
+        device (torch.device, optional): defaults to torch.device("cuda").
+        fill_mode (Literal["wrap", "zeros", "border", "reflection"], optional): fill mode to use in grid_sample. Defaults to "wrap".
 
     Returns:
-        GrayVideoFloat: _description_
+        GrayVideoTorch: output video.
     """
+    # Transform matrices generation
     include_first = True
     if timestamps[0] != 0:
         timestamps = np.array([0, *timestamps])
@@ -64,26 +61,28 @@ def get_video(
     if not include_first:
         transformation_matrices = transformation_matrices[1:]
 
-    grid = torch.nn.functional.affine_grid(
-        torch.tensor(transformation_matrices[:, :2, :]),
-        [transformation_matrices.shape[0], 1, *image.shape],
-        align_corners=False,
-    ).to(device)
+    # Grid creation and manipulation
+    T, (X, Y) = transformation_matrices.shape[0], image.shape
+
+    grid = torch.nn.functional.affine_grid(torch.tensor(transformation_matrices[:, :2, :]), [T, 1, X, Y], align_corners=True).to(device)
+    if downscale:
+        # This is equivalent to downscaling the output video, see notebooks/12_interpolation_testing.ipynb
+        grid = einops.rearrange(
+            torch.nn.functional.interpolate(einops.rearrange(grid, "T X Y C -> T C X Y"), size=transform_definition.down_resolution), "T C X Y -> T X Y C"
+        )
+
+    if try_center_crop and transform_definition.target_unscaled_video_size is not None:
+        grid = _center_crop_grid(grid, transform_definition.target_unscaled_video_size)
 
     if fill_mode == "wrap":
         # Need to do in-place for memory concerns
         grid.add_(1).remainder_(2).subtract_(1)
         fill_mode = "zeros"
 
-    image_tensor = einops.repeat(
-        torch.tensor(image, device=device, dtype=torch.float),
-        "H W -> N 1 H W",
-        N=transformation_matrices.shape[0],
-    )
-    video = torch.nn.functional.grid_sample(image_tensor, grid, interpolation, fill_mode, align_corners=False)
+    # Video generation
+    image_tensor = einops.repeat(torch.tensor(image, device=device, dtype=torch.float), "X Y -> T 1 X Y", T=T)
+    video = torch.nn.functional.grid_sample(image_tensor, grid, "bicubic", fill_mode, align_corners=True)
     video = normalize(video.squeeze())
-    if target_image_size is not None:
-        video = crop_video(video, target_image_size)
     return video
 
 
@@ -95,25 +94,13 @@ def _interpolate_transforms(
     Float[np.ndarray, "T 1"],
     Float[np.ndarray, "T 2"],
 ]:
-    shifts = _upsample_knot_values(
-        definition.shift_knots,
-        points_to_interpolate,
-        definition.shift_interpolation,
-    )
+    shifts = _upsample_knot_values(definition.shift_knots, points_to_interpolate, definition.shift_interpolation)
     shifts -= shifts[0:1, ...]
 
-    rotations = _upsample_knot_values(
-        definition.rotation_knots,
-        points_to_interpolate,
-        definition.rotation_interpolation,
-    )
+    rotations = _upsample_knot_values(definition.rotation_knots, points_to_interpolate, definition.rotation_interpolation)
     rotations -= rotations[0:1, ...]
 
-    scales = _upsample_knot_values(
-        definition.scale_knots,
-        points_to_interpolate,
-        definition.scale_interpolation,
-    )
+    scales = _upsample_knot_values(definition.scale_knots, points_to_interpolate, definition.scale_interpolation)
     scales = scales - scales[0:1, ...] + 1.0
     # print(shifts, rotations, scales)
     return shifts, rotations, scales
@@ -152,15 +139,8 @@ def _upsample_knot_values(
     return interpolation(points_to_interpolate)
 
 
-def _transforms_to_matrices(  # pylint: disable=R0913,R0914
-    shifts: Float[np.ndarray, "T 2"],
-    rotations: Float[np.ndarray, "T 1"],
-    scales: Float[np.ndarray, "T 2"],
-) -> Float[np.ndarray, "T 3 3"]:
-    transformation_matrices = np.zeros(
-        (shifts.shape[0], 3, 3),
-        dtype=np.float32,
-    )
+def _transforms_to_matrices(shifts: Float[np.ndarray, "T 2"], rotations: Float[np.ndarray, "T 1"], scales: Float[np.ndarray, "T 2"]) -> Float[np.ndarray, "T 3 3"]:
+    transformation_matrices = np.zeros((shifts.shape[0], 3, 3), dtype=np.float32)
 
     for step, (shift, rotation, scale) in enumerate(zip(shifts, rotations, scales)):
         theta = rotation[0]
@@ -174,12 +154,20 @@ def _transforms_to_matrices(  # pylint: disable=R0913,R0914
             dtype=np.float32,
         )
         shift_matrix = np.array(
-            [[1, 0, -shift[0]], [0, 1, -shift[1]], [0, 0, 1]],
+            [
+                [1, 0, -shift[0]],
+                [0, 1, -shift[1]],
+                [0, 0, 1],
+            ],
             dtype=np.float32,
         )
 
         scale_matrix = np.array(
-            [[1 / scale[0], 0, 0], [0, 1 / scale[1], 0], [0, 0, 1]],
+            [
+                [1 / scale[0], 0, 0],
+                [0, 1 / scale[1], 0],
+                [0, 0, 1],
+            ],
             dtype=np.float32,
         )
 
@@ -188,12 +176,13 @@ def _transforms_to_matrices(  # pylint: disable=R0913,R0914
     return transformation_matrices
 
 
-def crop_video(video: GrayVideoFloat, target_image_size: Tuple[int, int]) -> GrayVideoFloat:
-    cropped_video_border = (video.shape[-2:] - np.array(target_image_size)) // 2
+def _center_crop_grid(grid: Float[torch.Tensor, "T X Y 2"], target_image_size: Tuple[int, int]) -> GrayVideoFloat:
+    _, X, Y, _ = grid.shape
+    x_min, y_min = (X - target_image_size[0]) // 2, (Y - target_image_size[1]) // 2
 
-    cropped_video = video[
+    cropped_video = grid[
         :,
-        cropped_video_border[0] : cropped_video_border[0] + target_image_size[0],
-        cropped_video_border[1] : cropped_video_border[1] + target_image_size[1],
+        x_min[0] : x_min[0] + target_image_size[0],
+        y_min[1] : y_min[1] + target_image_size[1],
     ]
     return cropped_video

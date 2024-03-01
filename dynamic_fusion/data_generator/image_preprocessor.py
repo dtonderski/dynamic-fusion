@@ -18,20 +18,13 @@ class ImagePreprocessor:
     shared_config: SharedConfiguration
     logger: logging.Logger
 
-    def __init__(
-        self,
-        config: ImagePreprocessorConfiguration,
-        shared_config: SharedConfiguration,
-    ) -> None:
+    def __init__(self, config: ImagePreprocessorConfiguration, shared_config: SharedConfiguration) -> None:
         self.config = config
         self.shared_config = shared_config
         self.logger = logging.getLogger("ImagePreprocessor")
 
-    def run(self, image: Image, pbar: Optional[tqdm] = None) -> GrayImageFloat:
-        if pbar:
-            pbar.set_postfix_str("Preprocessing image.")
-        else:
-            self.logger.info("Preprocessing image...")
+    def run(self, image: Image) -> GrayImageFloat:
+        self.logger.info("Preprocessing image...")
 
         if self.config.max_image_size is not None:
             while np.any(image.shape[:2] > np.array(self.config.max_image_size)):
@@ -39,35 +32,18 @@ class ImagePreprocessor:
                 downscaled_image_size = np.round(np.array(image.shape[:2]) * 0.5)
                 image = resize(image, output_shape=downscaled_image_size, order=3, anti_aliasing=True)
 
-        if self.shared_config.target_image_size is not None:
-            if np.any(image.shape[:2] < np.array(self.shared_config.target_image_size)):
-                raise ValueError(f"Skipping image - image shape: {image.shape[:2]}, target shape: {self.shared_config.target_image_size}")
+        minimum_image_shape = np.array(self.shared_config.minimum_downscaled_image_size) * self.shared_config.downscaling_factor
+        if self.shared_config.target_unscaled_image_size is not None:
+            minimum_image_shape = np.minimum(minimum_image_shape, np.array(self.shared_config.target_unscaled_image_size))
 
-        image = self._downscale_probabilistically(image)
+        if np.any(image.shape[:2] < minimum_image_shape):
+            raise ValueError(f"Skipping image - image shape: {image.shape[:2]}, minimum shape: {minimum_image_shape}")
+
         image = self._rgb2gray(image)
         if not self._validate_contrast(image):
             raise ValueError("Skipping image - low contrast.")
         image = normalize(image)
         return image
-
-    def _downscale_probabilistically(self, image: Image) -> Image:
-        image_size = image.shape[:2]
-        if np.random.random() > self.config.downscale_probability:
-            return image
-
-        scale = uniform(
-            low=self.config.downscale_range[0],
-            high=self.config.downscale_range[1],
-        )
-
-        if self.shared_config.target_image_size is not None:
-            if np.min(image_size) > 2 * np.max(self.shared_config.target_image_size):
-                self.logger.debug("Downscaling large image by halving its size")
-                scale = 0.5
-
-        downscaled_image_size = np.round(np.array(image_size) * scale)
-
-        return resize(image, output_shape=downscaled_image_size, order=3, anti_aliasing=True)
 
     def _rgb2gray(self, image: Image) -> GrayImage:
         if image.ndim > 2 and image.shape[2] > 1:
@@ -75,4 +51,4 @@ class ImagePreprocessor:
         return np.squeeze(image)
 
     def _validate_contrast(self, image: GrayImage) -> bool:
-        return bool(np.max(image) - np.min(image) > 1.0 / 125)
+        return bool((np.max(image) - np.min(image)) > 1.0 / 125)

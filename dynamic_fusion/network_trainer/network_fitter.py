@@ -225,11 +225,7 @@ class NetworkFitter:
 
         try:
             (xmin, xmax, ymin, ymax), upscaled_used_region = get_crop_region(
-                event_polarity_sums,
-                out_of_bounds,
-                nearest_pixels,
-                self.config.upscaling_region_size,
-                self.shared_config.min_allowed_max_of_mean_polarities_over_times,
+                event_polarity_sums, out_of_bounds, nearest_pixels, self.config.upscaling_region_size, self.shared_config.min_allowed_max_of_mean_polarities_over_times
             )
         except ValueError:
             self.logger.info(f"No valid crop found after 5 tries in iteration {iteration}, skipping.")
@@ -256,7 +252,7 @@ class NetworkFitter:
         # Unfold c
         cs_cropped = stack_and_maybe_unfold_c_list(c_list, self.shared_config.spatial_unfolding)
 
-        cs = torch.zeros(cs_cropped.shape[0], cs_cropped.shape[1], event_polarity_sums.shape[-2], event_polarity_sums.shape[-1], cs_cropped.shape[4])  # type: ignore
+        cs = torch.zeros(cs_cropped.shape[0], cs_cropped.shape[1], event_polarity_sums.shape[-2], event_polarity_sums.shape[-1], cs_cropped.shape[4])
         cs = cs.to(cs_cropped)
         cs[:, :, xmin:xmax, ymin:ymax] = cs_cropped
 

@@ -6,31 +6,23 @@ from pydantic import BaseModel, Field, root_validator
 
 
 class SharedConfiguration(BaseModel):
-    target_image_size: Optional[Tuple[int, int]] = Field(..., description="Target image size.")
+    target_unscaled_image_size: Optional[Tuple[int, int]] = Field(..., description="Target image size used for unscaled events.")
+    minimum_downscaled_image_size: Tuple[int, int] = Field(..., description="Minimum allowed downscaled image size used in superresolution.")
+
     fps: int = Field(..., description="Framerate of the simulation.")
-    number_of_images_to_generate_per_input: int = Field(
-        ...,
-        description="Number of transformed images generated per input image.",
-    )
+    number_of_images_to_generate_per_input: int = Field(..., description="Number of transformed images generated per input image.")
     seed: int = Field(..., description="Randomness seed.")
     overwrite: bool = Field(..., description="Controls whether to overwrite existing data.")
-    only_downscaled_events: bool = Field(..., description="Only generate downscaled event data.")
+    downscaling_factor: float = Field(...)
+
 
 class ImageLoaderConfiguration(BaseModel):
-    dataset_dir: Path = Field(
-        ...,
-        description="Path to the folder containing the images used to generate data.",
-    )
-
+    dataset_dir: Path = Field(..., description="Path to the folder containing the images used to generate data.")
     file_extension: str = Field(".jpg", description="Extension of the dataset image files.")
-
     number_of_input_images: int = Field(..., description="Number of images to use for data generation.")
 
 
 class ImagePreprocessorConfiguration(BaseModel):
-    downscale_probability: float = Field(..., description="Probability of downscaling image.")
-
-    downscale_range: List[float] = Field(..., description="Range of possible scales used for downscaling.")
     max_image_size: Optional[Tuple[int, int]]
 
 
@@ -101,7 +93,6 @@ class DataGeneratorConfiguration(BaseModel):
     event_generator: EventGeneratorConfiguration = Field(...)
     event_discretizer: EventDiscretizerConfiguration = Field(...)
     data_saver: DataSaverConfiguration = Field(...)
-    max_downscaling_factor: float = Field(...)
 
     @root_validator(pre=False)
     @classmethod
