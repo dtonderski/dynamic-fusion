@@ -69,7 +69,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     continue
 
                 downscaling_factor = self.config.shared.downscaling_factor
-                downscaled_resolution = tuple(np.round(np.array(preprocessed_image.shape[1:]) / downscaling_factor))
+                downscaled_resolution = tuple(np.round(np.array(preprocessed_image.shape) / downscaling_factor).astype(int))
 
                 video, downscaled_video, transform_definition = self.video_generator.run(preprocessed_image, downscaled_resolution)
 
