@@ -49,9 +49,10 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
 
         print("-------------------------------------")
         with tqdm(total=len(self.image_loader)) as progress_bar:
-            for i_image in tqdm(range(len(self.image_loader))):
+            i_image = 0
+            while i_image < self.config.image_loader.number_of_input_images:
                 set_seeds(self.seeds[i_image])
-                progress_bar.set_description(f"Processing image {i_image+1} of {len(self.image_loader)}")
+                progress_bar.set_description(f"Processing image {i_image+1} of {self.config.image_loader.number_of_input_images}")
                 print("-------------------------------------")
 
                 image, image_path = next(image_generator)
@@ -91,4 +92,5 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     unscaled_discretized_event_dict,
                     downscaled_discretized_event_dict,
                 )
+                i_image += 1
                 print("-------------------------------------")

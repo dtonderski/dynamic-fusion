@@ -23,8 +23,7 @@ class ImageLoader:
     def _load_image_paths(self) -> None:
         self.logger.info("Loading images...")
         image_paths: List[Path] = sorted(list(self.config.dataset_dir.expanduser().glob(f"*.{self.config.file_extension}")))
-        shuffled_files = list(np.random.permutation(np.array(image_paths)))
-        self.image_paths = shuffled_files[: self.config.number_of_input_images]
+        self.image_paths = list(np.random.permutation(np.array(image_paths)))
 
     def run(self) -> Generator[Tuple[Image, Path], None, None]:
         for image_path in self.image_paths:
