@@ -183,7 +183,7 @@ def _center_crop_grid(grid: Float[torch.Tensor, "T X Y 2"], target_image_size: T
 
     cropped_video = grid[
         :,
-        x_min[0] : x_min[0] + target_image_size[0],
-        y_min[1] : y_min[1] + target_image_size[1],
+        x_min : x_min + target_image_size[0],
+        y_min : y_min + target_image_size[1],
     ]
     return cropped_video

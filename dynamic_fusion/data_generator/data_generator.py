@@ -69,9 +69,9 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     continue
 
                 downscaling_factor = self.config.shared.downscaling_factor
-                downscaled_resolution = tuple(np.round(np.array(preprocessed_image.shape) / downscaling_factor).astype(int))
+                downscaled_resolution = tuple(int(x / downscaling_factor) for x in preprocessed_image.shape)
 
-                video, downscaled_video, transform_definition = self.video_generator.run(preprocessed_image, downscaled_resolution)
+                video, downscaled_video, transform_definition = self.video_generator.run(preprocessed_image, downscaled_resolution)  # type: ignore
 
                 unscaled_event_dict = self.event_generator.run(video)
                 unscaled_discretized_event_dict = self.event_discretizer.run(unscaled_event_dict, video.shape[1:])
