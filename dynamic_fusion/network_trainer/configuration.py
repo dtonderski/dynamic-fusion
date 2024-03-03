@@ -27,7 +27,7 @@ class SharedConfiguration(BaseModel):
 
 
 class AugmentationConfiguration(BaseModel):
-    network_image_size: Tuple[int, int] = Field(..., description="Image size that network expects to get.")
+    network_image_size: Tuple[int, int] = Field(..., description="Size of data that will be fed into the encoder.")
 
 
 class DatasetConfiguration(BaseModel):
@@ -73,11 +73,7 @@ class NetworkFitterConfiguration(BaseModel):
     lr_reconstruction: float = Field(...)
     number_of_training_iterations: int = Field(...)
     reconstruction_loss_name: str = Field(...)
-    skip_first_timesteps: int = Field(
-        ...,
-        description="Number of initial timesteps to skip when training reconstruction.",
-    )
-
+    skip_first_timesteps: int = Field(..., description="Number of initial timesteps to skip when training reconstruction.")
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
 

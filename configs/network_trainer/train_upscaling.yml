@@ -10,7 +10,6 @@ shared:
   temporal_interpolation: true
   spatial_upscaling: true
   min_allowed_max_of_mean_polarities_over_times: 0.05
-  data_generator_target_image_size: [0,0]
 
 data_handler:
   batch_size: 1
