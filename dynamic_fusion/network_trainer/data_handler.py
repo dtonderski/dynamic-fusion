@@ -1,11 +1,16 @@
 from typing import Any, Tuple
 
 import numpy as np
+import torch
 from torch.utils.data import DataLoader
+from dynamic_fusion.evaluator.datatypes import Batch
 
 from dynamic_fusion.utils.dataset import CocoTestDataset
-from dynamic_fusion.utils.datatypes import CroppedReconstructionSample, ReconstructionSample, CropDefinition
+from typing import List
+from jaxtyping import Float32
+from dynamic_fusion.utils.datatypes import CroppedReconstructionSample, GrayImageFloat, ReconstructionSample, CropDefinition
 from dynamic_fusion.utils.superresolution import get_grid
+from dynamic_fusion.utils.transform import TransformDefinition
 
 from .configuration import AugmentationConfiguration, DataHandlerConfiguration, SharedConfiguration
 from .dataset import CocoIterableDataset, collate_items_and_update_scale
@@ -64,18 +69,23 @@ class DataHandler:
         self.shared_config = shared_config
         augmentation = CocoAugmentation(config.augmentation, shared_config)
         self.dataset = CocoIterableDataset(augmentation, config.dataset, shared_config)
-        # self.test_dataset = CocoTestDataset(config.test_dataset_directory)
+        self.test_dataset = CocoTestDataset(config.test_dataset_directory)
 
-    def _collate_fn(self, x) -> Any:
-        return collate_items_and_update_scale(x, self.dataset)
+    def _collate_fn(
+        self,
+        items: List[
+            Tuple[
+                Float32[torch.Tensor, "Time SubBin X Y"],  # polarity sum
+                Float32[torch.Tensor, "Time SubBin X Y"],  # mean
+                Float32[torch.Tensor, "Time SubBin X Y"],  # std
+                Float32[torch.Tensor, "Time SubBin X Y"],  # event count
+                GrayImageFloat,
+                TransformDefinition,
+                CropDefinition,
+            ],
+        ],
+    ) -> Batch:
+        return collate_items_and_update_scale(items, self.dataset)
 
-    def run(self) -> Tuple[DataLoader]:  # , CocoTestDataset]:  # type: ignore
-        return (
-            DataLoader(
-                self.dataset,
-                self.config.batch_size,
-                num_workers=self.config.num_workers,
-                collate_fn=self._collate_fn,
-            )
-            # self.test_dataset,
-        )
+    def run(self) -> Tuple[DataLoader, CocoTestDataset]:  # type: ignore
+        return (DataLoader(self.dataset, self.config.batch_size, num_workers=self.config.num_workers, collate_fn=self._collate_fn), self.test_dataset)

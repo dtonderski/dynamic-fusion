@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Dict, Generator, List, Tuple
 
@@ -16,7 +17,6 @@ from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
 
 from .configuration import DatasetConfiguration, SharedConfiguration
-from collections import defaultdict
 
 
 class CocoIterableDataset(IterableDataset):  # type: ignore

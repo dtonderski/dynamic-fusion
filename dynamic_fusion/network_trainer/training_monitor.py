@@ -338,17 +338,18 @@ class TrainingMonitor:
 
     @torch.no_grad()
     def _visualize_persistent(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> None:
+        scale = 4.0
         self.logger.info("Calculating metrics...")
-        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device)
+        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, scale)
         self.logger.info(f"Calculated metrics: {metrics}")
 
-        I = 3
+        I = 1
         for i in range(I):
             self.logger.info(f"{i}/{I} - getting data...")
             batch = collate_test_items([self.test_dataset[i]])
             name = self.test_dataset.directory_list[i].name
             recon, gt, gt_down, eps = get_reconstructions_and_gt(
-                batch, encoder, decoder, self.shared_config, self.device, None, self.config.Ts_to_visualize, self.config.taus_to_visualize
+                batch, encoder, decoder, self.shared_config, self.device, scale, None, self.config.Ts_to_visualize, self.config.taus_to_visualize
             )
 
             self.logger.info(f"{i}/{I} - generating video...")
