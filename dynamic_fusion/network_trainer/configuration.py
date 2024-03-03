@@ -86,7 +86,8 @@ class TrainingMonitorConfiguration(BaseModel):
     taus_to_visualize: int = Field(3)
     Ts_to_evaluate: int = Field(100)
     taus_to_evaluate: int = Field(5)
-    test_samples_to_visualize: List[int] = Field(...)
+    test_samples_to_visualize: List[int] = Field([1,2,3])
+    lpips_batch: int = Field(5)
 
 
 class TrainerConfiguration(BaseModel):

@@ -253,7 +253,9 @@ def get_evaluation_image(
 
 
 @torch.no_grad()
-def get_metrics(test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device) -> MetricsDictionary:
+def get_metrics(
+    test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device, lpips_batch: int = 5
+) -> MetricsDictionary:
     psnr, ssim, mse, lpips = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device)
     psnrs, ssims, mses, lpipss = [], [], [], []
 
@@ -273,9 +275,9 @@ def get_metrics(test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.M
         psnr.update(output=[recon, gt])
         ssim.update(output=[recon, gt])
         mse.update(recon, gt)
-        I = 5
-        for i in range(0, len(gt), I):
-            lpips.update(recon[i : i + I], gt[i : i + I])
+
+        for i in range(0, len(gt), lpips_batch):
+            lpips.update(recon[i : i + lpips_batch], gt[i : i + lpips_batch])
 
         psnrs.append(psnr.compute())
         ssims.append(ssim.compute())

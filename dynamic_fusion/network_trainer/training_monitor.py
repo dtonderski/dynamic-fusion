@@ -333,7 +333,7 @@ class TrainingMonitor:
     @torch.no_grad()
     def _visualize_persistent(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> None:
         self.logger.info("Calculating metrics...")
-        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device)
+        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch)
         self.logger.info(f"Calculated metrics: {metrics}")
 
         I = len(self.config.test_samples_to_visualize)
