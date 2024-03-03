@@ -21,6 +21,7 @@ from torchvision.transforms.functional import resize
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items
 from dynamic_fusion.utils.datatypes import Checkpoint, TestBatch
 from dynamic_fusion.utils.evaluation import get_evaluation_image, get_evaluation_video, get_metrics, get_reconstructions_and_gt
+from dynamic_fusion.utils.image import scale_to_quantiles
 from dynamic_fusion.utils.network import network_test_data_to_device, to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
@@ -51,7 +52,7 @@ class TrainingMonitor:
 
     def initialize(
         self,
-        #test_dataset: CocoTestDataset,  # type: ignore
+        test_dataset: CocoTestDataset,  # type: ignore
         reconstruction_network: nn.Module,
         optimizer: torch.optim.Optimizer,
         decoding_network: Optional[nn.Module],
@@ -75,8 +76,8 @@ class TrainingMonitor:
                 self.logger.warning(ex)
 
         self.writer = SummaryWriter(self.subrun_directory)  # type: ignore[no-untyped-call]
-        # self.test_dataset = test_dataset
-        # self.sample_batch = collate_test_items([test_dataset[i] for i in [0]])
+        self.test_dataset = test_dataset
+        self.sample_batch = collate_test_items([test_dataset[i] for i in [0]])
         self.logger.info(f"Starting at iteration {iteration}")
         return iteration
 
@@ -262,8 +263,8 @@ class TrainingMonitor:
     ]:
         colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums[:, :, 0, :, :], create_red_blue_cmap(501))
         colored_event_polarity_sums = einops.rearrange(colored_event_polarity_sums, "B T X Y C -> B T C X Y")
-        images = scale_to_quantiles_numpy(images, [1, 2, 3, 4], 0.005, 0.995)
-        predictions = scale_to_quantiles_numpy(predictions, [1, 2, 3, 4], 0.005, 0.995)
+        images = scale_to_quantiles(images, [1, 2, 3, 4], 0.005, 0.995)
+        predictions = scale_to_quantiles(predictions, [1, 2, 3, 4], 0.005, 0.995)
 
         images = einops.repeat(images, "batch Time 1 X Y -> batch Time C X Y", C=3)
         predictions = einops.repeat(predictions, "batch Time 1 X Y -> batch Time C X Y", C=3)
