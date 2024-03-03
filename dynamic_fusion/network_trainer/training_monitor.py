@@ -201,8 +201,9 @@ class TrainingMonitor:
             return
 
         if not self.shared_config.spatial_upscaling:
-            x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
-            self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
+            pass
+            #x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
+            #self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
 
         self.writer.flush()  # type: ignore[no-untyped-call]
 
@@ -240,8 +241,9 @@ class TrainingMonitor:
             return
 
         if not self.shared_config.spatial_upscaling:
-            x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
-            self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
+            pass
+            # x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
+            # self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
 
         self.writer.flush()  # type: ignore[no-untyped-call]
 

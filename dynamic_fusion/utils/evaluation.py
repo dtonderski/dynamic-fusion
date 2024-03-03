@@ -82,7 +82,7 @@ def get_reconstructions_and_gt(
 
     crop_definition = CropDefinition(T_max_evaluated - needed_Ts + t_start, T_max_evaluated - needed_Ts + t_start + t_end, eps.shape[0], grid)
     gt = get_ground_truth(
-        taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, not config.spatial_upscaling, eps.device
+        taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, eps.device
     )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 

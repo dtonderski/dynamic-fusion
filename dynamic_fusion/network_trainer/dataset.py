@@ -45,7 +45,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
 
     def reset_scale_in_current_worker(self) -> None:
         worker_id = get_current_worker_id()
-        self.scales[worker_id] = np.random.random() * (self.config.max_upscaling - 1) + 1
+        self.scales[worker_id] = np.random.random() * (self.config.max_upscaling - 1) + 1 if self.shared_config.spatial_upscaling else 1
         self.logger.info(f"Setting worker {worker_id} ID to {self.scales[worker_id]}")
 
     def __iter__(
