@@ -103,7 +103,6 @@ def run_decoder_with_spatial_upscaling(
     start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     t_start: Optional[int] = None,
     t_end: Optional[int] = None,
-    region_to_upsample: Optional[Tuple[int, int, int, int]] = None,
 ) -> Generator[Tuple[int, Float[torch.Tensor, "B X Y Cout"]], None, None]:
     t_start = t_start if t_start is not None else 0
     t_end = t_end if t_end is not None else cs[0].shape[0]
@@ -119,7 +118,7 @@ def run_decoder_with_spatial_upscaling(
             if temporal_interpolation:
                 c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)
 
-        yield t, get_spatial_upscaling_output(decoder, c, taus[t], c_next, nearest_pixels, start_to_end_vectors, region_to_upsample)
+        yield t, get_spatial_upscaling_output(decoder, c, taus[t], c_next, nearest_pixels, start_to_end_vectors)
 
     return
 

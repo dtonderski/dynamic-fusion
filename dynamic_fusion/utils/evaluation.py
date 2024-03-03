@@ -17,7 +17,7 @@ from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, ge
 from dynamic_fusion.utils.datatypes import CropDefinition, TestBatch
 from dynamic_fusion.utils.loss import LPIPS
 from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
-from dynamic_fusion.utils.superresolution import get_crop_region, get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.superresolution import get_grid, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 
@@ -49,6 +49,7 @@ def get_reconstructions_and_gt(
     decoder: nn.Module,
     config: SharedConfiguration,
     device: torch.device,
+    scale: float,
     inference_region: Optional[Tuple[int, int]] = None,
     Ts_to_evaluate: int = 10,
     taus_to_evaluate: int = 10,
@@ -70,61 +71,60 @@ def get_reconstructions_and_gt(
 
     # Treat each tau as a batch
     taus = einops.repeat(np.arange(0, 1, 1 / taus_to_evaluate), "tau -> tau T", T=needed_Ts)
-    crop_definition = CropDefinition(0, 0, T_max_evaluated - needed_Ts + t_start, 0, 0, eps.shape[0], True)
-    gt = get_ground_truth(taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, eps.device)
+
+    output_shape = tuple(int(size * scale) for size in eps_lst[0].shape[-2:])
+    input_shape = eps_lst[0].shape[-2:]
+    grid = get_grid(input_shape, output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1])))  # type: ignore
+
+    crop_definition = CropDefinition(0, T_max_evaluated - needed_Ts + t_start, eps.shape[0], grid)
+    gt = get_ground_truth(
+        taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, config.spatial_upscaling, eps.device
+    )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
     # Get regions
     if inference_region is None:
         inference_region = tuple(x - 8 for x in gt_flat.shape[-2:])  # I think 8 is maximum
 
-    nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
-    (xmin, xmax, ymin, ymax), upscaled_region = get_crop_region(eps[None], out_of_bounds, nearest_pixels, inference_region, deterministic=True)
+    nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
 
-    xmin_up, xmax_up, ymin_up, ymax_up = upscaled_region
     for t in range(T_max_evaluated):  # pylint: disable=C0103
         c_t = encoder(
-            eps[t][None, ..., xmin:xmax, ymin:ymax],
-            means[t][None, ..., xmin:xmax, ymin:ymax] if config.use_mean else None,
-            stds[t][None, ..., xmin:xmax, ymin:ymax] if config.use_std else None,
-            counts[t][None, ..., xmin:xmax, ymin:ymax] if config.use_count else None,
+            eps[t][None],
+            means[t][None] if config.use_mean else None,
+            stds[t][None] if config.use_std else None,
+            counts[t][None] if config.use_count else None,
         )
         c_list.append(c_t.clone())
-    cs_cropped = stack_and_maybe_unfold_c_list(c_list[-needed_Ts:], config.spatial_unfolding)  # Ts_to_evaluate 1 X Y C
 
-    if config.spatial_upscaling:
-        cs = torch.zeros(cs_cropped.shape[0], cs_cropped.shape[1], eps.shape[-2], eps.shape[-1], cs_cropped.shape[4])  # type: ignore
-        cs = cs.to(cs_cropped)
-        cs[:, :, xmin:xmax, ymin:ymax] = cs_cropped
-    else:
-        cs = cs_cropped
+    cs = stack_and_maybe_unfold_c_list(c_list[-needed_Ts:], config.spatial_unfolding)  # Ts_to_evaluate 1 X Y C
 
     cs = einops.repeat(cs, "T 1 X Y C -> T tau X Y C", tau=taus_to_evaluate)
     reconstructions = []
 
-    for tau in range(taus.shape[0]):
-        cs_tau, taus_tau = cs[:, tau : tau + 1], taus[tau : tau + 1]  # type: ignore
+    for i_tau in range(taus.shape[0]):
+        cs_tau, taus_tau = cs[:, i_tau : i_tau + 1], taus[i_tau : i_tau + 1]  # type: ignore
         reconstructions_tau = []
         if config.spatial_upscaling:
             taus_tau = einops.rearrange(torch.tensor(taus_tau).to(cs), "tau T -> T tau")
             for _, r_t in run_decoder_with_spatial_upscaling(
-                decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end, upscaled_region
+                decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end
             ):
                 reconstructions_tau.append(to_numpy(r_t.squeeze()))
 
         else:
             taus_tau = einops.repeat(torch.tensor(taus_tau).to(cs_tau), "tau T -> T tau X Y 1", X=cs.shape[-3], Y=cs.shape[-2])  # type: ignore
             for _, r_t in run_decoder(decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, t_start, t_end):
-                upscaled = [resize(to_numpy(image.squeeze()), output_shape=(xmax_up - xmin_up, ymax_up - ymin_up), order=3, anti_aliasing=True) for image in r_t]
+                upscaled = [resize(to_numpy(image.squeeze()), output_shape=output_shape, order=3, anti_aliasing=True) for image in r_t]
                 reconstructions_tau.append(np.stack(upscaled, axis=0).squeeze())
         reconstructions.append(np.stack(reconstructions_tau, axis=0))
 
     reconstruction_stacked = np.stack(reconstructions, axis=0)  # T tau X Y
     reconstrucion_flat = einops.rearrange(reconstruction_stacked, "T tau X Y -> (tau T) X Y")
 
-    eps_cropped = eps[T_max_evaluated - needed_Ts + t_start : T_max_evaluated - needed_Ts + t_start + t_end, ..., xmin:xmax, ymin:ymax]
+    eps_cropped = eps[T_max_evaluated - needed_Ts + t_start : T_max_evaluated - needed_Ts + t_start + t_end]
 
-    gt_cropped = to_numpy(gt_flat[..., xmin_up:xmax_up, ymin_up:ymax_up])
+    gt_cropped = to_numpy(gt_flat)
     gt_downscaled_flat = np.stack([resize(image, eps_cropped.shape[-2:], order=0) for image in gt_cropped], axis=0)
 
     return (reconstrucion_flat, gt_cropped, gt_downscaled_flat, to_numpy(eps_cropped))
@@ -246,11 +246,13 @@ def get_evaluation_image(
 
 
 @torch.no_grad()
-def get_metrics(test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device) -> MetricsDictionary:
+def get_metrics(
+    test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device, scale: float
+) -> MetricsDictionary:
     psnr, ssim, mse, lpips = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device)
     for sample in tqdm(test_dataset, total=len(test_dataset)):  # type: ignore
         batch = collate_test_items([sample])
-        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, Ts_to_evaluate=10, taus_to_evaluate=5)
+        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=4, Ts_to_evaluate=10, taus_to_evaluate=5)
 
         recon = torch.tensor(recon[:, None]).to(device)
         gt = torch.tensor(gt[:, None]).to(device)

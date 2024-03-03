@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import einops
 import h5py
@@ -34,7 +34,7 @@ def generate_frames_at_continuous_timestamps(
     preprocessed_image: GrayImageFloat,
     transform_definition: TransformDefinition,
     crop: CropDefinition,
-    data_generator_target_image_size: Optional[Tuple[int, int]] = None,
+    try_center_crop: bool,
 ) -> Float[torch.Tensor, "T 1 X Y"]:
     # Translate from time in bin to time in video
     # For example, if continuous time in bin is 0.5 (domain is [0, 1]), it's bin number 2, and t_start is 1,
@@ -48,11 +48,10 @@ def generate_frames_at_continuous_timestamps(
 
     timestamps_and_zero = torch.concat([torch.zeros(1), continuous_timestamps_using_video_time])
 
-    frames_and_zero = get_video(preprocessed_image, transform_definition, timestamps_and_zero, data_generator_target_image_size, device=torch.device("cuda"))
+    frames_and_zero = get_video(preprocessed_image, transform_definition, timestamps_and_zero, False, try_center_crop, device=torch.device("cuda"))
+    cropped_frames = crop.crop_spatial(frames_and_zero)
 
-    cropped_frames = frames_and_zero[1:, crop.x_start : crop.x_start + crop.x_size, crop.y_start : crop.y_start + crop.y_size]
-
-    return einops.rearrange(cropped_frames, "Time X Y -> Time 1 X Y")
+    return einops.rearrange(cropped_frames, "T X Y -> T 1 X Y")
 
 
 class CocoTestDataset(Dataset):  # type: ignore

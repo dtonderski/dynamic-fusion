@@ -67,13 +67,8 @@ def get_spatial_upscaling_output(
     c_next: Optional[Float[torch.Tensor, "B X Y C"]],
     nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
-    region_to_upsample: Optional[Tuple[int, int, int, int]] = None,  # Defines x_start, x_stop, y_start, y_stop of region to upsample. Right exclusive
 ) -> Float[torch.Tensor, "B 1 XUpscaled YUpscaled"]:
     original_resolution = c.shape[-3:-1]
-
-    if region_to_upsample is not None:
-        nearest_pixels = nearest_pixels[:, region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
-        start_to_end_vectors = start_to_end_vectors[:, region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
 
     nearest_pixels = nearest_pixels.to(c).long()
     nearest_c = c[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]  # B 4 X Y C
@@ -95,49 +90,6 @@ def get_spatial_upscaling_output(
     r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
 
     return r_t
-
-
-def get_crop_region(
-    eps: Float[torch.Tensor, "1 Time SubBin X Y"],
-    out_of_bounds: Bool[torch.Tensor, "4 XUpscaled YUpscaled"],
-    nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
-    upscaling_region_size: Tuple[int, int],
-    min_allowed_max_of_mean_polarities_over_times: float = 0,
-    deterministic: bool = False,
-) -> Tuple[Tuple[int, int, int, int], Tuple[int, int, int, int]]:
-    # 1. First, ensure we avoid any pixels whose upsampling required pixels outside of the bounds of the image
-    within_bounds_mask = torch.logical_not(out_of_bounds.any(axis=0))
-
-    rows, cols = torch.where(within_bounds_mask)
-    xmin_boundary, xmax_boundary = rows.min().item(), (rows.max() - upscaling_region_size[0] + 1).item()
-    ymin_boundary, ymax_boundary = cols.min().item(), (cols.max() - upscaling_region_size[1] + 1).item()
-
-    if xmin_boundary > xmax_boundary or ymin_boundary > ymax_boundary:
-        raise ValueError("Impossible to find crop region!")
-
-    # 2. Try sampling a crop at most 5 times
-    for _ in range(5):
-        # 2a. Sample a crop in the upscaled image
-        if deterministic:
-            xmin_upscaled, ymin_upscaled = int(xmin_boundary), int(ymin_boundary)
-        else:
-            xmin_upscaled, ymin_upscaled = np.random.randint(low=(xmin_boundary, ymin_boundary), high=(xmax_boundary + 1, ymax_boundary + 1))  # type: ignore
-        xmax_upscaled, ymax_upscaled = xmin_upscaled + upscaling_region_size[0], ymin_upscaled + upscaling_region_size[1]
-
-        # 2b. Calculate corresponding region in downscaled image
-        used_nearest_pixels = nearest_pixels[:, xmin_upscaled:xmax_upscaled, ymin_upscaled:ymax_upscaled]
-        xmin, ymin = used_nearest_pixels.amin(dim=(0, 1, 2))
-        xmax, ymax = used_nearest_pixels.amax(dim=(0, 1, 2))
-
-        # 2c. Validate that there's enough events in the downscaled image
-        max_of_mean_polarities_over_times = einops.reduce((eps[..., xmin:xmax, ymin:ymax] != 0).float(), "1 Time D X Y -> Time", "mean").max()
-
-        if max_of_mean_polarities_over_times < min_allowed_max_of_mean_polarities_over_times:
-            continue
-        return ((xmin, xmax, ymin, ymax), (xmin_upscaled, xmax_upscaled, ymin_upscaled, ymax_upscaled))
-
-    # 2d. (optional) If no crop with enough events was found after 5 tries, skip this iteration
-    raise ValueError()
 
 
 def get_grid(low_res: Tuple[int, int], high_res: Tuple[int, int], crops_low: Tuple[Tuple[int, int], Tuple[int, int]]) -> Float[torch.Tensor, "1 X Y 2"]:
