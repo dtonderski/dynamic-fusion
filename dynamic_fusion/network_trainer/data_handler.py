@@ -45,7 +45,7 @@ class CocoAugmentation:
         augmented_network_data = ReconstructionSample(event_polarity_sums, timestamp_means, timestamp_stds, event_counts, network_data.preprocessed_image)
         # Get ground truth cropping (/interpolating) grid
         output_shape = tuple(int(size * scale) for size in self.config.network_image_size)
-        input_shape = network_data.preprocessed_image.shape[-2:] if self.shared_config.spatial_upscaling else self.shared_config.data_generator_target_image_size
+        input_shape = network_data.event_polarity_sums.shape[-2:] if self.shared_config.spatial_upscaling else self.shared_config.data_generator_target_image_size
 
         grid = get_grid(input_shape, output_shape, ((x_start, x_stop), (y_start, y_stop)))  # type: ignore
 
