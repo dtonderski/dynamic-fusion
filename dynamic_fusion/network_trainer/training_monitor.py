@@ -208,9 +208,9 @@ class TrainingMonitor:
 
     def visualize_upsampling(
         self,
-        fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 XOriginal YOriginal"],
-        images: Float32[np.ndarray, "batch Time 1 XUpscaled YUpscaled"],
-        predictions: Float32[np.ndarray, "batch Time 1 XUpscaledCropped YUpscaledCropped"],
+        fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 XDown YDown"],
+        images: Float32[np.ndarray, "batch Time 1 X Y"],
+        predictions: Float32[np.ndarray, "batch Time 1 X Y"],
         iteration: int,
         encoding_network: Optional[nn.Module],
         decoding_network: Optional[nn.Module],
@@ -220,11 +220,11 @@ class TrainingMonitor:
         dowscaled_size = fused_event_polarity_sums.shape[-2:]
         upscaled_size = images.shape[-2:]
 
-        video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> B T X Y C")
-        downscaled_frames = [skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True) for video_frame in video_for_downscaling[0]]
+        video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> (B T) X Y C")
+        downscaled_frames = [skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True) for video_frame in video_for_downscaling]
         upscaled_frames = [skimage.transform.resize(video_frame, upscaled_size, order=0) for video_frame in downscaled_frames]
-        upscaled_video = np.stack(upscaled_frames)[None]
-        upscaled_video = einops.rearrange(upscaled_video, "B T X Y C -> B T C X Y")
+        upscaled_video = np.stack(upscaled_frames, axis=0)
+        upscaled_video = einops.rearrange(upscaled_video, "(B T) X Y C -> B T C X Y", B = video_event_polarity_sums.shape[0])
 
         video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
         video_eps = resize(video_eps, upscaled_size, interpolation=InterpolationMode.NEAREST).numpy()
