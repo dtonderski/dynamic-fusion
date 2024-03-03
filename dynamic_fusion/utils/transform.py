@@ -39,8 +39,15 @@ class TransformDefinition:
         def load_field(field_to_load: Field[Any]) -> Any:
             if "np.ndarray" in field_to_load.type:
                 return np.array(file[GROUP_NAME][field_to_load.name])
-            elif "Literal" in field_to_load.type:
+            if "Literal" in field_to_load.type:
                 return file[GROUP_NAME][field_to_load.name][()].decode("utf-8")
+            if "Optional[Tuple[int, int]]" in field_to_load.type:
+                try:
+                    return tuple(file[GROUP_NAME][field_to_load.name])
+                except Exception:
+                    return None
+            if "Tuple[int, int]" in field_to_load.type:
+                return tuple(file[GROUP_NAME][field_to_load.name])
             raise ValueError(f"Unhandled type {field_to_load.type}")
 
         loaded_data = {field.name: load_field(field) for field in fields(cls)}

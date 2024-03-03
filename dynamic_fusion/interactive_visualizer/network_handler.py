@@ -17,7 +17,7 @@ from dynamic_fusion.utils.dataset import discretized_events_to_tensors
 from dynamic_fusion.utils.datatypes import GrayImageFloat, ReconstructionSample
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.loss import get_reconstruction_loss
-from dynamic_fusion.utils.superresolution import get_spatial_upsampling_output, get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video
 
@@ -72,12 +72,12 @@ class NetworkHandler:
     # Public API
     def get_reconstruction(self, tau: float, temporal_interpolation: bool = False, upsampled_resolution: Tuple[int, int] = (180, 240)) -> Float[torch.Tensor, "X Y"]:
         if self.last_r is not None and self.last_tau == tau and self.last_used_temporal_interpolation == temporal_interpolation:
-            if not self.config.spatial_upsampling:
+            if not self.config.spatial_upscaling:
                 return self.last_r
             elif self.last_upsampled_resolution == upsampled_resolution:
                 return self.last_r
 
-        if self.config.spatial_upsampling and self.last_upsampled_resolution != upsampled_resolution:
+        if self.config.spatial_upscaling and self.last_upsampled_resolution != upsampled_resolution:
             nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(self.cs.shape[-3:-1]), upsampled_resolution)  # type: ignore
             self.nearest_pixels = torch.tensor(nearest_pixels)
             self.start_to_end_vectors = torch.tensor(start_to_end_vectors)
@@ -92,7 +92,7 @@ class NetworkHandler:
             t = t - 1
 
         c = self.cs[t]
-        if self.config.spatial_upsampling:
+        if self.config.spatial_upscaling:
             temporal_interpolation = True
         c_next = self.cs[t + 1] if temporal_interpolation else None
 
@@ -106,8 +106,8 @@ class NetworkHandler:
                 if temporal_interpolation:
                     c_next = torch.concat([self.cs[t], self.cs[t + 1], self.cs[t + 2]], dim=-1)
 
-            if self.config.spatial_upsampling:
-                r = get_spatial_upsampling_output(self.decoding_network, c, tau, c_next, self.nearest_pixels, self.start_to_end_vectors)
+            if self.config.spatial_upscaling:
+                r = get_spatial_upscaling_output(self.decoding_network, c, tau, c_next, self.nearest_pixels, self.start_to_end_vectors)
             else:
                 r = self.decoding_network(torch.concat([c, tau_expanded], dim=-1))
                 if temporal_interpolation:
@@ -160,7 +160,7 @@ class NetworkHandler:
                 self.preprocessed_image: GrayImageFloat = np.array(file["preprocessed_image"])
                 self.transform_definition = TransformDefinition.load_from_file(file)
 
-            name = "downscaled_discretized_events" if self.config.spatial_upsampling else "discretized_events"
+            name = "downscaled_discretized_events" if self.config.spatial_upscaling else "discretized_events"
             threshold_path = path / f"{name}_{self.threshold}.h5"
 
             with h5py.File(threshold_path, "r") as file:

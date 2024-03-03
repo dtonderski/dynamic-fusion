@@ -7,7 +7,7 @@ from jaxtyping import Float, Int
 from torch import nn
 
 from dynamic_fusion.utils.datatypes import Batch, TestBatch
-from dynamic_fusion.utils.superresolution import get_spatial_upsampling_output
+from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output
 
 
 def network_data_to_device(
@@ -17,9 +17,9 @@ def network_data_to_device(
     use_std: bool,
     use_count: bool,
 ) -> Batch:
-    (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_image, transforms_definition, crop_definition) = batch
-    event_polarity_sums = event_polarity_sums.to(device)
+    (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, preprocessed_image, transforms_definition, crops_definition) = batch
 
+    event_polarity_sums = event_polarity_sums.to(device)
     if use_mean:
         timestamp_means = timestamp_means.to(device)
     if use_std:
@@ -27,9 +27,10 @@ def network_data_to_device(
     if use_count:
         event_counts = event_counts.to(device)
 
-    video = video.to(device)
+    for i, crop in enumerate(crops_definition):
+        crops_definition[i].grid = crop.grid.to(device)
 
-    return (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_image, transforms_definition, crop_definition)
+    return (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, preprocessed_image, transforms_definition, crops_definition)
 
 
 def network_test_data_to_device(
@@ -92,7 +93,7 @@ def run_decoder(
     return
 
 
-def run_decoder_with_spatial_upsampling(
+def run_decoder_with_spatial_upscaling(
     decoder: nn.Module,
     cs: Float[torch.Tensor, "T B X Y C"],
     taus: Float[torch.Tensor, "T B"],
@@ -118,7 +119,7 @@ def run_decoder_with_spatial_upsampling(
             if temporal_interpolation:
                 c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)
 
-        yield t, get_spatial_upsampling_output(decoder, c, taus[t], c_next, nearest_pixels, start_to_end_vectors, region_to_upsample)
+        yield t, get_spatial_upscaling_output(decoder, c, taus[t], c_next, nearest_pixels, start_to_end_vectors, region_to_upsample)
 
     return
 

@@ -16,7 +16,7 @@ from dynamic_fusion.network_trainer.configuration import SharedConfiguration
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, get_ground_truth
 from dynamic_fusion.utils.datatypes import CropDefinition, TestBatch
 from dynamic_fusion.utils.loss import LPIPS
-from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upsampling, stack_and_maybe_unfold_c_list, to_numpy
+from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
 from dynamic_fusion.utils.superresolution import get_crop_region, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
@@ -92,7 +92,7 @@ def get_reconstructions_and_gt(
         c_list.append(c_t.clone())
     cs_cropped = stack_and_maybe_unfold_c_list(c_list[-needed_Ts:], config.spatial_unfolding)  # Ts_to_evaluate 1 X Y C
 
-    if config.spatial_upsampling:
+    if config.spatial_upscaling:
         cs = torch.zeros(cs_cropped.shape[0], cs_cropped.shape[1], eps.shape[-2], eps.shape[-1], cs_cropped.shape[4])  # type: ignore
         cs = cs.to(cs_cropped)
         cs[:, :, xmin:xmax, ymin:ymax] = cs_cropped
@@ -105,9 +105,9 @@ def get_reconstructions_and_gt(
     for tau in range(taus.shape[0]):
         cs_tau, taus_tau = cs[:, tau : tau + 1], taus[tau : tau + 1]  # type: ignore
         reconstructions_tau = []
-        if config.spatial_upsampling:
+        if config.spatial_upscaling:
             taus_tau = einops.rearrange(torch.tensor(taus_tau).to(cs), "tau T -> T tau")
-            for _, r_t in run_decoder_with_spatial_upsampling(
+            for _, r_t in run_decoder_with_spatial_upscaling(
                 decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end, upscaled_region
             ):
                 reconstructions_tau.append(to_numpy(r_t.squeeze()))

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional
 
 import einops
 import numpy as np
@@ -9,13 +9,12 @@ import torch.jit
 from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
-from jaxtyping import Bool, Int, Float
 
 from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import get_reconstruction_loss
-from dynamic_fusion.utils.network import network_data_to_device, stack_and_maybe_unfold_c_list, run_decoder, run_decoder_with_spatial_upsampling, to_numpy
-from dynamic_fusion.utils.superresolution import get_crop_region, get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.network import network_data_to_device, stack_and_maybe_unfold_c_list, run_decoder, run_decoder_with_spatial_upscaling, to_numpy
+from dynamic_fusion.utils.superresolution import get_upscaling_pixel_indices_and_distances
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
 from .training_monitor import TrainingMonitor
@@ -46,7 +45,7 @@ class NetworkFitter:
     def run(
         self,
         data_loader: DataLoader,  # type: ignore
-        test_dataset: CocoTestDataset,
+        #test_dataset: CocoTestDataset,
         encoding_network: nn.Module,
         decoding_network: Optional[nn.Module],
     ) -> None:
@@ -56,7 +55,7 @@ class NetworkFitter:
 
         optimizer = Adam(params, lr=self.config.lr_reconstruction)
 
-        start_iteration = self.monitor.initialize(test_dataset, encoding_network, optimizer, decoding_network)
+        start_iteration = self.monitor.initialize(encoding_network, optimizer, decoding_network)
 
         encoding_network.to(self.device)
         if decoding_network is not None:
@@ -65,9 +64,9 @@ class NetworkFitter:
         data_loader_iterator = iter(data_loader)
 
         for iteration in range(start_iteration, self.config.number_of_training_iterations):
-            if self.shared_config.spatial_upsampling:
+            if self.shared_config.spatial_upscaling:
                 assert decoding_network is not None, "Need decoding network for spatial upsampling!"
-                self._reconstruction_step_with_spatial_upsampling(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
+                self._reconstruction_step_with_spatial_upscaling(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
             else:
                 self._reconstruction_step(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
             if iteration % self.config.network_saving_frequency == 0:
@@ -188,7 +187,7 @@ class NetworkFitter:
                 decoding_network,
             )
 
-    def _reconstruction_step_with_spatial_upsampling(
+    def _reconstruction_step_with_spatial_upscaling(
         self, data_loader_iterator: Iterator[Batch], encoding_network: nn.Module, optimizer: Optimizer, decoder: nn.Module, iteration: int
     ) -> None:
         """Variable name explanations:
@@ -217,19 +216,12 @@ class NetworkFitter:
         # region Load data, define used regions in downscaled and upscaled images, and validate that they have enough events
         batch_start = time.time()
 
-        (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = network_data_to_device(
+        (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, preprocessed_images, transforms, crops) = network_data_to_device(
             next(data_loader_iterator), self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
         )
 
-        nearest_pixels, start_to_end_vectors, out_of_bounds = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(video.shape[-2:]))
+        nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(crops[0].grid.shape[-3:-1]))
 
-        try:
-            (xmin, xmax, ymin, ymax), upscaled_used_region = get_crop_region(
-                event_polarity_sums, out_of_bounds, nearest_pixels, self.config.upscaling_region_size, self.shared_config.min_allowed_max_of_mean_polarities_over_times
-            )
-        except ValueError:
-            self.logger.info(f"No valid crop found after 5 tries in iteration {iteration}, skipping.")
-            return
         time_batch = time.time() - batch_start
         # endregion
 
@@ -241,26 +233,22 @@ class NetworkFitter:
 
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             c_t = encoding_network(
-                event_polarity_sums[:, t, :, xmin:xmax, ymin:ymax],
-                timestamp_means[:, t, :, xmin:xmax, ymin:ymax] if self.shared_config.use_mean else None,
-                timestamp_stds[:, t, :, xmin:xmax, ymin:ymax] if self.shared_config.use_std else None,
-                event_counts[:, t, :, xmin:xmax, ymin:ymax] if self.shared_config.use_count else None,
+                event_polarity_sums[:, t],
+                timestamp_means[:, t] if self.shared_config.use_mean else None,
+                timestamp_stds[:, t] if self.shared_config.use_std else None,
+                event_counts[:, t] if self.shared_config.use_count else None,
             )
 
             c_list.append(c_t.clone())
 
         # Unfold c
-        cs_cropped = stack_and_maybe_unfold_c_list(c_list, self.shared_config.spatial_unfolding)
-
-        cs = torch.zeros(cs_cropped.shape[0], cs_cropped.shape[1], event_polarity_sums.shape[-2], event_polarity_sums.shape[-1], cs_cropped.shape[4])
-        cs = cs.to(cs_cropped)
-        cs[:, :, xmin:xmax, ymin:ymax] = cs_cropped
+        cs = stack_and_maybe_unfold_c_list(c_list, self.shared_config.spatial_unfolding)
 
         # Sample tau
         taus = np.random.rand(len(preprocessed_images), self.shared_config.sequence_length)  # B T
 
         # Generate ground truth for taus
-        gt = get_ground_truth(taus, preprocessed_images, transforms, crops, self.device, self.config.data_generator_target_image_size)
+        gt = get_ground_truth(taus, preprocessed_images, transforms, crops, False, self.device)
         gt = einops.rearrange(gt, "B T X Y -> T B 1 X Y")
 
         # Calculate start and end index to use for calculating loss
@@ -271,13 +259,11 @@ class NetworkFitter:
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
         taus = einops.rearrange(torch.tensor(taus).to(cs), "B T -> T B")
 
-        for t, r_t in run_decoder_with_spatial_upsampling(
-            decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end, upscaled_used_region
+        for t, r_t in run_decoder_with_spatial_upscaling(
+            decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end
         ):
-            # Crop out any upsampled pixels that are not within bounds
-            gt_cropped = gt[t, :, :, upscaled_used_region[0] : upscaled_used_region[1], upscaled_used_region[2] : upscaled_used_region[3]]
 
-            image_loss = image_loss + self.reconstruction_loss_function(r_t, gt_cropped).mean()
+            image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()
 
             if visualize:
                 event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
@@ -296,14 +282,14 @@ class NetworkFitter:
         self.logger.info(f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)")
 
         self.monitor.on_reconstruction(image_loss.item(), iteration)
-        if visualize:
-            self.monitor.visualize_upsampling(
-                np.stack(event_polarity_sum_list, 1),
-                np.stack(images, 1),
-                np.stack(reconstructions, 1),
-                iteration,
-                encoding_network,
-                decoder,
-                upscaled_used_region,
-            )
-            return
+        # if visualize:
+        #     self.monitor.visualize_upsampling(
+        #         np.stack(event_polarity_sum_list, 1),
+        #         np.stack(images, 1),
+        #         np.stack(reconstructions, 1),
+        #         iteration,
+        #         encoding_network,
+        #         decoder,
+        #         upscaled_used_region,
+        #     )
+        #     return

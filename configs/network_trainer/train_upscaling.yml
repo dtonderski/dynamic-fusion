@@ -8,21 +8,23 @@ shared:
   spatial_unfolding: true
   temporal_unfolding: true
   temporal_interpolation: true
-  spatial_upsampling: true
-  min_allowed_max_of_mean_polarities_over_times: 0.01
+  spatial_upscaling: true
+  min_allowed_max_of_mean_polarities_over_times: 0.05
+  data_generator_target_image_size: [0,0]
 
 data_handler:
-  batch_size: 1
-  num_workers: 1
+  batch_size: 2
+  num_workers: 2
   test_dataset_directory: "data/interim/coco/test/2subbins"
   augmentation:
-    network_image_size: [96, 96]
+    network_image_size: [8, 8]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins_downscaled"
-    threshold: 1.4 # 1.4
+    dataset_directory: "data/interim/coco/train/2subbins"
+    threshold: 1.3 # 1.4
     augmentation_tries: 2
     video_tries: 5
+    max_upscaling: 4
 
 network_loader:
   encoding:
@@ -43,12 +45,11 @@ network_fitter:
   skip_first_timesteps: 2
   network_saving_frequency: 100
   visualization_frequency: 200
-  data_generator_target_image_size: [180, 240]
   upscaling_region_size: [96, 96]
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/spatiotemporal_with_visualization/test"
+  run_directory: "runs/new_code/test"
   event_colors: [[255, 0, 0], [0, 255, 0]]
   persistent_saving_frequency: 10000
   Ts_to_visualize: 20

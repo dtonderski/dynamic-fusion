@@ -16,13 +16,15 @@ class SharedConfiguration(BaseModel):
     use_count: bool = Field(...)
     implicit: bool = Field(...)
     spatial_unfolding: bool = Field(...)
-    temporal_interpolation: bool = Field(...)
     temporal_unfolding: bool = Field(...)
-    spatial_upsampling: bool = Field(False)
+
+    temporal_interpolation: bool = Field(...)
+    spatial_upscaling: bool = Field(False)
+    
     min_allowed_max_of_mean_polarities_over_times: float = Field(
-        0.05,
-        description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds.",
+        0.05, description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds."
     )
+    data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
 
 
 class AugmentationConfiguration(BaseModel):
@@ -33,12 +35,10 @@ class DatasetConfiguration(BaseModel):
     dataset_directory: Path = Field(..., description="Path to directory containing the dataset.")
     threshold: float = Field(..., description="Threshold to use")
 
-    augmentation_tries: int = Field(
-        ...,
-        description="Number of times transforms can be retried before moving onto next image.",
-    )
-
+    augmentation_tries: int = Field(..., description="Number of times transforms can be retried before moving onto next image.")
     video_tries: int = Field(..., description="Number of videos to try before raising an exception.")
+
+    max_upscaling: float = Field(...)
 
 
 class DataHandlerConfiguration(BaseModel):
@@ -80,8 +80,7 @@ class NetworkFitterConfiguration(BaseModel):
 
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
-    data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
-    upscaling_region_size: Tuple[int, int] = Field((0, 0), description="Size of region to upscale. Used to limit memory usage in spatial upsampling")
+    upscaling_region_size: Tuple[int, int] = Field((0, 0), description="Size of region to upscale. Used to limit memory usage in spatial upscaling")
 
 
 class TrainingMonitorConfiguration(BaseModel):

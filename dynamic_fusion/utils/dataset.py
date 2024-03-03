@@ -9,8 +9,7 @@ import torch
 from jaxtyping import Float
 from torch.utils.data import Dataset, default_collate
 
-from dynamic_fusion.utils.datatypes import (CropDefinition, GrayImageFloat,
-                                            TestBatch)
+from dynamic_fusion.utils.datatypes import CropDefinition, GrayImageFloat, TestBatch
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video
@@ -126,15 +125,15 @@ def get_ground_truth(
     preprocessed_images: List[GrayImageFloat],
     transforms: List[TransformDefinition],
     crops: List[CropDefinition],
+    try_center_crop: bool,
     device: torch.device,
-    data_generator_target_image_size: Optional[Tuple[int, int]] = None,
 ) -> Float[torch.Tensor, "B T X Y"]:
     T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1") if crops else 0
     Ts = einops.rearrange(np.arange(taus.shape[1]), "T -> 1 T") + taus + T_starts
     Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
     ys_list = []
     for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
-        video_batch = get_video(image, transform, Ts_normalized, data_generator_target_image_size, device)
-        ys_list.append(crops[i].crop_spatial(video_batch) if crops is not None else video_batch)
+        video = get_video(image, transform, Ts_normalized, False, try_center_crop, device)
+        ys_list.append(crops[i].crop_spatial(video) if crops is not None else video)
 
     return torch.stack(ys_list, dim=0)

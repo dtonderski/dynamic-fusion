@@ -51,7 +51,7 @@ class TrainingMonitor:
 
     def initialize(
         self,
-        test_dataset: CocoTestDataset,  # type: ignore
+        #test_dataset: CocoTestDataset,  # type: ignore
         reconstruction_network: nn.Module,
         optimizer: torch.optim.Optimizer,
         decoding_network: Optional[nn.Module],
@@ -75,8 +75,8 @@ class TrainingMonitor:
                 self.logger.warning(ex)
 
         self.writer = SummaryWriter(self.subrun_directory)  # type: ignore[no-untyped-call]
-        self.test_dataset = test_dataset
-        self.sample_batch = collate_test_items([test_dataset[i] for i in [0]])
+        # self.test_dataset = test_dataset
+        # self.sample_batch = collate_test_items([test_dataset[i] for i in [0]])
         self.logger.info(f"Starting at iteration {iteration}")
         return iteration
 
@@ -199,7 +199,7 @@ class TrainingMonitor:
             self.writer.flush()  # type: ignore[no-untyped-call]
             return
 
-        if not self.shared_config.spatial_upsampling:
+        if not self.shared_config.spatial_upscaling:
             x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
             self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
 
@@ -244,7 +244,7 @@ class TrainingMonitor:
             self.writer.flush()  # type: ignore[no-untyped-call]
             return
 
-        if not self.shared_config.spatial_upsampling:
+        if not self.shared_config.spatial_upscaling:
             x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
             self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
 

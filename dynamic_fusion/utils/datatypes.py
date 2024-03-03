@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
+import einops
 import numpy as np
 import pandera as pa
 import torch
 from jaxtyping import Bool, Float, Float32, Int, Int64, Shaped, UInt8
 from pandera.typing import DataFrame, Series
+from torch.nn.functional import grid_sample
 from typing_extensions import TypeAlias
 
 from dynamic_fusion.utils.transform import TransformDefinition
@@ -53,20 +55,16 @@ class Checkpoint(TypedDict):
 
 @dataclass
 class CropDefinition:
-    x_start: int = 0
-    y_start: int = 0
-    T_start: int = 0
-    x_size: int = 0
-    y_size: int = 0
-    # total_number_of_bins is for convenience, used to calculate time
-    # for continuous time training
-    total_number_of_bins: int = 0
-    placeholder: bool = False
+    T_start: int
+    T_end: int
+    total_number_of_bins: int
+    grid: Float32[torch.Tensor, "1 X Y 2"]
 
-    def crop_spatial(self, tensor: Shaped[np.ndarray, "... X Y"]) -> Shaped[np.ndarray, "... XCropped YCropped"]:
-        if self.placeholder:
-            return tensor
-        return tensor[..., self.x_start : self.x_start + self.x_size, self.y_start : self.y_start + self.y_size]
+    def crop_spatial(self, video: Shaped[torch.Tensor, "T X Y"]) -> Shaped[torch.Tensor, "T X Y"]:
+        grid_repeated = einops.repeat(self.grid, "1 X Y N -> T X Y N", T=video.shape[0])
+        video_expanded = einops.rearrange(video, "T X Y -> T 1 X Y")
+        sampled = grid_sample(video_expanded, grid_repeated, mode="bicubic", align_corners=True)
+        return sampled[:, 0]
 
 
 Batch: TypeAlias = Tuple[
@@ -74,7 +72,6 @@ Batch: TypeAlias = Tuple[
     Float32[torch.Tensor, "Batch Time SubBin X Y"],  # mean
     Float32[torch.Tensor, "Batch Time SubBin X Y"],  # std
     Float32[torch.Tensor, "Batch Time SubBin X Y"],  # event count
-    Float32[torch.Tensor, "Batch Time 1 X Y"],  # bin end frame, unused in implicit
     List[GrayImageFloat],
     List[TransformDefinition],
     List[CropDefinition],
@@ -100,11 +97,10 @@ class ReconstructionSample:
     timestamp_means: Float32[torch.Tensor, "Time SubBin X Y"]
     timestamp_stds: Float32[torch.Tensor, "Time SubBin X Y"]
     event_counts: Float32[torch.Tensor, "Time SubBin X Y"]
-    video: Float32[torch.Tensor, "Time 1 X Y"]
+    preprocessed_image: GrayImageFloat
 
 
 @dataclass
 class CroppedReconstructionSample:
     sample: ReconstructionSample
     crop_definition: CropDefinition
-    

@@ -180,7 +180,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         )
         self.gt_image_label.grid(row=self.row, column=1)
 
-        if self.config.network_handler.spatial_upsampling:
+        if self.config.network_handler.spatial_upscaling:
             # GT downscaled
             self.gt_downscaled_image_label = ctk.CTkLabel(
                 self,
@@ -260,7 +260,7 @@ class Visualizer(ctk.CTk):  # type: ignore
     def _update_event_image(self) -> None:
         event_image = self.network_handler.get_event_image()
         # Need to resize to GT shape first
-        if self.config.network_handler.spatial_upsampling:
+        if self.config.network_handler.spatial_upscaling:
             event_image = resize(event_image, output_shape=self.network_handler.get_gt_size(), order=0)
         
         event_image = event_image[self.x_start : self.x_stop, self.y_start : self.y_stop]
@@ -290,7 +290,7 @@ class Visualizer(ctk.CTk):  # type: ignore
         )
         self.gt_image_label.image = gt_image
 
-        if not self.config.network_handler.spatial_upsampling:
+        if not self.config.network_handler.spatial_upscaling:
             return
 
         downscaled_image_np = self.network_handler.get_downscaled_ground_truth()

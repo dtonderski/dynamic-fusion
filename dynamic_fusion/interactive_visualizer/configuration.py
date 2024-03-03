@@ -11,7 +11,7 @@ class NetworkHandlerConfiguration(BaseModel):
     implicit: bool = Field(...)
     spatial_unfolding: bool = Field(...)
     temporal_unfolding: bool = Field(...)
-    spatial_upsampling: bool = Field(...)
+    spatial_upscaling: bool = Field(...)
     data_generator_target_image_size: Optional[Tuple[int, int]] = Field(...)
     losses: List[str] = Field(...)
 
