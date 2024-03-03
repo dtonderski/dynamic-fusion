@@ -58,11 +58,13 @@ class CocoTestDataset(Dataset):  # type: ignore
     directory_list: List[Path]
     threshold: float
     logger: logging.Logger
+    scales: Float[np.ndarray, " N"]
 
-    def __init__(self, dataset_directory: Path, threshold: float = 1.4) -> None:
+    def __init__(self, dataset_directory: Path, scales_range: Tuple[int, int], threshold: float = 1.4) -> None:
         self.directory_list = sorted([path for path in dataset_directory.glob("**/*") if path.is_dir()])
         self.logger = logging.getLogger("CocoDataset")
         self.threshold = threshold
+        self.scales = np.random.random(len(self.directory_list))*(scales_range[1] - scales_range[0]) + scales_range[0]
 
     def __len__(self) -> int:
         return len(self.directory_list)

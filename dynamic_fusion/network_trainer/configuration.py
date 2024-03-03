@@ -20,7 +20,7 @@ class SharedConfiguration(BaseModel):
 
     temporal_interpolation: bool = Field(...)
     spatial_upscaling: bool = Field(False)
-    
+
     min_allowed_max_of_mean_polarities_over_times: float = Field(
         0.05, description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds."
     )
@@ -45,6 +45,7 @@ class DataHandlerConfiguration(BaseModel):
     augmentation: AugmentationConfiguration = Field(...)
     dataset: DatasetConfiguration = Field(...)
     test_dataset_directory: Path = Field(Path("."))
+    test_scale_range: Tuple[int, int] = Field((1, 6))
     batch_size: int = Field(..., description="Batch size used in training.")
     num_workers: int = Field(..., description="Workers used by DataLoader")
 
@@ -91,6 +92,7 @@ class TrainingMonitorConfiguration(BaseModel):
     taus_to_visualize: int = Field(3)
     Ts_to_evaluate: int = Field(100)
     taus_to_evaluate: int = Field(5)
+    test_samples_to_visualize: List[int] = Field(...)
 
 
 class TrainerConfiguration(BaseModel):

@@ -1,5 +1,5 @@
 shared:
-  sequence_length: 20
+  sequence_length: 8
   resume: true
   use_mean: true
   use_std: true
@@ -13,11 +13,12 @@ shared:
   data_generator_target_image_size: [0,0]
 
 data_handler:
-  batch_size: 2
-  num_workers: 2
+  batch_size: 1
+  num_workers: 1
   test_dataset_directory: "data/interim/coco/test/2subbins"
+  test_scale_range: [1, 4]
   augmentation:
-    network_image_size: [8, 8]
+    network_image_size: [48, 48]
 
   dataset:
     dataset_directory: "data/interim/coco/train/2subbins"
@@ -56,5 +57,6 @@ training_monitor:
   taus_to_visualize: 5
   Ts_to_evaluate: 100
   taus_to_evaluate: 5
+  test_samples_to_visualize: [0, 1, 2]
 
 seed: 0

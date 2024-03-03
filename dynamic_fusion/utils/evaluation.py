@@ -34,12 +34,17 @@ class MSE:
     def compute(self) -> float:
         return sum(value * weight / sum(self.weights) for value, weight in zip(self.values, self.weights))
 
+    @torch.no_grad()
+    def reset(self) -> None:
+        self.values = []
+        self.weights = []
+
 
 class MetricsDictionary(TypedDict):
-    PSNR: float
-    SSIM: float
-    MSE: float
-    LPIPS: float
+    PSNR: Tuple[float, float]
+    SSIM: Tuple[float, float]
+    MSE: Tuple[float, float]
+    LPIPS: Tuple[float, float]
 
 
 @torch.no_grad()
@@ -50,7 +55,6 @@ def get_reconstructions_and_gt(
     config: SharedConfiguration,
     device: torch.device,
     scale: float,
-    inference_region: Optional[Tuple[int, int]] = None,
     Ts_to_evaluate: int = 10,
     taus_to_evaluate: int = 10,
 ) -> Tuple[Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T SubBins X Y"]]:
@@ -74,17 +78,13 @@ def get_reconstructions_and_gt(
 
     output_shape = tuple(int(size * scale) for size in eps_lst[0].shape[-2:])
     input_shape = eps_lst[0].shape[-2:]
-    grid = get_grid(input_shape, output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1])))  # type: ignore
+    grid = get_grid(input_shape, output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1]))).to(device)  # type: ignore
 
-    crop_definition = CropDefinition(0, T_max_evaluated - needed_Ts + t_start, eps.shape[0], grid)
+    crop_definition = CropDefinition(T_max_evaluated - needed_Ts + t_start, T_max_evaluated - needed_Ts + t_start + t_end, eps.shape[0], grid)
     gt = get_ground_truth(
-        taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, config.spatial_upscaling, eps.device
+        taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, not config.spatial_upscaling, eps.device
     )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
-
-    # Get regions
-    if inference_region is None:
-        inference_region = tuple(x - 8 for x in gt_flat.shape[-2:])  # I think 8 is maximum
 
     nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
 
@@ -140,6 +140,7 @@ def add_plot_at_t(
     gt_down: Float[np.ndarray, "T X Y"],
     eps: Float[np.ndarray, "T SubBins X Y"],
     add_title: bool,
+    scale: float,
 ) -> None:
     ax00 = fig.add_subplot(gs[row, 0])
     ax00.imshow(recon[t], cmap="gray", vmin=0, vmax=1, aspect="auto")
@@ -170,17 +171,22 @@ def add_plot_at_t(
     ax04 = fig.add_subplot(gs[row, 4])
     ax04.imshow(img_to_colormap(eps[T].sum(axis=0), create_red_blue_cmap(501)), cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
-        ax04.set_title("Events", fontsize=20)
+        ax04.set_title(f"Events scale {scale:.2f}", fontsize=20)
     ax04.set_xlabel("X", fontsize=20)
 
 
 def get_evaluation_video(
-    recon: Float[np.ndarray, "T X Y"], gt: Float[np.ndarray, "T X Y"], gt_down: Float[np.ndarray, "T X Y"], eps: Float[np.ndarray, "T SubBins X Y"], frames: range
+    recon: Float[np.ndarray, "T X Y"],
+    gt: Float[np.ndarray, "T X Y"],
+    gt_down: Float[np.ndarray, "T X Y"],
+    eps: Float[np.ndarray, "T SubBins X Y"],
+    frames: range,
+    scale: float,
 ) -> FuncAnimation:
     def update(t: int) -> None:
         fig.clf()  # Clear the figure to prepare for the next frame
         # Call your plot function here
-        add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True)
+        add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True, scale)
         fig.tight_layout()
         fig.subplots_adjust(left=0.05, right=0.99, top=1.2, bottom=-0.5, wspace=0.14, hspace=0)
 
@@ -200,24 +206,25 @@ def get_evaluation_image(
     gt: Float[np.ndarray, "T X Y"],
     gt_down: Float[np.ndarray, "T X Y"],
     eps: Float[np.ndarray, "T SubBins X Y"],
+    scale: float,
 ) -> plt.Figure:
     fig = plt.figure(figsize=(16, 8))
     plt.tight_layout()
     # Define GridSpec layout
     gs = gridspec.GridSpec(4, 5, figure=fig, height_ratios=[6, 15, 0, 15])
     table_ax = fig.add_subplot(gs[0, :])
-    table_data = [[f"{value:.4f}" for value in metrics.values()]]
+    table_data = [[f"{value1:.3f} +- {value2:.3f}" for value1, value2 in metrics.values()]]  # type: ignore
     table_col_labels = list(metrics.keys())
 
     # Add table to the subplot and remove axis
-    table = table_ax.table(cellText=table_data, colLabels=table_col_labels, loc="center", colWidths=[0.2] * 4)
+    table = table_ax.table(cellText=table_data, colLabels=table_col_labels, loc="center", colWidths=[0.3] * 4)
     table.auto_set_font_size(False)
     table.scale(1, 2)
     table.set_fontsize(20)
     table_ax.axis("off")
 
     t = recon.shape[0] // 2
-    add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True)
+    add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True, scale)
 
     y = recon.shape[1] // 2
     ax10 = fig.add_subplot(gs[3, 0])
@@ -246,13 +253,19 @@ def get_evaluation_image(
 
 
 @torch.no_grad()
-def get_metrics(
-    test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device, scale: float
-) -> MetricsDictionary:
+def get_metrics(test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device) -> MetricsDictionary:
     psnr, ssim, mse, lpips = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device)
-    for sample in tqdm(test_dataset, total=len(test_dataset)):  # type: ignore
+    psnrs, ssims, mses, lpipss = [], [], [], []
+
+    for i, sample in enumerate(tqdm(test_dataset, total=len(test_dataset))):  # type: ignore
+        psnr.reset()
+        ssim.reset()
+        mse.reset()
+        lpips.reset()
+
         batch = collate_test_items([sample])
-        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=4, Ts_to_evaluate=10, taus_to_evaluate=5)
+        scale = test_dataset.scales[i]
+        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=scale, Ts_to_evaluate=10, taus_to_evaluate=5)
 
         recon = torch.tensor(recon[:, None]).to(device)
         gt = torch.tensor(gt[:, None]).to(device)
@@ -260,8 +273,18 @@ def get_metrics(
         psnr.update(output=[recon, gt])
         ssim.update(output=[recon, gt])
         mse.update(recon, gt)
-        I = 20
+        I = 5
         for i in range(0, len(gt), I):
             lpips.update(recon[i : i + I], gt[i : i + I])
 
-    return {"PSNR": psnr.compute(), "SSIM": ssim.compute(), "MSE": mse.compute(), "LPIPS": lpips.compute()}
+        psnrs.append(psnr.compute())
+        ssims.append(ssim.compute())
+        mses.append(mse.compute())
+        lpipss.append(lpips.compute())
+
+    return {
+        "PSNR": (np.mean(psnrs), np.std(psnrs)),
+        "SSIM": (np.mean(ssims), np.std(ssims)),
+        "MSE": (np.mean(mses), np.std(mses)),  # type: ignore
+        "LPIPS": (np.mean(lpipss), np.std(lpipss)),  # type: ignore
+    }

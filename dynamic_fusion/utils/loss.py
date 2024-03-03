@@ -30,6 +30,11 @@ class LPIPS(nn.Module):
     def compute(self) -> float:
         return sum(value * weight / sum(self.weights) for value, weight in zip(self.values, self.weights))
 
+    @torch.no_grad()
+    def reset(self) -> None:
+        self.values = []
+        self.weights = []
+
 
 def get_reconstruction_loss(loss_name: str, device: torch.device) -> nn.Module:
     if loss_name.upper() == "L1":

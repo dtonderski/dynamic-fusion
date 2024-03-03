@@ -69,7 +69,7 @@ class DataHandler:
         self.shared_config = shared_config
         augmentation = CocoAugmentation(config.augmentation, shared_config)
         self.dataset = CocoIterableDataset(augmentation, config.dataset, shared_config)
-        self.test_dataset = CocoTestDataset(config.test_dataset_directory)
+        self.test_dataset = CocoTestDataset(config.test_dataset_directory, config.test_scale_range, config.dataset.threshold)
 
     def _collate_fn(
         self,

@@ -283,14 +283,13 @@ class NetworkFitter:
         self.logger.info(f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)")
 
         self.monitor.on_reconstruction(image_loss.item(), iteration)
-        # if visualize:
-        #     self.monitor.visualize_upsampling(
-        #         np.stack(event_polarity_sum_list, 1),
-        #         np.stack(images, 1),
-        #         np.stack(reconstructions, 1),
-        #         iteration,
-        #         encoding_network,
-        #         decoder,
-        #         upscaled_used_region,
-        #     )
-        #     return
+        if visualize:
+            self.monitor.visualize_upsampling(
+                np.stack(event_polarity_sum_list, 1),
+                np.stack(images, 1),
+                np.stack(reconstructions, 1),
+                iteration,
+                encoding_network,
+                decoder,
+            )
+            return

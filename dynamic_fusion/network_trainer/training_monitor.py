@@ -214,7 +214,6 @@ class TrainingMonitor:
         iteration: int,
         encoding_network: Optional[nn.Module],
         decoding_network: Optional[nn.Module],
-        region_to_upsample: Optional[Tuple[int, int, int, int]] = None,  # Defines x_start, x_stop, y_start, y_stop of upsampling. Right exclusive
     ) -> None:
         video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
@@ -230,11 +229,6 @@ class TrainingMonitor:
         video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
         video_eps = resize(video_eps, upscaled_size, interpolation=InterpolationMode.NEAREST).numpy()
         video_eps = einops.rearrange(video_eps, "(batch Time) C X Y -> batch Time C X Y", batch=video_images.shape[0])
-
-        if region_to_upsample:
-            upscaled_video = upscaled_video[..., region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
-            video_eps = video_eps[..., region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
-            video_images = video_images[..., region_to_upsample[0] : region_to_upsample[1], region_to_upsample[2] : region_to_upsample[3]]
 
         montage_frames = np.stack((upscaled_video, video_eps, video_images, video_predictions), axis=0)  # S B T C X Y
 
@@ -338,24 +332,25 @@ class TrainingMonitor:
 
     @torch.no_grad()
     def _visualize_persistent(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> None:
-        scale = 4.0
         self.logger.info("Calculating metrics...")
-        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, scale)
+        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device)
         self.logger.info(f"Calculated metrics: {metrics}")
 
-        I = 1
-        for i in range(I):
-            self.logger.info(f"{i}/{I} - getting data...")
+        I = len(self.config.test_samples_to_visualize)
+        for idx, i in enumerate(self.config.test_samples_to_visualize):
+            self.logger.info(f"{idx}/{I} - getting data...")
             batch = collate_test_items([self.test_dataset[i]])
             name = self.test_dataset.directory_list[i].name
+            scale = self.test_dataset.scales[i]
+
             recon, gt, gt_down, eps = get_reconstructions_and_gt(
-                batch, encoder, decoder, self.shared_config, self.device, scale, None, self.config.Ts_to_visualize, self.config.taus_to_visualize
+                batch, encoder, decoder, self.shared_config, self.device, scale, self.config.Ts_to_visualize, self.config.taus_to_visualize
             )
 
-            self.logger.info(f"{i}/{I} - generating video...")
-            ani = get_evaluation_video(recon, gt, gt_down, eps, frames=range(self.config.Ts_to_visualize * self.config.taus_to_visualize))
+            self.logger.info(f"{idx}/{I} - generating video...")
+            ani = get_evaluation_video(recon, gt, gt_down, eps, range(self.config.Ts_to_visualize * self.config.taus_to_visualize), scale)
 
-            self.logger.info(f"{i}/{I} - saving video...")
+            self.logger.info(f"{idx}/{I} - saving video...")
             with tempfile.NamedTemporaryFile(delete=True, suffix=".mp4") as temp_file:
                 ani.save(temp_file.name, writer="ffmpeg", fps=10)
                 vid, _, _ = read_video(temp_file.name)
@@ -363,9 +358,9 @@ class TrainingMonitor:
             vid = einops.rearrange(vid, "T H W C -> 1 T C H W")
             self.writer.add_video(f"video_{name}", vid, iteration)  # type: ignore
 
-            self.logger.info(f"{i}/{I} - generating figure...")
-            figure = get_evaluation_image(metrics, recon, gt, gt_down, eps)
+            self.logger.info(f"{idx}/{I} - generating figure...")
+            figure = get_evaluation_image(metrics, recon, gt, gt_down, eps, scale)
             plt.close()
-            self.logger.info(f"{i}/{I} - saving figure...")
+            self.logger.info(f"{idx}/{I} - saving figure...")
             self.writer.add_figure(f"figure_{name}", figure, iteration)  # type: ignore
             self.writer.flush()  # type: ignore
