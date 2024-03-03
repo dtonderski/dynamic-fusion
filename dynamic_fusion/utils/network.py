@@ -132,3 +132,20 @@ def stack_and_maybe_unfold_c_list(c_list: List[Float[torch.Tensor, "B C X Y"]], 
         cs = einops.rearrange(cs, "(T B) C (X Y) -> T B C X Y", T=T, X=X)
     # Prepare for linear layer
     return einops.rearrange(cs, "T B C X Y -> T B X Y C")
+
+
+def accumulate_gradients(model: nn.Module, gradients: Optional[List[torch.Tensor]] = None) -> List[torch.Tensor]:
+    if gradients is None:
+        gradients = [p.grad for p in model.parameters()]
+    else:
+        for i, p in enumerate(model.parameters()):
+            if p.grad is not None:
+                gradients[i] += p.grad
+    return gradients
+
+
+def apply_gradients(model: nn.Module, gradients: List[torch.Tensor]) -> nn.Module:
+    for i, p in enumerate(model.parameters()):
+        if p.grad is not None:
+            p.grad = gradients[i]
+    return model

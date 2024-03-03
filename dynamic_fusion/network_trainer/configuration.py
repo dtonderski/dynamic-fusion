@@ -76,6 +76,7 @@ class NetworkFitterConfiguration(BaseModel):
     skip_first_timesteps: int = Field(..., description="Number of initial timesteps to skip when training reconstruction.")
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
+    gradient_application_period: int = Field(1)
 
 
 class TrainingMonitorConfiguration(BaseModel):

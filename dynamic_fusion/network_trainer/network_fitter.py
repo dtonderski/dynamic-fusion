@@ -13,7 +13,15 @@ from torch.utils.data import DataLoader
 from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import get_reconstruction_loss
-from dynamic_fusion.utils.network import network_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
+from dynamic_fusion.utils.network import (
+    accumulate_gradients,
+    apply_gradients,
+    network_data_to_device,
+    run_decoder,
+    run_decoder_with_spatial_upscaling,
+    stack_and_maybe_unfold_c_list,
+    to_numpy,
+)
 from dynamic_fusion.utils.superresolution import get_upscaling_pixel_indices_and_distances
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
@@ -63,12 +71,28 @@ class NetworkFitter:
 
         data_loader_iterator = iter(data_loader)
 
+        encoding_gradients = None
+        decoding_gradients = None
+
         for iteration in range(start_iteration, self.config.number_of_training_iterations):
             if self.shared_config.spatial_upscaling:
                 assert decoding_network is not None, "Need decoding network for spatial upsampling!"
                 self._reconstruction_step_with_spatial_upscaling(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
             else:
                 self._reconstruction_step(data_loader_iterator, encoding_network, optimizer, decoding_network, iteration)
+
+            encoding_gradients = accumulate_gradients(encoding_network, encoding_gradients)
+            if decoding_network:
+                decoding_gradients = accumulate_gradients(decoding_network, decoding_gradients)
+
+            if self.config.gradient_application_period > 0 and iteration % self.config.gradient_application_period == 0:
+                apply_gradients(encoding_network, encoding_gradients)
+                if decoding_network:
+                    apply_gradients(decoding_network, decoding_gradients)  # type: ignore
+                encoding_gradients = None
+                decoding_gradients = None
+                optimizer.step()
+
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(iteration, encoding_network, optimizer, decoding_network)
 
@@ -172,7 +196,6 @@ class NetworkFitter:
 
         with Timer() as timer_backward:
             image_loss.backward()  # type: ignore
-            optimizer.step()
 
         time_batch, time_backward = timer_batch.interval, timer_backward.interval
         self.logger.info(f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)")
@@ -277,7 +300,6 @@ class NetworkFitter:
 
         with Timer() as timer_backward:
             image_loss.backward()  # type: ignore
-            optimizer.step()
 
         time_backward = timer_backward.interval
         self.logger.info(f"Iteration: {iteration}, times: {time_batch=:.2f}, {time_forward=:.2f}, {time_backward=:.2f}, {image_loss=:.3f} (reconstruction)")
