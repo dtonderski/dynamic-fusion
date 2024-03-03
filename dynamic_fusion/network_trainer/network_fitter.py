@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import get_reconstruction_loss
-from dynamic_fusion.utils.network import network_data_to_device, stack_and_maybe_unfold_c_list, run_decoder, run_decoder_with_spatial_upscaling, to_numpy
+from dynamic_fusion.utils.network import network_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
 from dynamic_fusion.utils.superresolution import get_upscaling_pixel_indices_and_distances
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
@@ -45,7 +45,7 @@ class NetworkFitter:
     def run(
         self,
         data_loader: DataLoader,  # type: ignore
-        #test_dataset: CocoTestDataset,
+        test_dataset: CocoTestDataset,
         encoding_network: nn.Module,
         decoding_network: Optional[nn.Module],
     ) -> None:
@@ -55,7 +55,7 @@ class NetworkFitter:
 
         optimizer = Adam(params, lr=self.config.lr_reconstruction)
 
-        start_iteration = self.monitor.initialize(encoding_network, optimizer, decoding_network)
+        start_iteration = self.monitor.initialize(test_dataset, encoding_network, optimizer, decoding_network)
 
         encoding_network.to(self.device)
         if decoding_network is not None:
@@ -102,7 +102,7 @@ class NetworkFitter:
         encoding_network.reset_states()
 
         with Timer() as timer_batch:
-            (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, video, preprocessed_images, transforms, crops) = network_data_to_device(
+            (event_polarity_sums, timestamp_means, timestamp_stds, event_counts, preprocessed_images, transforms, crops) = network_data_to_device(
                 next(data_loader_iterator), self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
             )
 
@@ -128,13 +128,14 @@ class NetworkFitter:
             )
 
             if decoding_network is None:
-                image_loss += self.reconstruction_loss_function(c_t, video[:, t, ...]).mean()  # pylint: disable=not-callable
-                if not visualize:
-                    continue
-                event_polarity_sum_list.append(to_numpy(event_polarity_sum))
-                images.append(to_numpy(video[:, t, ...]))
-                reconstructions.append(to_numpy(c_t))
-                continue
+                raise NotImplementedError()
+                # image_loss += self.reconstruction_loss_function(c_t, video[:, t, ...]).mean()  # pylint: disable=not-callable
+                # if not visualize:
+                #     continue
+                # event_polarity_sum_list.append(to_numpy(event_polarity_sum))
+                # images.append(to_numpy(video[:, t, ...]))
+                # reconstructions.append(to_numpy(c_t))
+                # continue
 
             c_list.append(c_t.clone())
         if decoding_network is None:
@@ -147,7 +148,7 @@ class NetworkFitter:
         taus = np.random.rand(batch_size, self.shared_config.sequence_length)  # B T
 
         # Generate ground truth for taus
-        gt = get_ground_truth(taus, preprocessed_images, transforms, crops, self.device, self.config.data_generator_target_image_size)
+        gt = get_ground_truth(taus, preprocessed_images, transforms, crops, True, self.device)
         gt = einops.rearrange(gt, "B T X Y -> T B 1 X Y")
 
         # Calculate start and end index to use for calculating loss
