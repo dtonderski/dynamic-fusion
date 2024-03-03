@@ -24,7 +24,6 @@ class SharedConfiguration(BaseModel):
     min_allowed_max_of_mean_polarities_over_times: float = Field(
         0.05, description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds."
     )
-    data_generator_target_image_size: Tuple[int, int] = Field(..., description="Image size that was used in data generation.")
 
 
 class AugmentationConfiguration(BaseModel):
@@ -81,7 +80,6 @@ class NetworkFitterConfiguration(BaseModel):
 
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
-    upscaling_region_size: Tuple[int, int] = Field((0, 0), description="Size of region to upscale. Used to limit memory usage in spatial upscaling")
 
 
 class TrainingMonitorConfiguration(BaseModel):

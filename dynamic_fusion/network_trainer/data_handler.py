@@ -47,10 +47,12 @@ class CocoAugmentation:
             event_counts = network_data.event_counts[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
 
         # Don't modify network_data in-place in case we fail validation
-        augmented_network_data = ReconstructionSample(event_polarity_sums, timestamp_means, timestamp_stds, event_counts, network_data.preprocessed_image)
+        augmented_network_data = ReconstructionSample(
+            event_polarity_sums, timestamp_means, timestamp_stds, event_counts, network_data.preprocessed_image, network_data.transform_definition
+        )
         # Get ground truth cropping (/interpolating) grid
         output_shape = tuple(int(size * scale) for size in self.config.network_image_size)
-        input_shape = network_data.event_polarity_sums.shape[-2:] if self.shared_config.spatial_upscaling else self.shared_config.data_generator_target_image_size
+        input_shape = network_data.event_polarity_sums.shape[-2:] if self.shared_config.spatial_upscaling else network_data.transform_definition.target_unscaled_video_size
 
         grid = get_grid(input_shape, output_shape, ((x_start, x_stop), (y_start, y_stop)))  # type: ignore
 

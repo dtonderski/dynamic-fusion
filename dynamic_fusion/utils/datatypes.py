@@ -98,6 +98,7 @@ class ReconstructionSample:
     timestamp_stds: Float32[torch.Tensor, "Time SubBin X Y"]
     event_counts: Float32[torch.Tensor, "Time SubBin X Y"]
     preprocessed_image: GrayImageFloat
+    transform_definition: TransformDefinition
 
 
 @dataclass

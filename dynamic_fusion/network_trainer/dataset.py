@@ -77,7 +77,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
 
             event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
 
-            network_data = ReconstructionSample(event_polarity_sum, timestamp_mean, timestamp_std, event_count, preprocessed_image)
+            network_data = ReconstructionSample(event_polarity_sum, timestamp_mean, timestamp_std, event_count, preprocessed_image, transform_definition)
             worker_id = get_current_worker_id()
             if self.scales[worker_id] == 0:
                 self.reset_scale_in_current_worker()
