@@ -62,6 +62,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                         self.logger.warning("Output exists but overwrite is true, overwriting!")
                     else:
                         self.logger.info("Output exists and overwrite is false, skipping.")
+                        i_image += 1
                         continue
                 try:
                     preprocessed_image = self.image_preprocessor.run(image)
