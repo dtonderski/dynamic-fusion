@@ -83,7 +83,7 @@ def get_spatial_upscaling_output(
     r_t = decoding_network(torch.concat([nearest_c, start_to_end_vectors_normalized, tau_expanded], dim=-1))
     if c_next is not None:
         nearest_c_next = c_next[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]
-        r_tnext = decoding_network(torch.concat([nearest_c_next, start_to_end_vectors_normalized, tau_expanded], dim=-1))
+        r_tnext = decoding_network(torch.concat([nearest_c_next, start_to_end_vectors_normalized, tau_expanded - 1], dim=-1))
         r_t = r_t * (1 - tau_expanded) + r_tnext * (tau_expanded)
 
     r_t = spatial_bilinear_interpolate(r_t, start_to_end_vectors_normalized)
