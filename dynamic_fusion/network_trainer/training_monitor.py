@@ -22,7 +22,7 @@ from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items
 from dynamic_fusion.utils.datatypes import Checkpoint, TestBatch
 from dynamic_fusion.utils.evaluation import get_evaluation_image, get_evaluation_video, get_metrics, get_reconstructions_and_gt
 from dynamic_fusion.utils.image import scale_to_quantiles
-from dynamic_fusion.utils.network import network_test_data_to_device, to_numpy
+from dynamic_fusion.utils.network import network_test_data_to_device
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 from .configuration import SharedConfiguration, TrainerConfiguration
@@ -50,13 +50,7 @@ class TrainingMonitor:
         self.logger = logging.getLogger("TrainingMonitor")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def initialize(
-        self,
-        test_dataset: CocoTestDataset,  # type: ignore
-        reconstruction_network: nn.Module,
-        optimizer: torch.optim.Optimizer,
-        decoding_network: Optional[nn.Module],
-    ) -> int:
+    def initialize(self, test_dataset: CocoTestDataset, reconstruction_network: nn.Module, optimizer: torch.optim.Optimizer, decoding_network: Optional[nn.Module]) -> int:
         plt.ioff()
         previous_subrun_directory, self.subrun_directory = self._get_previous_and_current_subrun_directories()
         self.subrun_directory.mkdir(parents=True, exist_ok=True)
@@ -202,8 +196,8 @@ class TrainingMonitor:
 
         if not self.shared_config.spatial_upscaling:
             pass
-            #x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
-            #self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
+            # x_t_plot = self._generate_x_t_plot(encoding_network, decoding_network)
+            # self.writer.add_image("last 5 frames", to_numpy(x_t_plot), iteration)  # type: ignore[no-untyped-call]
 
         self.writer.flush()  # type: ignore[no-untyped-call]
 
@@ -225,7 +219,7 @@ class TrainingMonitor:
         downscaled_frames = [skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True) for video_frame in video_for_downscaling]
         upscaled_frames = [skimage.transform.resize(video_frame, upscaled_size, order=0) for video_frame in downscaled_frames]
         upscaled_video = np.stack(upscaled_frames, axis=0)
-        upscaled_video = einops.rearrange(upscaled_video, "(B T) X Y C -> B T C X Y", B = video_event_polarity_sums.shape[0])
+        upscaled_video = einops.rearrange(upscaled_video, "(B T) X Y C -> B T C X Y", B=video_event_polarity_sums.shape[0])
 
         video_eps = einops.rearrange(torch.tensor(video_event_polarity_sums), "batch Time C X Y -> (batch Time) C X Y")
         video_eps = resize(video_eps, upscaled_size, interpolation=InterpolationMode.NEAREST).numpy()

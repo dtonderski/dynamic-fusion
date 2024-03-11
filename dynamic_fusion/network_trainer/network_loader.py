@@ -1,10 +1,9 @@
-from pathlib import Path
 from typing import Optional, Tuple
 
 import torch
 from torch import nn
-from dynamic_fusion.networks.decoding_nets.mlp import MLP
 
+from dynamic_fusion.networks.decoding_nets.mlp import MLP
 from dynamic_fusion.networks.reconstruction_nets import ConvGruNetV1
 
 from .configuration import NetworkLoaderConfiguration, SharedConfiguration
@@ -23,11 +22,12 @@ class NetworkLoader:
         return encoding_network, decoding_network
 
     def _load_networks(self) -> Tuple[nn.Module, Optional[nn.Module]]:
-        total_input_shape = self.config.encoding.input_size * (
-            1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count
-        )
+        total_input_shape = self.config.encoding.input_size * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
 
-        output_size = self.config.encoding.output_size if self.shared_config.implicit else 1
+        if self.shared_config.implicit:
+            output_size = self.config.encoding.output_size
+        else:
+            output_size = 2 if self.shared_config.predict_uncertainty else 1
 
         encoding_network = ConvGruNetV1(
             input_size=total_input_shape,
@@ -61,6 +61,7 @@ class NetworkLoader:
             input_size=input_shape,
             hidden_size=self.config.decoding.hidden_size,
             hidden_layers=self.config.decoding.hidden_layers,
+            output_size=2 if self.shared_config.predict_uncertainty else 1,
         )
 
         if self.config.decoding_checkpoint_path:

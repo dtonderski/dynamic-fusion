@@ -15,7 +15,7 @@ from tqdm import tqdm
 from dynamic_fusion.network_trainer.configuration import SharedConfiguration
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, get_ground_truth
 from dynamic_fusion.utils.datatypes import CropDefinition, TestBatch
-from dynamic_fusion.utils.loss import LPIPS
+from dynamic_fusion.utils.loss import LPIPS, UncertaintyLoss
 from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
 from dynamic_fusion.utils.superresolution import get_grid, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
@@ -45,6 +45,7 @@ class MetricsDictionary(TypedDict):
     SSIM: Tuple[float, float]
     MSE: Tuple[float, float]
     LPIPS: Tuple[float, float]
+    uncertainty_loss: Optional[Tuple[float, float]]
 
 
 @torch.no_grad()
@@ -57,7 +58,7 @@ def get_reconstructions_and_gt(
     scale: float,
     Ts_to_evaluate: int = 10,
     taus_to_evaluate: int = 10,
-) -> Tuple[Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T SubBins X Y"]]:
+) -> Tuple[Float[np.ndarray, "T C X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T SubBins X Y"]]:
     encoder.reset_states()
 
     _, _, _, _, eps_lst, means_lst, stds_lst, counts_lst, images, transforms = network_test_data_to_device(batch, device, config.use_mean, config.use_std, config.use_count)
@@ -81,9 +82,7 @@ def get_reconstructions_and_gt(
     grid = get_grid(input_shape, output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1]))).to(device)  # type: ignore
 
     crop_definition = CropDefinition(T_max_evaluated - needed_Ts + t_start, T_max_evaluated - needed_Ts + t_start + t_end, eps.shape[0], grid)
-    gt = get_ground_truth(
-        taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, eps.device
-    )
+    gt = get_ground_truth(taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, eps.device)
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
     nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
@@ -110,7 +109,7 @@ def get_reconstructions_and_gt(
             for _, r_t in run_decoder_with_spatial_upscaling(
                 decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end
             ):
-                reconstructions_tau.append(to_numpy(r_t.squeeze()))
+                reconstructions_tau.append(to_numpy(r_t))
 
         else:
             taus_tau = einops.repeat(torch.tensor(taus_tau).to(cs_tau), "tau T -> T tau X Y 1", X=cs.shape[-3], Y=cs.shape[-2])  # type: ignore
@@ -119,8 +118,8 @@ def get_reconstructions_and_gt(
                 reconstructions_tau.append(np.stack(upscaled, axis=0).squeeze())
         reconstructions.append(np.stack(reconstructions_tau, axis=0))
 
-    reconstruction_stacked = np.stack(reconstructions, axis=0)  # T tau X Y
-    reconstrucion_flat = einops.rearrange(reconstruction_stacked, "T tau X Y -> (tau T) X Y")
+    reconstruction_stacked = np.stack(reconstructions, axis=0)  # T tau C X Y
+    reconstrucion_flat = einops.rearrange(reconstruction_stacked, "T tau C D X Y -> (tau T) (C D) X Y")  # D=1
 
     eps_cropped = eps[T_max_evaluated - needed_Ts + t_start : T_max_evaluated - needed_Ts + t_start + t_end]
 
@@ -135,7 +134,7 @@ def add_plot_at_t(
     gs: gridspec.GridSpec,
     fig: plt.Figure,
     row: int,
-    recon: Float[np.ndarray, "T X Y"],
+    recon: Float[np.ndarray, "T C X Y"],
     gt: Float[np.ndarray, "T X Y"],
     gt_down: Float[np.ndarray, "T X Y"],
     eps: Float[np.ndarray, "T SubBins X Y"],
@@ -143,7 +142,7 @@ def add_plot_at_t(
     scale: float,
 ) -> None:
     ax00 = fig.add_subplot(gs[row, 0])
-    ax00.imshow(recon[t], cmap="gray", vmin=0, vmax=1, aspect="auto")
+    ax00.imshow(recon[t, 0], cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
         ax00.set_title("Reconstruction", fontsize=20)
     ax00.set_xlabel("X", fontsize=20)
@@ -156,7 +155,7 @@ def add_plot_at_t(
     ax01.set_xlabel("X", fontsize=20)
 
     ax02 = fig.add_subplot(gs[row, 2])
-    ax02.imshow(np.abs(gt[t] - recon[t]), cmap="gray", vmin=0, vmax=1, aspect="auto")
+    ax02.imshow(np.abs(gt[t] - recon[t, 0]), cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
         ax02.set_title("|Recon - GT|", fontsize=20)
     ax02.set_xlabel("X", fontsize=20)
@@ -174,9 +173,17 @@ def add_plot_at_t(
         ax04.set_title(f"Events scale {scale:.2f}", fontsize=20)
     ax04.set_xlabel("X", fontsize=20)
 
+    if recon.shape[1] > 1:
+        ax00 = fig.add_subplot(gs[row, 5])
+        ax00.imshow(np.exp(recon[t, 1]), cmap="gray", vmin=0, vmax=0.5, aspect="auto")
+        if add_title:
+            ax00.set_title("STD prediction", fontsize=20)
+        ax00.set_xlabel("X", fontsize=20)
+        ax00.set_ylabel(f"Y, T={t}", fontsize=20)
+
 
 def get_evaluation_video(
-    recon: Float[np.ndarray, "T X Y"],
+    recon: Float[np.ndarray, "T C X Y"],
     gt: Float[np.ndarray, "T X Y"],
     gt_down: Float[np.ndarray, "T X Y"],
     eps: Float[np.ndarray, "T SubBins X Y"],
@@ -190,11 +197,15 @@ def get_evaluation_video(
         fig.tight_layout()
         fig.subplots_adjust(left=0.05, right=0.99, top=1.2, bottom=-0.5, wspace=0.14, hspace=0)
 
-    fig = plt.figure(figsize=(16, 4), dpi=100)
+    uncertainty_prediction = recon.shape[1] != 1
+    # 19.2 is just 16*6/5, trying to keep figures same size as old
+    figsize = (16, 4) if not uncertainty_prediction else (19.2, 4)
+    fig = plt.figure(figsize=figsize, dpi=100)
     plt.close()
     fig.tight_layout()
 
-    gs = gridspec.GridSpec(4, 5, figure=fig, height_ratios=[6, 15, 0, 15])
+    columns = 6 if uncertainty_prediction else 5
+    gs = gridspec.GridSpec(4, columns, figure=fig, height_ratios=[6, 15, 0, 15])
 
     # Create animation
     return FuncAnimation(fig, update, frames=frames, blit=False)  # type: ignore
@@ -202,19 +213,24 @@ def get_evaluation_video(
 
 def get_evaluation_image(
     metrics: MetricsDictionary,
-    recon: Float[np.ndarray, "T X Y"],
+    recon: Float[np.ndarray, "T C X Y"],
     gt: Float[np.ndarray, "T X Y"],
     gt_down: Float[np.ndarray, "T X Y"],
     eps: Float[np.ndarray, "T SubBins X Y"],
     scale: float,
 ) -> plt.Figure:
-    fig = plt.figure(figsize=(16, 8))
+    uncertainty_prediction = recon.shape[1] != 1
+    # 19.2 is just 16*6/5, trying to keep figures same size as old
+    figsize = (16, 4) if not uncertainty_prediction else (19.2, 4)
+    fig = plt.figure(figsize=figsize)
     plt.tight_layout()
     # Define GridSpec layout
-    gs = gridspec.GridSpec(4, 5, figure=fig, height_ratios=[6, 15, 0, 15])
+    columns = 6 if uncertainty_prediction else 5
+    gs = gridspec.GridSpec(4, columns, figure=fig, height_ratios=[6, 15, 0, 15])
+
     table_ax = fig.add_subplot(gs[0, :])
-    table_data = [[f"{value1:.3f} +- {value2:.3f}" for value1, value2 in metrics.values()]]  # type: ignore
-    table_col_labels = list(metrics.keys())
+    table_data = [[f"{x[0]:.3f} +- {x[1]:.3f}" for x in metrics.values() if x is not None]]  # type: ignore
+    table_col_labels = [key for key, value in metrics.items() if value is not None]
 
     # Add table to the subplot and remove axis
     table = table_ax.table(cellText=table_data, colLabels=table_col_labels, loc="center", colWidths=[0.3] * 4)
@@ -226,9 +242,9 @@ def get_evaluation_image(
     t = recon.shape[0] // 2
     add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True, scale)
 
-    y = recon.shape[1] // 2
+    y = recon.shape[2] // 2
     ax10 = fig.add_subplot(gs[3, 0])
-    ax10.imshow(recon[:, y].T, cmap="gray", vmin=0, vmax=1, aspect="auto")
+    ax10.imshow(recon[:, 0, y].T, cmap="gray", vmin=0, vmax=1, aspect="auto")
     ax10.set_xlabel("T", fontsize=20)
     ax10.set_ylabel(f"X, Y={y}", fontsize=20)
 
@@ -237,7 +253,7 @@ def get_evaluation_image(
     ax11.set_xlabel("T", fontsize=20)
 
     ax12 = fig.add_subplot(gs[3, 2])
-    ax12.imshow(np.abs(gt[:, y] - recon[:, y]).T, cmap="gray", vmin=0, vmax=1, aspect="auto")
+    ax12.imshow(np.abs(gt[:, y] - recon[:, 0, y]).T, cmap="gray", vmin=0, vmax=1, aspect="auto")
     ax12.set_xlabel("T", fontsize=20)
 
     Y = gt_down.shape[1] // 2
@@ -248,6 +264,13 @@ def get_evaluation_image(
     ax14 = fig.add_subplot(gs[3, 4])
     ax14.imshow(img_to_colormap(eps[:, :, Y].sum(axis=1), create_red_blue_cmap(501)).transpose(1, 0, 2), cmap="gray", vmin=0, vmax=1, aspect="auto")
     ax14.set_xlabel("T", fontsize=20)
+
+    if uncertainty_prediction:
+        ax15 = fig.add_subplot(gs[3, 5])
+        ax15.imshow(np.exp(recon[:, 1, y].T), cmap="gray", vmin=0, vmax=0.5, aspect="auto")
+        ax15.set_xlabel("T", fontsize=20)
+        ax15.set_ylabel(f"X, Y={y}", fontsize=20)
+
     plt.close()
     return fig
 
@@ -256,37 +279,44 @@ def get_evaluation_image(
 def get_metrics(
     test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device, lpips_batch: int = 5
 ) -> MetricsDictionary:
-    psnr, ssim, mse, lpips = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device)
-    psnrs, ssims, mses, lpipss = [], [], [], []
+    psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device), UncertaintyLoss()
+    psnrs, ssims, mses, lpipss, uncertainty_losses = [], [], [], [], []
 
     for i, sample in enumerate(tqdm(test_dataset, total=len(test_dataset))):  # type: ignore
         psnr.reset()
         ssim.reset()
         mse.reset()
         lpips.reset()
+        uncertainty_loss.reset()
 
         batch = collate_test_items([sample])
         scale = test_dataset.scales[i]
         recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=scale, Ts_to_evaluate=10, taus_to_evaluate=5)
 
-        recon = torch.tensor(recon[:, None]).to(device)
+        recon = torch.tensor(recon).to(device)
         gt = torch.tensor(gt[:, None]).to(device)
 
-        psnr.update(output=[recon, gt])
-        ssim.update(output=[recon, gt])
-        mse.update(recon, gt)
+        psnr.update(output=[recon[:, 0:1], gt])
+        ssim.update(output=[recon[:, 0:1], gt])
+        mse.update(recon[:, 0:1], gt)
+
+        if recon.shape[1] > 1:
+            uncertainty_loss.update(recon, gt)
 
         for i in range(0, len(gt), lpips_batch):
-            lpips.update(recon[i : i + lpips_batch], gt[i : i + lpips_batch])
+            lpips.update(recon[i : i + lpips_batch, 0:1], gt[i : i + lpips_batch])
 
         psnrs.append(psnr.compute())
         ssims.append(ssim.compute())
         mses.append(mse.compute())
         lpipss.append(lpips.compute())
+        if recon.shape[1] > 1:
+            uncertainty_losses.append(uncertainty_loss.compute())
 
     return {
         "PSNR": (np.mean(psnrs), np.std(psnrs)),
         "SSIM": (np.mean(ssims), np.std(ssims)),
         "MSE": (np.mean(mses), np.std(mses)),  # type: ignore
         "LPIPS": (np.mean(lpipss), np.std(lpipss)),  # type: ignore
+        "uncertainty_loss": (np.mean(uncertainty_losses), np.std(uncertainty_losses)) if uncertainty_losses else None,  # type: ignore
     }

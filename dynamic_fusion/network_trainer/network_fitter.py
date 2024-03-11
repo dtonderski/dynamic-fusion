@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth
 from dynamic_fusion.utils.datatypes import Batch
-from dynamic_fusion.utils.loss import get_reconstruction_loss
+from dynamic_fusion.utils.loss import UncertaintyLoss, get_reconstruction_loss
 from dynamic_fusion.utils.network import (
     accumulate_gradients,
     apply_gradients,
@@ -46,7 +46,11 @@ class NetworkFitter:
         self.config = config
         self.shared_config = shared_config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.reconstruction_loss_function = get_reconstruction_loss(self.config.reconstruction_loss_name, self.device)
+        if self.shared_config.predict_uncertainty:
+            self.reconstruction_loss_function = UncertaintyLoss()
+        else:
+            self.reconstruction_loss_function = get_reconstruction_loss(self.config.reconstruction_loss_name, self.device)
+            
         self.logger = logging.getLogger("NetworkFitter")
         self.monitor = monitor
 
@@ -189,7 +193,7 @@ class NetworkFitter:
             if visualize:
                 event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
                 images.append(to_numpy(gt[t]))
-                reconstructions.append(to_numpy(r_t))
+                reconstructions.append(to_numpy(r_t[:, 0:1]))
 
         image_loss /= t_end - t_start
         time_forward = time.time() - forward_start
@@ -292,7 +296,7 @@ class NetworkFitter:
             if visualize:
                 event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
                 images.append(to_numpy(gt[t]))
-                reconstructions.append(to_numpy(r_t))
+                reconstructions.append(to_numpy(r_t[:, 0:1]))
 
         image_loss /= t_end - t_start
         time_forward = time.time() - forward_start
