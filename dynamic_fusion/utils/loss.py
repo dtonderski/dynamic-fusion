@@ -11,7 +11,7 @@ class UncertaintyLoss(nn.Module):
     values: List[float] = []
     weights: List[int] = []
 
-    def forward(self, x: Float32[torch.Tensor, "B 2 X Y"], y: Float32[torch.Tensor, "B 1 X Y"]) -> Float32[torch.Tensor, " B"]:
+    def forward(self, x: Float32[torch.Tensor, "B 2 X Y"], y: Float32[torch.Tensor, "B 1 X Y"], epsilon: float = 1e-6) -> Float32[torch.Tensor, " 1"]:
         """x[:,0] is mean, x[:, 1] is log std
 
         Returns:
@@ -19,7 +19,7 @@ class UncertaintyLoss(nn.Module):
         """
         means, log_stds = x[:, 0:1], x[:, 1:2]
 
-        per_pixel_loss = ((means - y) ** 2) / (2 * torch.exp(2 * log_stds)) + log_stds
+        per_pixel_loss = ((means - y) ** 2) / (2 * torch.exp(2 * log_stds) + epsilon) + log_stds
 
         return per_pixel_loss.mean()
 
