@@ -20,7 +20,7 @@ from torchvision.transforms.functional import resize
 
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items
 from dynamic_fusion.utils.datatypes import Checkpoint, TestBatch
-from dynamic_fusion.utils.evaluation import get_evaluation_image, get_evaluation_video, get_metrics, get_reconstructions_and_gt
+from dynamic_fusion.utils.evaluation import MetricsDictionary, get_evaluation_image, get_evaluation_video, get_metrics, get_reconstructions_and_gt
 from dynamic_fusion.utils.image import scale_to_quantiles
 from dynamic_fusion.utils.network import network_test_data_to_device
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
@@ -42,6 +42,8 @@ class TrainingMonitor:
     shared_config: SharedConfiguration
     logger: logging.Logger
     subrun_directory: Path
+    last_metrics_iteration: int = -1
+    metrics: MetricsDictionary
 
     def __init__(self, training_config: TrainerConfiguration) -> None:
         self.training_config = training_config
@@ -118,6 +120,20 @@ class TrainingMonitor:
             iteration = 0
 
         return iteration
+
+    def on_iteration(self, iteration: int, encoder: nn.Module, decoder: Optional[nn.Module] = None) -> None:
+        if decoder is not None and iteration % self.config.evaluation_period == 0:
+            metrics = self._maybe_update_and_get_metrics(iteration, encoder, decoder)
+            for key, value in metrics.items():
+                if value is None:
+                    return
+                self.writer.add_scalar(f"test_metrics/{key}", value, iteration)  # type: ignore[no-untyped-call]
+
+    def _maybe_update_and_get_metrics(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> MetricsDictionary:
+        if iteration >= self.last_metrics_iteration:
+            self.metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch)
+            self.last_metrics_iteration = iteration
+        return self.metrics
 
     def save_checkpoint(
         self,
@@ -329,7 +345,7 @@ class TrainingMonitor:
     @torch.no_grad()
     def _visualize_persistent(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> None:
         self.logger.info("Calculating metrics...")
-        metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch)
+        metrics = self._maybe_update_and_get_metrics(iteration, encoder, decoder)
         self.logger.info(f"Calculated metrics: {metrics}")
 
         I = len(self.config.test_samples_to_visualize)

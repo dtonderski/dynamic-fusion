@@ -50,7 +50,6 @@ class NetworkFitter:
             self.reconstruction_loss_function = UncertaintyLoss()
         else:
             self.reconstruction_loss_function = get_reconstruction_loss(self.config.reconstruction_loss_name, self.device)
-            
         self.logger = logging.getLogger("NetworkFitter")
         self.monitor = monitor
 
@@ -96,6 +95,8 @@ class NetworkFitter:
                 encoding_gradients = None
                 decoding_gradients = None
                 optimizer.step()
+
+            self.monitor.on_iteration(iteration, encoding_network, decoding_network)
 
             if iteration % self.config.network_saving_frequency == 0:
                 self.monitor.save_checkpoint(iteration, encoding_network, optimizer, decoding_network)
