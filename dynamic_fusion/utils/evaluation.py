@@ -66,28 +66,20 @@ def get_reconstructions_and_gt(
 
     c_list = []
 
-    T_max = eps.shape[0]
-
-    needed_Ts = Ts_to_evaluate + config.temporal_unfolding * 2 + config.temporal_interpolation
-    t_start = config.temporal_unfolding
-    t_end = t_start + Ts_to_evaluate
-
-    T_max_evaluated = (T_max - needed_Ts) // 2 + needed_Ts
-
     # Treat each tau as a batch
-    taus = einops.repeat(np.arange(0, 1, 1 / taus_to_evaluate), "tau -> tau T", T=needed_Ts)
+    taus = einops.repeat(np.arange(0, 1, 1 / taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
 
     output_shape = tuple(int(size * scale) for size in eps_lst[0].shape[-2:])
     input_shape = eps_lst[0].shape[-2:]
     grid = get_grid(input_shape, output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1]))).to(device)  # type: ignore
 
-    crop_definition = CropDefinition(T_max_evaluated - needed_Ts + t_start, T_max_evaluated - needed_Ts + t_start + t_end, eps.shape[0], grid)
-    gt = get_ground_truth(taus[:, t_start:t_end], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, eps.device)
+    crop_definition = CropDefinition(0, Ts_to_evaluate, eps.shape[0], grid)
+    gt = get_ground_truth(taus[:, 0:Ts_to_evaluate], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, eps.device)
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
     nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
 
-    for t in range(T_max_evaluated):  # pylint: disable=C0103
+    for t in range(Ts_to_evaluate):  # pylint: disable=C0103
         c_t = encoder(
             eps[t][None],
             means[t][None] if config.use_mean else None,
@@ -96,24 +88,24 @@ def get_reconstructions_and_gt(
         )
         c_list.append(c_t.clone())
 
-    cs = stack_and_maybe_unfold_c_list(c_list[-needed_Ts:], config.spatial_unfolding)  # Ts_to_evaluate 1 X Y C
+    cs = stack_and_maybe_unfold_c_list(c_list, config.spatial_unfolding)  # Ts_to_evaluate 1 X Y C
 
     cs = einops.repeat(cs, "T 1 X Y C -> T tau X Y C", tau=taus_to_evaluate)
     reconstructions = []
 
     for i_tau in range(taus.shape[0]):
-        cs_tau, taus_tau = cs[:, i_tau : i_tau + 1], taus[i_tau : i_tau + 1]  # type: ignore
+        cs_tau, taus_tau = cs[:, i_tau : i_tau + 1], taus[i_tau : i_tau + 1]
         reconstructions_tau = []
         if config.spatial_upscaling:
             taus_tau = einops.rearrange(torch.tensor(taus_tau).to(cs), "tau T -> T tau")
             for _, r_t in run_decoder_with_spatial_upscaling(
-                decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end
+                decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors
             ):
                 reconstructions_tau.append(to_numpy(r_t))
 
         else:
-            taus_tau = einops.repeat(torch.tensor(taus_tau).to(cs_tau), "tau T -> T tau X Y 1", X=cs.shape[-3], Y=cs.shape[-2])  # type: ignore
-            for _, r_t in run_decoder(decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, t_start, t_end):
+            taus_tau = einops.repeat(torch.tensor(taus_tau).to(cs_tau), "tau T -> T tau X Y 1", X=cs.shape[-3], Y=cs.shape[-2])
+            for _, r_t in run_decoder(decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding):
                 upscaled = [resize(to_numpy(image.squeeze()), output_shape=output_shape, order=3, anti_aliasing=True) for image in r_t]
                 reconstructions_tau.append(np.stack(upscaled, axis=0).squeeze())
         reconstructions.append(np.stack(reconstructions_tau, axis=0))
@@ -121,7 +113,7 @@ def get_reconstructions_and_gt(
     reconstruction_stacked = np.stack(reconstructions, axis=0)  # T tau C X Y
     reconstrucion_flat = einops.rearrange(reconstruction_stacked, "T tau C D X Y -> (tau T) (C D) X Y")  # D=1
 
-    eps_cropped = eps[T_max_evaluated - needed_Ts + t_start : T_max_evaluated - needed_Ts + t_start + t_end]
+    eps_cropped = eps[:Ts_to_evaluate]
 
     gt_cropped = to_numpy(gt_flat)
     gt_downscaled_flat = np.stack([resize(image, eps_cropped.shape[-2:], order=0) for image in gt_cropped], axis=0)
@@ -196,7 +188,6 @@ def get_evaluation_video(
         fig.tight_layout()
         fig.subplots_adjust(left=0.05, right=0.99, top=0.92, bottom=0.14, wspace=0.14, hspace=0)
 
-    # 19.2 is just 16*6/5, trying to keep figures same size as old
     figsize = (20, 4)
     fig = plt.figure(figsize=figsize, dpi=100)
     plt.close()
@@ -277,7 +268,7 @@ def get_metrics(
     psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device), UncertaintyLoss()
     psnrs, ssims, mses, lpipss, uncertainty_losses = [], [], [], [], []
 
-    for i, sample in enumerate(tqdm(test_dataset, total=len(test_dataset))):  # type: ignore
+    for i, sample in enumerate(tqdm(test_dataset, total=len(test_dataset))):
         psnr.reset()
         ssim.reset()
         mse.reset()

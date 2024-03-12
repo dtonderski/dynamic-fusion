@@ -64,29 +64,25 @@ def to_numpy(tensor: torch.Tensor) -> np.ndarray:  # type: ignore[type-arg]
 
 def run_decoder(
     decoder: nn.Module,
-    cs: List[Float[torch.Tensor, "T B X Y C"]],
+    cs: Float[torch.Tensor, "T B X Y C"],
     taus: Float[torch.Tensor, "T B X Y 1"],
     temporal_interpolation: bool,
     temporal_unfolding: bool,
-    t_start: Optional[int] = None,
-    t_end: Optional[int] = None,
+    t_start: int = 0,
 ) -> Generator[Tuple[int, Float[torch.Tensor, "B X Y Cout"]], None, None]:
-    t_start = t_start if t_start is not None else 0
-    t_end = t_end if t_end is not None else cs[0].shape[0]
-
-    for t in range(t_start, t_end):
-        c = cs[t]  # type: ignore  # B X Y C
+    for t in range(t_start, cs.shape[0]):
         c_next = None
-        if temporal_interpolation:
-            c_next = cs[t + 1]  # type: ignore
-
         if temporal_unfolding:
-            c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)  # type: ignore
-            if temporal_interpolation:
-                c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)  # type: ignore
+            c = unfold_temporally(cs, t)
+            if temporal_interpolation and t < cs.shape[0]:
+                c_next = unfold_temporally(cs, t + 1)
+        else:
+            c = cs[t]  # B X Y C
+            if temporal_interpolation and t < cs.shape[0]:
+                c_next = cs[t + 1]
 
         r_t = decoder(torch.concat([c, taus[t]], dim=-1))
-        if temporal_interpolation:
+        if c_next is not None:
             r_tnext = decoder(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
             r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
         yield t, r_t
@@ -101,26 +97,32 @@ def run_decoder_with_spatial_upscaling(
     temporal_unfolding: bool,
     nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
     start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
-    t_start: Optional[int] = None,
-    t_end: Optional[int] = None,
+    t_start: int = 0,
 ) -> Generator[Tuple[int, Float[torch.Tensor, "B X Y Cout"]], None, None]:
-    t_start = t_start if t_start is not None else 0
-    t_end = t_end if t_end is not None else cs[0].shape[0]
-
-    for t in range(t_start, t_end):
-        c = cs[t]  # B X Y C
+    for t in range(t_start, cs.shape[0]):
         c_next = None
-        if temporal_interpolation:
-            c_next = cs[t + 1]
-
         if temporal_unfolding:
-            c = torch.concat([cs[t - 1], cs[t], cs[t + 1]], dim=-1)
-            if temporal_interpolation:
-                c_next = torch.concat([cs[t], cs[t + 1], cs[t + 2]], dim=-1)
+            c = unfold_temporally(cs, t)
+            if temporal_interpolation and t < cs.shape[0]:
+                c_next = unfold_temporally(cs, t + 1)
+        else:
+            c = cs[t]  # B X Y C
+            if temporal_interpolation and t < cs.shape[0]:
+                c_next = cs[t + 1]
 
         yield t, get_spatial_upscaling_output(decoder, c, taus[t], c_next, nearest_pixels, start_to_end_vectors)
 
     return
+
+
+def unfold_temporally(cs: Float[torch.Tensor, "T B X Y C"], t: int) -> Float[torch.Tensor, "T B X Y ThreeC"]:
+    def get_value_or_zeros(t_i: int) -> Float[torch.Tensor, "T B X Y C"]:
+        # Get the correct c if exists, otherwise zeros
+        if t_i in range(cs.shape[0]):
+            return cs[t_i]
+        return torch.zeros_like(cs[0])
+    # Return previous, current, and next
+    return torch.concat([get_value_or_zeros(t_i) for t_i in [t - 1, t, t + 1]], dim=-1)
 
 
 def stack_and_maybe_unfold_c_list(c_list: List[Float[torch.Tensor, "B C X Y"]], spatial_unfolding: bool) -> Float[torch.Tensor, "T B X Y C"]:

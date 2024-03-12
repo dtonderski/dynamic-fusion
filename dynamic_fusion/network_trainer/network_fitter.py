@@ -182,12 +182,11 @@ class NetworkFitter:
 
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + self.shared_config.temporal_unfolding
-        t_end = self.shared_config.sequence_length - self.shared_config.temporal_interpolation - self.shared_config.temporal_unfolding
 
         # Calculate loss
         taus = einops.repeat(torch.tensor(taus).to(cs), "B T -> T B X Y 1", X=gt.shape[-2], Y=gt.shape[-1])
 
-        for t, r_t in run_decoder(decoding_network, cs, taus, self.shared_config.temporal_interpolation, self.shared_config.temporal_unfolding, t_start, t_end):
+        for t, r_t in run_decoder(decoding_network, cs, taus, self.shared_config.temporal_interpolation, self.shared_config.temporal_unfolding, t_start):
             r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
             image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()  # pylint: disable=not-callable
 
@@ -196,7 +195,7 @@ class NetworkFitter:
                 images.append(to_numpy(gt[t]))
                 reconstructions.append(to_numpy(r_t[:, 0:1]))
 
-        image_loss /= t_end - t_start
+        image_loss /= cs.shape[0] - t_start
         time_forward = time.time() - forward_start
 
         with Timer() as timer_backward:
@@ -282,16 +281,12 @@ class NetworkFitter:
 
         # Calculate start and end index to use for calculating loss
         t_start = self.config.skip_first_timesteps + temporal_unfolding
-        t_end = self.shared_config.sequence_length - temporal_interpolation - temporal_unfolding
 
         # Calculate loss
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
         taus = einops.rearrange(torch.tensor(taus).to(cs), "B T -> T B")
 
-        for t, r_t in run_decoder_with_spatial_upscaling(
-            decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start, t_end
-        ):
-
+        for t, r_t in run_decoder_with_spatial_upscaling(decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start):
             image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()
 
             if visualize:
@@ -299,7 +294,7 @@ class NetworkFitter:
                 images.append(to_numpy(gt[t]))
                 reconstructions.append(to_numpy(r_t[:, 0:1]))
 
-        image_loss /= t_end - t_start
+        image_loss /= cs.shape[0] - t_start
         time_forward = time.time() - forward_start
         # endregion
 
