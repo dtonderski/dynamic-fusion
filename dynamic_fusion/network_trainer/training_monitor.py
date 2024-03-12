@@ -127,7 +127,8 @@ class TrainingMonitor:
             for key, value in metrics.items():
                 if value is None:
                     return
-                self.writer.add_scalar(f"test_metrics/{key}", value, iteration)  # type: ignore[no-untyped-call]
+                self.writer.add_scalar(f"test_metrics_means/{key[0]}", value, iteration)  # type: ignore[no-untyped-call]
+                self.writer.add_scalar(f"test_metrics_stds/{key[1]}", value, iteration)  # type: ignore[no-untyped-call]
 
     def _maybe_update_and_get_metrics(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> MetricsDictionary:
         if iteration >= self.last_metrics_iteration:
