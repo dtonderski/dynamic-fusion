@@ -292,7 +292,7 @@ class NetworkFitter:
             if visualize:
                 event_polarity_sum_list.append(to_numpy(event_polarity_sums[:, t]))
                 images.append(to_numpy(gt[t]))
-                reconstructions.append(to_numpy(r_t[:, 0:1]))
+                reconstructions.append(to_numpy(r_t))
 
         image_loss /= cs.shape[0] - t_start
         time_forward = time.time() - forward_start

@@ -222,12 +222,12 @@ class TrainingMonitor:
         self,
         fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 XDown YDown"],
         images: Float32[np.ndarray, "batch Time 1 X Y"],
-        predictions: Float32[np.ndarray, "batch Time 1 X Y"],
+        predictions: Float32[np.ndarray, "batch Time C X Y"],
         iteration: int,
         encoding_network: Optional[nn.Module],
         decoding_network: Optional[nn.Module],
     ) -> None:
-        video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
+        video_event_polarity_sums, video_images, video_predictions, video_stds = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
         dowscaled_size = fused_event_polarity_sums.shape[-2:]
         upscaled_size = images.shape[-2:]
@@ -242,7 +242,11 @@ class TrainingMonitor:
         video_eps = resize(video_eps, upscaled_size, interpolation=InterpolationMode.NEAREST).numpy()
         video_eps = einops.rearrange(video_eps, "(batch Time) C X Y -> batch Time C X Y", batch=video_images.shape[0])
 
-        montage_frames = np.stack((upscaled_video, video_eps, video_images, video_predictions), axis=0)  # S B T C X Y
+        videos = [upscaled_video, video_eps, video_images, video_predictions]
+        if video_stds is not None:
+            videos.append(video_stds)
+
+        montage_frames = np.stack(videos, axis=0)  # S B T C X Y
 
         montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
         self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]
@@ -262,21 +266,31 @@ class TrainingMonitor:
         self,
         fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 X Y"],
         images: Float32[np.ndarray, "batch Time 1 X Y"],
-        predictions: Float32[np.ndarray, "batch Time 1 X Y"],
+        predictions: Float32[np.ndarray, "batch Time C X Y"],
     ) -> Tuple[
         Float32[np.ndarray, "batch Time 3 X Y"],
         Float32[np.ndarray, "batch Time 3 X Y"],
         Float32[np.ndarray, "batch Time 3 X Y"],
+        Optional[Float32[np.ndarray, "batch Time 3 X Y"]],
     ]:
         colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums[:, :, 0, :, :], create_red_blue_cmap(501))
         colored_event_polarity_sums = einops.rearrange(colored_event_polarity_sums, "B T X Y C -> B T C X Y")
+
         images = scale_to_quantiles(images, [1, 2, 3, 4], 0.005, 0.995)
-        predictions = scale_to_quantiles(predictions, [1, 2, 3, 4], 0.005, 0.995)
-
         images = einops.repeat(images, "batch Time 1 X Y -> batch Time C X Y", C=3)
-        predictions = einops.repeat(predictions, "batch Time 1 X Y -> batch Time C X Y", C=3)
 
-        return colored_event_polarity_sums, images, predictions
+        means = predictions[:, :, 0:1]
+        means = scale_to_quantiles(means, [1, 2, 3, 4], 0.005, 0.995)
+        means = einops.repeat(means, "batch Time 1 X Y -> batch Time C X Y", C=3)
+
+        if predictions.shape[2] > 1:
+            stds = np.exp(predictions[:, :, 1:2])
+            stds = scale_to_quantiles(stds, [1, 2, 3, 4], 0.005, 0.995)
+            stds = einops.repeat(stds, "batch Time 1 X Y -> batch Time C X Y", C=3)
+        else:
+            stds = None
+
+        return colored_event_polarity_sums, images, means, stds
 
     @torch.no_grad()
     def _generate_x_t_plot(
