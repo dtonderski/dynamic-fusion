@@ -144,42 +144,41 @@ def add_plot_at_t(
     ax00 = fig.add_subplot(gs[row, 0])
     ax00.imshow(recon[t, 0], cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
-        ax00.set_title("Reconstruction", fontsize=20)
-    ax00.set_xlabel("X", fontsize=20)
-    ax00.set_ylabel(f"Y, T={t}", fontsize=20)
+        ax00.set_title("Reconstruction", fontsize=15)
+    ax00.set_xlabel("X", fontsize=15)
+    ax00.set_ylabel(f"Y, T={t}", fontsize=15)
 
     ax01 = fig.add_subplot(gs[row, 1])
     ax01.imshow(gt[t], cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
-        ax01.set_title("Ground truth", fontsize=20)
-    ax01.set_xlabel("X", fontsize=20)
+        ax01.set_title("Ground truth", fontsize=15)
+    ax01.set_xlabel("X", fontsize=15)
 
     ax02 = fig.add_subplot(gs[row, 2])
     ax02.imshow(np.abs(gt[t] - recon[t, 0]), cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
-        ax02.set_title("|Recon - GT|", fontsize=20)
-    ax02.set_xlabel("X", fontsize=20)
+        ax02.set_title("|Recon - GT|", fontsize=15)
+    ax02.set_xlabel("X", fontsize=15)
 
     ax03 = fig.add_subplot(gs[row, 3])
     ax03.imshow(gt_down[t], cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
-        ax03.set_title("GT downsampled", fontsize=20)
-    ax03.set_xlabel("X", fontsize=20)
+        ax03.set_title("GT downsampled", fontsize=15)
+    ax03.set_xlabel("X", fontsize=15)
 
     T = t * eps.shape[0] // recon.shape[0]
     ax04 = fig.add_subplot(gs[row, 4])
     ax04.imshow(img_to_colormap(eps[T].sum(axis=0), create_red_blue_cmap(501)), cmap="gray", vmin=0, vmax=1, aspect="auto")
     if add_title:
-        ax04.set_title(f"Events scale {scale:.2f}", fontsize=20)
-    ax04.set_xlabel("X", fontsize=20)
+        ax04.set_title(f"Events scale {scale:.2f}", fontsize=15)
+    ax04.set_xlabel("X", fontsize=15)
 
     if recon.shape[1] > 1:
         ax00 = fig.add_subplot(gs[row, 5])
         ax00.imshow(np.exp(recon[t, 1]), cmap="gray", vmin=0, vmax=0.5, aspect="auto")
         if add_title:
-            ax00.set_title("STD prediction", fontsize=20)
-        ax00.set_xlabel("X", fontsize=20)
-        ax00.set_ylabel(f"Y, T={t}", fontsize=20)
+            ax00.set_title("STD prediction", fontsize=15)
+        ax00.set_xlabel("X", fontsize=15)
 
 
 def get_evaluation_video(
@@ -193,19 +192,18 @@ def get_evaluation_video(
     def update(t: int) -> None:
         fig.clf()  # Clear the figure to prepare for the next frame
         # Call your plot function here
-        add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True, scale)
+        add_plot_at_t(t, gs, fig, 0, recon, gt, gt_down, eps, True, scale)
         fig.tight_layout()
-        fig.subplots_adjust(left=0.05, right=0.99, top=1.2, bottom=-0.5, wspace=0.14, hspace=0)
+        fig.subplots_adjust(left=0.05, right=0.99, top=0.92, bottom=0.14, wspace=0.14, hspace=0)
 
-    uncertainty_prediction = recon.shape[1] != 1
     # 19.2 is just 16*6/5, trying to keep figures same size as old
-    figsize = (16, 4) if not uncertainty_prediction else (19.2, 4)
+    figsize = (20, 4)
     fig = plt.figure(figsize=figsize, dpi=100)
     plt.close()
     fig.tight_layout()
 
-    columns = 6 if uncertainty_prediction else 5
-    gs = gridspec.GridSpec(4, columns, figure=fig, height_ratios=[6, 15, 0, 15])
+    columns = 6
+    gs = gridspec.GridSpec(1, columns, figure=fig)
 
     # Create animation
     return FuncAnimation(fig, update, frames=frames, blit=False)  # type: ignore
@@ -219,57 +217,54 @@ def get_evaluation_image(
     eps: Float[np.ndarray, "T SubBins X Y"],
     scale: float,
 ) -> plt.Figure:
-    uncertainty_prediction = recon.shape[1] != 1
-    # 19.2 is just 16*6/5, trying to keep figures same size as old
-    figsize = (16, 4) if not uncertainty_prediction else (19.2, 4)
+    figsize = (16, 6)
     fig = plt.figure(figsize=figsize)
     plt.tight_layout()
     # Define GridSpec layout
-    columns = 6 if uncertainty_prediction else 5
-    gs = gridspec.GridSpec(4, columns, figure=fig, height_ratios=[6, 15, 0, 15])
+    gs = gridspec.GridSpec(3, 6, figure=fig, height_ratios=[3, 8, 8])
 
     table_ax = fig.add_subplot(gs[0, :])
     table_data = [[f"{x[0]:.3f} +- {x[1]:.3f}" for x in metrics.values() if x is not None]]  # type: ignore
     table_col_labels = [key for key, value in metrics.items() if value is not None]
 
     # Add table to the subplot and remove axis
-    table = table_ax.table(cellText=table_data, colLabels=table_col_labels, loc="center", colWidths=[0.3] * 4)
+    colWidths = [0.2] * 5
+    table = table_ax.table(cellText=table_data, colLabels=table_col_labels, loc="center", colWidths=colWidths)
     table.auto_set_font_size(False)
-    table.scale(1, 2)
-    table.set_fontsize(20)
+    table.scale(1, 1.5)
+    table.set_fontsize(15)
     table_ax.axis("off")
 
     t = recon.shape[0] // 2
     add_plot_at_t(t, gs, fig, 1, recon, gt, gt_down, eps, True, scale)
 
     y = recon.shape[2] // 2
-    ax10 = fig.add_subplot(gs[3, 0])
+    ax10 = fig.add_subplot(gs[2, 0])
     ax10.imshow(recon[:, 0, y].T, cmap="gray", vmin=0, vmax=1, aspect="auto")
-    ax10.set_xlabel("T", fontsize=20)
-    ax10.set_ylabel(f"X, Y={y}", fontsize=20)
+    ax10.set_xlabel("T", fontsize=15)
+    ax10.set_ylabel(f"X, Y={y}", fontsize=15)
 
-    ax11 = fig.add_subplot(gs[3, 1])
+    ax11 = fig.add_subplot(gs[2, 1])
     ax11.imshow(gt[:, y].T, cmap="gray", vmin=0, vmax=1, aspect="auto")
-    ax11.set_xlabel("T", fontsize=20)
+    ax11.set_xlabel("T", fontsize=15)
 
-    ax12 = fig.add_subplot(gs[3, 2])
+    ax12 = fig.add_subplot(gs[2, 2])
     ax12.imshow(np.abs(gt[:, y] - recon[:, 0, y]).T, cmap="gray", vmin=0, vmax=1, aspect="auto")
-    ax12.set_xlabel("T", fontsize=20)
+    ax12.set_xlabel("T", fontsize=15)
 
     Y = gt_down.shape[1] // 2
-    ax13 = fig.add_subplot(gs[3, 3])
+    ax13 = fig.add_subplot(gs[2, 3])
     ax13.imshow(gt_down[:, Y].T, cmap="gray", vmin=0, vmax=1, aspect="auto")
-    ax13.set_xlabel("T", fontsize=20)
+    ax13.set_xlabel("T", fontsize=15)
 
-    ax14 = fig.add_subplot(gs[3, 4])
+    ax14 = fig.add_subplot(gs[2, 4])
     ax14.imshow(img_to_colormap(eps[:, :, Y].sum(axis=1), create_red_blue_cmap(501)).transpose(1, 0, 2), cmap="gray", vmin=0, vmax=1, aspect="auto")
-    ax14.set_xlabel("T", fontsize=20)
+    ax14.set_xlabel("T", fontsize=15)
 
-    if uncertainty_prediction:
-        ax15 = fig.add_subplot(gs[3, 5])
+    if recon.shape[2] > 1:
+        ax15 = fig.add_subplot(gs[2, 5])
         ax15.imshow(np.exp(recon[:, 1, y].T), cmap="gray", vmin=0, vmax=0.5, aspect="auto")
-        ax15.set_xlabel("T", fontsize=20)
-        ax15.set_ylabel(f"X, Y={y}", fontsize=20)
+        ax15.set_xlabel("T", fontsize=15)
 
     plt.close()
     return fig
