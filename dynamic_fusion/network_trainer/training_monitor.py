@@ -131,7 +131,7 @@ class TrainingMonitor:
                 self.writer.add_scalar(f"test_metrics_stds/{key}", value[1], iteration)  # type: ignore[no-untyped-call]
 
     def _maybe_update_and_get_metrics(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> MetricsDictionary:
-        if iteration >= self.last_metrics_iteration:
+        if iteration > self.last_metrics_iteration:
             self.metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch)
             self.last_metrics_iteration = iteration
         return self.metrics
