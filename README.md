@@ -9,9 +9,9 @@ This repository is about Implicit Image Reconstruction and SpatioTemporal Superr
 
 ## Installation
 Install ffmpeg
-"""
+```
 sudo apt install ffmpeg
-"""
+```
 Create a virtual environment:
 ```
 python3 -m venv venv
