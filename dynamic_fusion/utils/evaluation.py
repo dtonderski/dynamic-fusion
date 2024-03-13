@@ -78,7 +78,7 @@ def get_reconstructions_and_gt(
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
     nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
-    first_aps_frames = get_initial_aps_frames([image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, device)
+    first_aps_frames = get_initial_aps_frames([image], [transform], [crop_definition], False, device)
     current_frame_info = None
 
     for t in range(config.sequence_length):  # pylint: disable=C0103
