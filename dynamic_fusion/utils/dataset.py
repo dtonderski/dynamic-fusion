@@ -135,7 +135,7 @@ def get_ground_truth(
     ys_list = []
     for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
         video = get_video(image, transform, Ts_normalized, False, try_center_crop, device)
-        ys_list.append(crops[i].crop_output_spatial(video) if crops is not None else video)
+        ys_list.append(crops[i].crop_output_spatial(video))
 
     return torch.stack(ys_list, dim=0)
 
@@ -153,6 +153,6 @@ def get_initial_aps_frames(
     initial_aps_frames = []
     for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
         video = get_video(image, transform, Ts_normalized, True, try_center_crop, device)
-        initial_aps_frames.append(crops[i].crop_input_spatial(video) if crops is not None else video)
+        initial_aps_frames.append(crops[i].crop_input_spatial(video) if crops[i].x_start is not None else video)
 
     return torch.stack(initial_aps_frames, dim=0)
