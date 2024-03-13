@@ -47,7 +47,7 @@ class TransformDefinition:
                 except Exception:
                     return None
             if "Tuple[int, int]" in field_to_load.type:
-                return tuple(file[GROUP_NAME][field_to_load.name])
+                return tuple(int(x) for x in file[GROUP_NAME][field_to_load.name])
             raise ValueError(f"Unhandled type {field_to_load.type}")
 
         loaded_data = {field.name: load_field(field) for field in fields(cls)}
