@@ -81,11 +81,10 @@ def get_reconstructions_and_gt(
     first_aps_frames = get_initial_aps_frames([image], [transform], [crop_definition], False, device)
     current_frame_info = None
 
-    for t in range(config.sequence_length):  # pylint: disable=C0103
+    for t in range(Ts_to_evaluate):  # pylint: disable=C0103
         if config.feed_initial_aps_frame:
             current_frame_info = first_aps_frames if t == 0 else torch.zeros_like(first_aps_frames)
 
-    for t in range(Ts_to_evaluate):  # pylint: disable=C0103
         c_t = encoder(
             eps[t][None],
             means[t][None] if config.use_mean else None,
