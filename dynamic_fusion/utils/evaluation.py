@@ -259,7 +259,7 @@ def get_evaluation_image(
     ax14.imshow(img_to_colormap(eps[:, :, Y].sum(axis=1), create_red_blue_cmap(501)).transpose(1, 0, 2), cmap="gray", vmin=0, vmax=1, aspect="auto")
     ax14.set_xlabel("T", fontsize=15)
 
-    if recon.shape[2] > 1:
+    if recon.shape[1] > 1:
         ax15 = fig.add_subplot(gs[2, 5])
         ax15.imshow(np.exp(recon[:, 1, y].T), cmap="gray", vmin=0, vmax=0.5, aspect="auto")
         ax15.set_xlabel("T", fontsize=15)
