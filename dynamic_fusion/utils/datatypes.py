@@ -58,13 +58,24 @@ class CropDefinition:
     T_start: int
     T_end: int
     total_number_of_bins: int
+    # This defines how to generate the UPSCALED ground truth
     grid: Float32[torch.Tensor, "1 X Y 2"]
+    # This defines how the input is cropped
+    x_start: Optional[int] = None
+    x_stop: Optional[int] = None
+    y_start: Optional[int] = None
+    y_stop: Optional[int] = None
 
-    def crop_spatial(self, video: Shaped[torch.Tensor, "T X Y"]) -> Shaped[torch.Tensor, "T X Y"]:
+    def crop_output_spatial(self, video: Shaped[torch.Tensor, "T X Y"]) -> Shaped[torch.Tensor, "T X Y"]:
         grid_repeated = einops.repeat(self.grid, "1 X Y N -> T X Y N", T=video.shape[0])
         video_expanded = einops.rearrange(video, "T X Y -> T 1 X Y")
         sampled = grid_sample(video_expanded, grid_repeated, mode="bicubic", align_corners=True)
         return sampled[:, 0]
+
+    def crop_input_spatial(self, video: Shaped[torch.Tensor, "T X Y"]) -> Shaped[torch.Tensor, "T X Y"]:
+        if (self.x_start is None or self.y_start is None or self.x_stop is None or self.y_stop is None):
+            raise ValueError("Input cropping is not defined for this CropDefinition!")
+        return video[:, self.x_start : self.x_stop, self.y_start : self.y_stop]
 
 
 Batch: TypeAlias = Tuple[

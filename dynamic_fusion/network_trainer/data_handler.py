@@ -56,7 +56,7 @@ class CocoAugmentation:
 
         grid = get_grid(input_shape, output_shape, ((x_start, x_stop), (y_start, y_stop)))  # type: ignore
 
-        crop_definition = CropDefinition(t_start, t_end, total_number_of_bins, grid)
+        crop_definition = CropDefinition(t_start, t_end, total_number_of_bins, grid, x_start, x_stop, y_start, y_stop)
 
         return CroppedReconstructionSample(augmented_network_data, crop_definition)
 

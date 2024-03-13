@@ -200,9 +200,13 @@ class TrainingMonitor:
         encoding_network: Optional[nn.Module] = None,
         decoding_network: Optional[nn.Module] = None,
     ) -> None:
-        video_event_polarity_sums, video_images, video_predictions = self._generate_montage(fused_event_polarity_sums, images, predictions)
+        video_event_polarity_sums, video_images, video_predictions, video_stds = self._generate_montage(fused_event_polarity_sums, images, predictions)
 
-        montage_frames = np.stack((video_event_polarity_sums, video_images, video_predictions), axis=0)  # S B T C X Y
+        videos = [video_event_polarity_sums, video_images, video_predictions]
+        if video_stds is not None:
+            videos.append(video_stds)
+
+        montage_frames = np.stack(videos, axis=0)  # S B T C X Y
 
         montage_frames_video = einops.rearrange(montage_frames, "S B T C X Y -> 1 T C (B X) (S Y)")
         self.writer.add_video("reconstruction_visualization", montage_frames_video, iteration)  # type: ignore[no-untyped-call]

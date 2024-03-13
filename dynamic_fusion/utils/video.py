@@ -84,6 +84,9 @@ def get_video(
     image_tensor = einops.repeat(torch.tensor(image, device=device, dtype=torch.float), "X Y -> T 1 X Y", T=T)
     video = torch.nn.functional.grid_sample(image_tensor, grid, "bicubic", fill_mode, align_corners=True)
     video = normalize(video.squeeze())
+    # Make sure shape is T X Y even if only one frame!
+    if (len(video.shape) == 2):
+        video = video[None]
     return video
 
 

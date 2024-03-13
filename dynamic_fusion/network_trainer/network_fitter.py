@@ -10,7 +10,7 @@ from torch import nn
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 
-from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth
+from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth, get_initial_aps_frames
 from dynamic_fusion.utils.datatypes import Batch
 from dynamic_fusion.utils.loss import UncertaintyLoss, get_reconstruction_loss
 from dynamic_fusion.utils.network import (
@@ -144,8 +144,13 @@ class NetworkFitter:
         event_polarity_sum_list, images, reconstructions = [], [], []
         c_list = []
 
+        first_aps_frames = get_initial_aps_frames(preprocessed_images, transforms, crops, True, self.device)
+        current_frame_info = None
+
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             event_polarity_sum = event_polarity_sums[:, t]
+            if self.shared_config.feed_initial_aps_frame:
+                current_frame_info = first_aps_frames if t == 0 else torch.zeros_like(first_aps_frames)
 
             # TODO: fix variable names. Non-trivial because this might be output video
             # or latent codes
@@ -154,6 +159,7 @@ class NetworkFitter:
                 timestamp_means[:, t] if self.shared_config.use_mean else None,
                 timestamp_stds[:, t] if self.shared_config.use_std else None,
                 event_counts[:, t] if self.shared_config.use_count else None,
+                current_frame_info,
             )
 
             if decoding_network is None:
@@ -259,12 +265,20 @@ class NetworkFitter:
         event_polarity_sum_list, images, reconstructions = [], [], []
         c_list = []
 
+        first_aps_frames = get_initial_aps_frames(preprocessed_images, transforms, crops, False, self.device)
+        current_frame_info = None
+
+
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
+            if self.shared_config.feed_initial_aps_frame:
+                current_frame_info = first_aps_frames if t == 0 else torch.zeros_like(first_aps_frames)
+
             c_t = encoding_network(
                 event_polarity_sums[:, t],
                 timestamp_means[:, t] if self.shared_config.use_mean else None,
                 timestamp_stds[:, t] if self.shared_config.use_std else None,
                 event_counts[:, t] if self.shared_config.use_count else None,
+                current_frame_info
             )
 
             c_list.append(c_t.clone())

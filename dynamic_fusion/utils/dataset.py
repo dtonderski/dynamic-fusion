@@ -49,7 +49,7 @@ def generate_frames_at_continuous_timestamps(
     timestamps_and_zero = torch.concat([torch.zeros(1), continuous_timestamps_using_video_time])
 
     frames_and_zero = get_video(preprocessed_image, transform_definition, timestamps_and_zero, False, try_center_crop, device=torch.device("cuda"))
-    cropped_frames = crop.crop_spatial(frames_and_zero)
+    cropped_frames = crop.crop_output_spatial(frames_and_zero)
 
     return einops.rearrange(cropped_frames, "T X Y -> T 1 X Y")
 
@@ -64,7 +64,7 @@ class CocoTestDataset(Dataset):  # type: ignore
         self.directory_list = sorted([path for path in dataset_directory.glob("**/*") if path.is_dir()])
         self.logger = logging.getLogger("CocoDataset")
         self.threshold = threshold
-        self.scales = np.random.random(len(self.directory_list))*(scales_range[1] - scales_range[0]) + scales_range[0]
+        self.scales = np.random.random(len(self.directory_list)) * (scales_range[1] - scales_range[0]) + scales_range[0]
 
     def __len__(self) -> int:
         return len(self.directory_list)
@@ -135,6 +135,24 @@ def get_ground_truth(
     ys_list = []
     for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
         video = get_video(image, transform, Ts_normalized, False, try_center_crop, device)
-        ys_list.append(crops[i].crop_spatial(video) if crops is not None else video)
+        ys_list.append(crops[i].crop_output_spatial(video) if crops is not None else video)
 
     return torch.stack(ys_list, dim=0)
+
+
+def get_initial_aps_frames(
+    preprocessed_images: List[GrayImageFloat],
+    transforms: List[TransformDefinition],
+    crops: List[CropDefinition],
+    try_center_crop: bool,
+    device: torch.device,
+) -> Float[torch.Tensor, "B 1 X Y"]:
+    T_starts = einops.rearrange(np.array([crop.T_start for crop in crops] if crops else np.array([0] * len(transforms))), "B -> B 1")
+    Ts_normalized_batch = T_starts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
+
+    initial_aps_frames = []
+    for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
+        video = get_video(image, transform, Ts_normalized, True, try_center_crop, device)
+        initial_aps_frames.append(crops[i].crop_input_spatial(video) if crops is not None else video)
+
+    return torch.stack(initial_aps_frames, dim=0)

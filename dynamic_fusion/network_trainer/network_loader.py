@@ -22,7 +22,10 @@ class NetworkLoader:
         return encoding_network, decoding_network
 
     def _load_networks(self) -> Tuple[nn.Module, Optional[nn.Module]]:
-        total_input_shape = self.config.encoding.input_size * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
+        total_input_shape = (
+            self.config.encoding.input_size * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
+            + self.shared_config.feed_initial_aps_frame
+        )
 
         if self.shared_config.implicit:
             output_size = self.config.encoding.output_size
