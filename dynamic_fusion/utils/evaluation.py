@@ -90,7 +90,7 @@ def get_reconstructions_and_gt(
             means[t][None] if config.use_mean else None,
             stds[t][None] if config.use_std else None,
             counts[t][None] if config.use_count else None,
-            current_frame_info
+            current_frame_info,
         )
         c_list.append(c_t.clone())
 
@@ -269,7 +269,14 @@ def get_evaluation_image(
 
 @torch.no_grad()
 def get_metrics(
-    test_dataset: CocoTestDataset, encoder: nn.Module, decoder: nn.Module, config: SharedConfiguration, device: torch.device, lpips_batch: int = 5
+    test_dataset: CocoTestDataset,
+    encoder: nn.Module,
+    decoder: nn.Module,
+    config: SharedConfiguration,
+    device: torch.device,
+    lpips_batch: int = 5,
+    Ts_to_evaluate: int = 10,
+    taus_to_evaluate: int = 5,
 ) -> MetricsDictionary:
     psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device), UncertaintyLoss()
     psnrs, ssims, mses, lpipss, uncertainty_losses = [], [], [], [], []
@@ -283,7 +290,7 @@ def get_metrics(
 
         batch = collate_test_items([sample])
         scale = test_dataset.scales[i]
-        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=scale, Ts_to_evaluate=10, taus_to_evaluate=5)
+        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=scale, Ts_to_evaluate=Ts_to_evaluate, taus_to_evaluate=taus_to_evaluate)
 
         recon = torch.tensor(recon).to(device)
         gt = torch.tensor(gt[:, None]).to(device)

@@ -4,6 +4,7 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
+import time
 from typing import Optional, Tuple
 
 import einops
@@ -132,7 +133,11 @@ class TrainingMonitor:
 
     def _maybe_update_and_get_metrics(self, iteration: int, encoder: nn.Module, decoder: nn.Module) -> MetricsDictionary:
         if iteration > self.last_metrics_iteration:
-            self.metrics = get_metrics(self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch)
+            time_start = time.time()
+            self.metrics = get_metrics(
+                self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch, self.config.Ts_to_evaluate, self.config.taus_to_evaluate
+            )
+            self.logger.info(f"Calculated metrics, took {(time.time() - time_start):.2f} seconds.")
             self.last_metrics_iteration = iteration
         return self.metrics
 
