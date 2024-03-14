@@ -22,7 +22,7 @@ from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colo
 
 CHECKPOINT_DIR = Path("./runs/ready/00_st-un_st-interp_st-up_16")
 CHECKPOINT_NAME = "checkpoint_150000"
-EVENT_DATA_FILE = Path("./data/raw/e2vid/gun_bullet_gnome.txt")
+EVENT_DATA_FILE = Path("./data/raw/e2vid/hdr_selfie.txt")
 FRAME_SIZE = 0.02  # 20 ms
 BINS_PER_FRAME = 2
 TAUS_TO_EVALUATE = 5
@@ -190,6 +190,9 @@ def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width:
 
         if len(line.split(" ")) == 2:
             width, height = [int(x) for x in line.split(" ")]
+
+    timestamps = [x - event_dict["timestamp"][0] for x in event_dict["timestamp"]]
+    event_dict["timestamp"] = timestamps
 
     width = width if max_width > width else max_width  # type: ignore
     height = height if max_height > height else max_height  # type: ignore
