@@ -1,19 +1,10 @@
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import torch
-from jaxtyping import Float64, Int64
-from tqdm import tqdm
+from jaxtyping import Float64
 
-from dynamic_fusion.utils.datatypes import (
-    DiscretizedEventsStatistics,
-    Events,
-    EventTensors,
-    GrayVideoTorch,
-    TemporalBinIndices,
-    TemporalSubBinIndices,
-    TimeStamps,
-)
+from dynamic_fusion.utils.datatypes import DiscretizedEventsStatistics, Events, EventTensors, TemporalBinIndices, TemporalSubBinIndices, TimeStamps
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 
 from .configuration import EventDiscretizerConfiguration, SharedConfiguration
@@ -23,24 +14,20 @@ ONE = torch.tensor(1.0, dtype=torch.float32)
 
 class EventDiscretizer:
     config: EventDiscretizerConfiguration
-    number_of_images_to_generate_per_input: int
-    fps: int
+    max_timestamp: float
     logger: logging.Logger
 
     def __init__(
         self,
         config: EventDiscretizerConfiguration,
         shared_config: Optional[SharedConfiguration] = None,
-        number_of_images_to_generate_per_input: Optional[int] = None,
-        fps: Optional[int] = None,
+        max_timestamp: Optional[float] = None,
     ) -> None:
         self.config = config
         if shared_config is not None:
-            self.number_of_images_to_generate_per_input = shared_config.number_of_images_to_generate_per_input
-            self.fps = shared_config.fps
-        elif number_of_images_to_generate_per_input is not None and fps is not None:
-            self.number_of_images_to_generate_per_input = number_of_images_to_generate_per_input
-            self.fps = fps
+            self.max_timestamp = (shared_config.number_of_images_to_generate_per_input - 1) / shared_config.fps
+        elif max_timestamp is not None:
+            self.max_timestamp = max_timestamp
         else:
             raise ValueError("Invalid arguments to EventDiscretizer")
 
@@ -55,44 +42,12 @@ class EventDiscretizer:
 
         return discretized_events_dict
 
-    def _calculate_indices_of_label_frames(self) -> Int64[torch.Tensor, " N"]:
-        r"""This function calculates the indices of the video frames that are
-        the labels of the corresponding discretized events.
-
-        If we have N input video frames, then we have N-1 intervals. If a
-        neural network processes a temporal bin that spans interval
-        indices [i,j], the output should be the voltage of interval j+1.
-
-        Examples:
-
-            1. 301 input video frames, 6 temporal bins gives:
-                300 intervals, discretized_frame_length = 50,
-                ground_truth_video_indices = [50, 100, 150, 200, 250, 300].
-
-            2. 7 input video frames, 3 temporal bins gives:
-                6 intervals, discretized_frame_length = 2,
-                ground_truth_video_indices = [2, 4, 6].
-        """
-
-        # Edges of temporal bins must align frames.
-        assert (self.number_of_images_to_generate_per_input - 1) % self.config.number_of_temporal_bins == 0
-
-        discretized_frame_length = (self.number_of_images_to_generate_per_input - 1) // self.config.number_of_temporal_bins
-
-        return torch.arange(
-            discretized_frame_length,
-            self.number_of_images_to_generate_per_input,
-            discretized_frame_length,
-            dtype=torch.int64,
-        )
-
     def _discretize_events(
         self,
         events: Events,
         threshold: float,
         image_resolution: Tuple[int, int],
     ) -> DiscretizedEvents:
-        max_timestamp = (self.number_of_images_to_generate_per_input - 1) / self.fps
         timestamps: TimeStamps = torch.tensor(events.timestamp.values.astype(float))
 
         events_torch: EventTensors = (
@@ -102,11 +57,11 @@ class EventDiscretizer:
             torch.tensor(events.polarity.values.astype(bool)),
         )
 
-        temporal_bin_indices = self._calculate_temporal_bin_indices(timestamps, max_timestamp)
-        temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(timestamps, max_timestamp)
+        temporal_bin_indices = self._calculate_temporal_bin_indices(timestamps, self.max_timestamp)
+        temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(timestamps, self.max_timestamp)
 
         # Normalize so they lie between [0, n_bins*sub_bins_per_bin]
-        normalized_timestamps = timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
+        normalized_timestamps = timestamps / self.max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
 
         # Normalize so events in each sub-bin lie between [0, 1]
         timestamps_in_sub_bins = (normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin).float()
