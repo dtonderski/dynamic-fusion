@@ -277,11 +277,17 @@ def get_metrics(
     lpips_batch: int = 5,
     Ts_to_evaluate: int = 10,
     taus_to_evaluate: int = 5,
+    sequences_to_evaluate: Optional[int] = None
 ) -> MetricsDictionary:
     psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device), UncertaintyLoss()
     psnrs, ssims, mses, lpipss, uncertainty_losses = [], [], [], [], []
 
-    for i, sample in enumerate(tqdm(test_dataset, total=len(test_dataset))):
+    sequences_to_evaluate = sequences_to_evaluate if sequences_to_evaluate is not None else len(test_dataset)
+
+    for i, sample in enumerate(tqdm(test_dataset, total=sequences_to_evaluate)):  # type: ignore
+        if i >= sequences_to_evaluate:
+            break
+
         psnr.reset()
         ssim.reset()
         mse.reset()
