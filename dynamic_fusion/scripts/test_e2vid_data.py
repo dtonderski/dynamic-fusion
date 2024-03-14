@@ -90,7 +90,7 @@ def main() -> None:
             frame_processed = cv2.cvtColor(frame_processed, cv2.COLOR_GRAY2BGR)
 
         i_event_frame = i // TAUS_TO_EVALUATE
-        frame_with_events = np.concatenate(((colored_event_polarity_sums[0, i_event_frame, ::-1] * 255).astype(np.uint8), frame_processed), axis=1)
+        frame_with_events = np.concatenate(((colored_event_polarity_sums[i_event_frame, ::-1] * 255).astype(np.uint8), frame_processed), axis=1)
         cv2.putText(frame_with_events, f"Event frame={i_event_frame}, time={ms_per_frame*i:.0f} ms", position, font, font_scale, font_color, line_type)
 
         out.write(frame_with_events)
