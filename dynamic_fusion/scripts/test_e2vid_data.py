@@ -18,6 +18,7 @@ from dynamic_fusion.utils.datatypes import Events
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.network import stack_and_maybe_unfold_c_list, to_numpy, unfold_temporally
 from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output, get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 CHECKPOINT_DIR = Path("./runs/ready/00_st-un_st-interp_st-up_16")
 CHECKPOINT_NAME = "checkpoint_150000"
@@ -29,6 +30,7 @@ MAX_HEIGHT = 320
 MAX_WIDTH = 480
 OUTPUT_VIDEO_PATH = Path("./output.mp4")
 FPS = 10
+
 
 def main() -> None:
     device = torch.device("cuda")
@@ -63,8 +65,13 @@ def main() -> None:
     reconstruction = run_reconstruction(encoder, decoder, discretized_events, device, config.shared, (height, width), TAUS_TO_EVALUATE)
 
     # Save video
-    size = tuple(reversed(reconstruction.shape[-2:]))
-    out = cv2.VideoWriter(OUTPUT_VIDEO_PATH, cv2.VideoWriter_fourcc(*"mp4v"), FPS, size)  # type: ignore
+    size = list(reversed(reconstruction.shape[-2:]))
+    size[0] *= 2
+    size = tuple(size)  # type: ignore
+
+    colored_event_polarity_sums = img_to_colormap(to_numpy(discretized_events.event_polarity_sum.sum(dim=1)), create_red_blue_cmap(501))
+
+    out = cv2.VideoWriter("output4.mp4", cv2.VideoWriter.fourcc(*"mp4v"), 10, size)
     ms_per_frame = max_timestamp / (TAUS_TO_EVALUATE * number_of_temporal_bins) * 1000
 
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -82,9 +89,12 @@ def main() -> None:
         if frame_processed.shape[2] == 1:
             frame_processed = cv2.cvtColor(frame_processed, cv2.COLOR_GRAY2BGR)
 
-        cv2.putText(frame_processed, f"Frame={i // TAUS_TO_EVALUATE}, time={ms_per_frame*i:.0f} ms", position, font, font_scale, font_color, line_type)
+        i_event_frame = i // TAUS_TO_EVALUATE
+        frame_with_events = np.concatenate(((colored_event_polarity_sums[0, i_event_frame, ::-1] * 255).astype(np.uint8), frame_processed), axis=1)
+        cv2.putText(frame_with_events, f"Event frame={i_event_frame}, time={ms_per_frame*i:.0f} ms", position, font, font_scale, font_color, line_type)
 
-        out.write(frame_processed)
+        out.write(frame_with_events)
+
     out.release()
 
 
