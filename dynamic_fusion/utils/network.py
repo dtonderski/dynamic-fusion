@@ -1,4 +1,4 @@
-from typing import Generator, List, Optional, Tuple
+from typing import Generator, List, Optional, Tuple, Union
 import einops
 
 import numpy as np
@@ -83,7 +83,7 @@ def run_decoder(
 
         r_t = decoder(torch.concat([c, taus[t]], dim=-1))
         if c_next is not None:
-            r_tnext = decoder(torch.concat([c_next, taus[t] - 1], dim=-1))  # type: ignore
+            r_tnext = decoder(torch.concat([c_next, taus[t] - 1], dim=-1))
             r_t = r_t * (1 - taus[t]) + r_tnext * (taus[t])
         yield t, r_t
     return
@@ -115,12 +115,13 @@ def run_decoder_with_spatial_upscaling(
     return
 
 
-def unfold_temporally(cs: Float[torch.Tensor, "T B X Y C"], t: int) -> Float[torch.Tensor, "T B X Y ThreeC"]:
+def unfold_temporally(cs: Union[Float[torch.Tensor, "T B X Y C"], List[Float[torch.Tensor, "B X Y C"]]], t: int) -> Float[torch.Tensor, "T B X Y ThreeC"]:
     def get_value_or_zeros(t_i: int) -> Float[torch.Tensor, "T B X Y C"]:
         # Get the correct c if exists, otherwise zeros
-        if t_i in range(cs.shape[0]):
+        if t_i in range(len(cs)):
             return cs[t_i]
         return torch.zeros_like(cs[0])
+
     # Return previous, current, and next
     return torch.concat([get_value_or_zeros(t_i) for t_i in [t - 1, t, t + 1]], dim=-1)
 
