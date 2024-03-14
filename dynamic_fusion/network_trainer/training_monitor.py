@@ -268,7 +268,7 @@ class TrainingMonitor:
 
     def _generate_montage(
         self,
-        fused_event_polarity_sums: Float32[np.ndarray, "batch Time 1 X Y"],
+        fused_event_polarity_sums: Float32[np.ndarray, "batch Time C X Y"],
         images: Float32[np.ndarray, "batch Time 1 X Y"],
         predictions: Float32[np.ndarray, "batch Time C X Y"],
     ) -> Tuple[
@@ -277,7 +277,7 @@ class TrainingMonitor:
         Float32[np.ndarray, "batch Time 3 X Y"],
         Optional[Float32[np.ndarray, "batch Time 3 X Y"]],
     ]:
-        colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums[:, :, 0, :, :], create_red_blue_cmap(501))
+        colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums.sum(dim=2), create_red_blue_cmap(501))
         colored_event_polarity_sums = einops.rearrange(colored_event_polarity_sums, "B T X Y C -> B T C X Y")
 
         images = scale_to_quantiles(images, [1, 2, 3, 4], 0.005, 0.995)
