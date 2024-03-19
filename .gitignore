@@ -13,6 +13,8 @@ models/
 *.sif
 # Sony IP
 /dependencies/
+# Results
+/results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
