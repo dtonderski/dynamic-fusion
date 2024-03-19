@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Optional, Tuple
 
+import cv2
 import einops
 import numpy as np
 import pandas as pd
 import torch
-import cv2
 from jaxtyping import Float
 from torch import nn
 
@@ -22,14 +22,25 @@ from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colo
 
 CHECKPOINT_DIR = Path("./runs/ready/00_st-un_st-interp_st-up_16")
 CHECKPOINT_NAME = "checkpoint_150000"
+
 EVENT_DATA_FILE = Path("./data/raw/e2vid/hdr_selfie.txt")
-FRAME_SIZE = 0.02  # 20 ms
+
+USE_VIDEO_TO_GENERATE_EVENTS = True
+INPUT_VIDEO = Path("./data/raw/e2vid/gnome_huawei_240fps.mp4")
+EVS_EXPLORER_CONFIG = 'configs/data_generator/simulator/evs_explorer.yml'
+DAVIS_CONFIG = 'configs/data_generator/simulator/davis_model.yml'
+
+THRESHOLD = 1.35
+MIN_ILLUMINANCE = 650
+MAX_ILLUMINANCE = 12500
+
+FRAME_SIZE = 0.2  # 200 ms
 BINS_PER_FRAME = 2
 TAUS_TO_EVALUATE = 5
-MAX_HEIGHT = 320
-MAX_WIDTH = 480
+MAX_HEIGHT = 200
+MAX_WIDTH = 300
 OUTPUT_VIDEO_PATH = Path("./output.mp4")
-FPS = 10
+OUTPUT_FPS = 10
 
 
 def main() -> None:
@@ -50,8 +61,11 @@ def main() -> None:
         raise NotImplementedError()
     decoder = decoder.to(device)
 
-    # Load events
-    events, height, width = get_events_from_txt(EVENT_DATA_FILE, MAX_HEIGHT, MAX_WIDTH)
+    if USE_VIDEO_TO_GENERATE_EVENTS:
+        events, height, width = get_events_from_video(INPUT_VIDEO, MAX_HEIGHT, MAX_WIDTH)
+    else:
+        # Load events
+        events, height, width = get_events_from_txt(EVENT_DATA_FILE, MAX_HEIGHT, MAX_WIDTH)
 
     # Discretize events
     max_timestamp = events.timestamp.max() + (FRAME_SIZE - events.timestamp.max() % FRAME_SIZE)
@@ -198,6 +212,36 @@ def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width:
     height = height if max_height > height else max_height  # type: ignore
 
     return pd.DataFrame(event_dict), height, width  # type: ignore
+
+
+def get_events_from_video(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None) -> Tuple[Events, int, int]:
+    import evs_explorer
+
+    scfg = evs_explorer.Configuration.from_yaml(
+        simulator_config=EVS_EXPLORER_CONFIG,
+        sensor_config=DAVIS_CONFIG,
+        sensor_model="davis_model",
+    )
+
+    scfg.input.source = file
+    scfg.optics.max_illuminance_lux = MAX_ILLUMINANCE
+    scfg.optics.min_illuminance_lux = MIN_ILLUMINANCE
+    scfg.sensor.ONth_mul = THRESHOLD
+    scfg.sensor.OFFth_mul = THRESHOLD
+
+    evs_explorer = evs_explorer.EvsExplorer(scfg)
+    events = evs_explorer.run("sensor_data")
+
+    filtered_events = events
+    if max_width:
+        filtered_events = filtered_events.loc[filtered_events["x"] < max_width]
+    if max_height:
+        filtered_events = filtered_events.loc[filtered_events["y"] < max_height]
+
+    height = filtered_events.y.max() + 1
+    width = filtered_events.x.max() + 1
+
+    return filtered_events, height, width
 
 
 if __name__ == "__main__":
