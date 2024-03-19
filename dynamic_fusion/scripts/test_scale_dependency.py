@@ -38,26 +38,37 @@ def main() -> None:
         raise NotImplementedError()
     decoder = decoder.to(device)
 
-    def get_metrics_by_scale(temporal_scale: int, spatial_scale: float) -> MetricsDictionary:
+    def get_metrics_by_scale(temporal_scale: int, spatial_scale: float, max_temporal_scale: int, max_spatial_scale: float) -> MetricsDictionary:
         dataset = CocoTestDataset(DATASET_PATH, (spatial_scale, spatial_scale), threshold=1.3)
         return get_metrics(
-            dataset, encoder, decoder, config.shared, device, Ts_to_evaluate=TS_TO_EVALUATE, taus_to_evaluate=temporal_scale, sequences_to_evaluate=SEQUENCES_TO_EVALUATE
+            dataset,
+            encoder,
+            decoder,
+            config.shared,
+            device,
+            Ts_to_evaluate=TS_TO_EVALUATE,
+            taus_to_evaluate=temporal_scale,
+            sequences_to_evaluate=SEQUENCES_TO_EVALUATE,
+            gt_taus_to_evaluate=max_temporal_scale,
+            gt_scale=max_spatial_scale,
         )
 
+    max_temporal_scale = TEMPORAL_SCALES[-1]
+    max_spatial_scale = SPATIAL_SCALES[-1]
+
     metrics_spatial_scales = []
-    temporal_scale = 1
     for spatial_scale in SPATIAL_SCALES:
-        metrics_spatial_scales.append(get_metrics_by_scale(temporal_scale, spatial_scale))
+        metrics_spatial_scales.append(get_metrics_by_scale(max_temporal_scale, spatial_scale, max_temporal_scale, max_spatial_scale))
 
     metrics_temporal_scales = []
-    
+
     spatial_scale = 1
     for temporal_scale in TEMPORAL_SCALES:
-        metrics_temporal_scales.append(get_metrics_by_scale(temporal_scale, spatial_scale))
+        metrics_temporal_scales.append(get_metrics_by_scale(temporal_scale, max_spatial_scale, max_temporal_scale, max_spatial_scale))
 
     metrics_both_scales = []
     for scale in BOTH_SCALES:
-        metrics_both_scales.append(get_metrics_by_scale(scale, scale))
+        metrics_both_scales.append(get_metrics_by_scale(scale, scale, max_temporal_scale, max_spatial_scale))
 
     fig, ax = plt.subplots()
     ax.plot(SPATIAL_SCALES, [x["LPIPS"][0] for x in metrics_spatial_scales], ".--")

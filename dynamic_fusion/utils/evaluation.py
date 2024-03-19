@@ -19,6 +19,7 @@ from dynamic_fusion.utils.loss import LPIPS, UncertaintyLoss
 from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
 from dynamic_fusion.utils.superresolution import get_grid, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
+from scipy.interpolate import interp1d  # pyright: ignore
 
 
 class MSE:
@@ -58,6 +59,8 @@ def get_reconstructions_and_gt(
     scale: float,
     Ts_to_evaluate: int = 10,
     taus_to_evaluate: int = 10,
+    gt_taus_to_evaluate: Optional[int] = None,
+    gt_scale: Optional[float] = None,
 ) -> Tuple[Float[np.ndarray, "T C X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T SubBins X Y"]]:
     encoder.reset_states()
 
@@ -69,15 +72,20 @@ def get_reconstructions_and_gt(
     # Treat each tau as a batch
     taus = einops.repeat(np.arange(0, 1, 1 / taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
 
-    output_shape = tuple(int(size * scale) for size in eps_lst[0].shape[-2:])
+    recon_output_shape = tuple(int(size * scale) for size in eps_lst[0].shape[-2:])
+    gt_output_shape = recon_output_shape if gt_scale is None else tuple(int(size * gt_scale) for size in eps_lst[0].shape[-2:])
+
     input_shape = eps_lst[0].shape[-2:]
-    grid = get_grid(input_shape, output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1]))).to(device)  # type: ignore
+    grid = get_grid(input_shape, gt_output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1]))).to(device)  # type: ignore
 
     crop_definition = CropDefinition(0, Ts_to_evaluate, eps.shape[0], grid)
-    gt = get_ground_truth(taus[:, 0:Ts_to_evaluate], [image] * taus_to_evaluate, [transform] * taus_to_evaluate, [crop_definition] * taus_to_evaluate, False, eps.device)
+    gt_taus = taus if gt_taus_to_evaluate is None else einops.repeat(np.arange(0, 1, 1 / gt_taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
+    gt = get_ground_truth(
+        gt_taus[:, 0:Ts_to_evaluate], [image] * gt_taus_to_evaluate, [transform] * gt_taus_to_evaluate, [crop_definition] * gt_taus_to_evaluate, False, eps.device  # type: ignore
+    )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
-    nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), tuple(gt.shape[-2:]))
+    nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), recon_output_shape)  # type: ignore
     first_aps_frames = get_initial_aps_frames([image], [transform], [crop_definition], False, device)
     current_frame_info = None
 
@@ -112,7 +120,7 @@ def get_reconstructions_and_gt(
         else:
             taus_tau = einops.repeat(torch.tensor(taus_tau).to(cs_tau), "tau T -> T tau X Y 1", X=cs.shape[-3], Y=cs.shape[-2])
             for _, r_t in run_decoder(decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding):
-                upscaled = [resize(to_numpy(image.squeeze()), output_shape=output_shape, order=3, anti_aliasing=True) for image in r_t]
+                upscaled = [resize(to_numpy(image.squeeze()), output_shape=recon_output_shape, order=3, anti_aliasing=True) for image in r_t]
                 reconstructions_tau.append(np.stack(upscaled, axis=0).squeeze())
         reconstructions.append(np.stack(reconstructions_tau, axis=0))
 
@@ -277,7 +285,9 @@ def get_metrics(
     lpips_batch: int = 5,
     Ts_to_evaluate: int = 10,
     taus_to_evaluate: int = 5,
-    sequences_to_evaluate: Optional[int] = None
+    sequences_to_evaluate: Optional[int] = None,
+    gt_taus_to_evaluate: Optional[int] = None,
+    gt_scale: Optional[float] = None,
 ) -> MetricsDictionary:
     psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device), UncertaintyLoss()
     psnrs, ssims, mses, lpipss, uncertainty_losses = [], [], [], [], []
@@ -296,9 +306,32 @@ def get_metrics(
 
         batch = collate_test_items([sample])
         scale = test_dataset.scales[i]
-        recon, gt, _, _ = get_reconstructions_and_gt(batch, encoder, decoder, config, device, scale=scale, Ts_to_evaluate=Ts_to_evaluate, taus_to_evaluate=taus_to_evaluate)
+        recon, gt, _, _ = get_reconstructions_and_gt(
+            batch,
+            encoder,
+            decoder,
+            config,
+            device,
+            scale=scale,
+            Ts_to_evaluate=Ts_to_evaluate,
+            taus_to_evaluate=taus_to_evaluate,
+            gt_taus_to_evaluate=gt_taus_to_evaluate,
+            gt_scale=gt_scale,
+        )
+
+        if gt_taus_to_evaluate:
+            # If gt_taus_to_evaluate, then we need to upscale recons so that the shapes match.
+            gt_timestamps = np.arange(0, Ts_to_evaluate, 1 / gt_taus_to_evaluate)
+            recon_timestamps = np.arange(0, Ts_to_evaluate, 1 / taus_to_evaluate)
+
+            # recon is T C X Y, we only care about first dim
+            interpolate = interp1d(recon_timestamps, recon, kind="cubic", axis=0, fill_value="extrapolate")
+            recon = interpolate(gt_timestamps).astype(recon.dtype)          
 
         recon = torch.tensor(recon).to(device)
+        if gt_scale:
+            recon = torch.nn.functional.interpolate(recon, gt.shape[-2:], mode='bicubic', align_corners=True, antialias=True)
+
         gt = torch.tensor(gt[:, None]).to(device)
 
         psnr.update(output=[recon[:, 0:1], gt])
