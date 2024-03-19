@@ -58,9 +58,10 @@ class CocoTestDataset(Dataset):  # type: ignore
     directory_list: List[Path]
     threshold: float
     logger: logging.Logger
+    # This is not used by this class, just a helper
     scales: Float[np.ndarray, " N"]
 
-    def __init__(self, dataset_directory: Path, scales_range: Tuple[float, float], threshold: float = 1.4) -> None:
+    def __init__(self, dataset_directory: Path, scales_range: Tuple[float, float] = (1,1), threshold: float = 1.4) -> None:
         self.directory_list = sorted([path for path in dataset_directory.glob("**/*") if path.is_dir()])
         self.logger = logging.getLogger("CocoDataset")
         self.threshold = threshold
