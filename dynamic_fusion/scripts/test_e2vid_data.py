@@ -27,8 +27,8 @@ EVENT_DATA_FILE = Path("./data/raw/e2vid/hdr_selfie.txt")
 
 USE_VIDEO_TO_GENERATE_EVENTS = True
 INPUT_VIDEO = Path("./data/raw/e2vid/gnome_huawei_240fps.mp4")
-EVS_EXPLORER_CONFIG = 'configs/data_generator/simulator/evs_explorer.yml'
-DAVIS_CONFIG = 'configs/data_generator/simulator/davis_model.yml'
+EVS_EXPLORER_CONFIG = "configs/data_generator/simulator/evs_explorer.yml"
+DAVIS_CONFIG = "configs/data_generator/simulator/davis_model.yml"
 
 THRESHOLD = 1.35
 MIN_ILLUMINANCE = 650
@@ -183,8 +183,8 @@ def run_reconstruction(
         reconstruction_flat = einops.rearrange(reconstruction_stacked, "tau T C D X Y -> (tau T) (C D) X Y")  # D=1
         return reconstruction_flat
 
-
-def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None) -> Tuple[Events, int, int]:
+# TODO: just load this as a pd dataframe
+def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None, min_t: Optional[int] = None, max_t: Optional[int] = None) -> Tuple[Events, int, int]:
     lines = file.read_text()
     lines_split = lines.split("\n")
 
@@ -193,9 +193,21 @@ def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width:
     max_height = max_height if max_height is not None else np.inf  # type: ignore
     max_width = max_width if max_width is not None else np.inf  # type: ignore
 
+    t_start = None
+
     for line in lines_split[: len(lines_split)]:
         if len(line.split(" ")) == 4:
             t, x, y, p = line.split(" ")
+            if t_start is None:
+                t_start = float(t)
+
+            if max_t and float(t) - t_start > max_t:
+                break
+
+            if min_t and float(t) - t_start < min_t:
+                continue
+
+
             if int(y) < max_height and int(x) < max_width:  # type: ignore
                 event_dict["timestamp"].append(float(t))
                 event_dict["x"].append(int(x))
@@ -211,7 +223,7 @@ def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width:
     width = width if max_width > width else max_width  # type: ignore
     height = height if max_height > height else max_height  # type: ignore
 
-    return pd.DataFrame(event_dict), height, width  # type: ignore
+    return pd.DataFrame(event_dict), height, width
 
 
 def get_events_from_video(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None) -> Tuple[Events, int, int]:
