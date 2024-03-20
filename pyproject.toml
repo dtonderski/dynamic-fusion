@@ -23,7 +23,7 @@ requires-python = "~=3.9"
 [tool.pylint.MASTER]
 extension-pkg-whitelist = ["pydantic", "pygame", "carla", "module"]
 disable = ["logging-fstring-interpolation", "missing-docstring", "too-few-public-methods", "fixme"]
-generated-members = ["torch.*", "carla.*"]
+generated-members = ["torch.*", "carla.*", "cv2.*"]
 
 [tool.pyright]
 exclude = ["**/data",
