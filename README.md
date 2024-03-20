@@ -34,8 +34,21 @@ pip install -e .
 ```
 
 ## Data
-The training data was generated using a proprietary Sony EVS Simulator. It will be made available for download here. After downloading, extract it to a directory of your choice and adjust the `yml` configuration files. The default 
+The training data was generated using a proprietary Sony EVS Simulator. It will be made available for download here. After downloading, extract it to a directory of your choice and adjust the `yml` configuration files.
 
+### Data generation
+If you have access to the proprietary Sony simulator, you can generate the training data yourself. First, install the proprietary python packages and openexr:
+```
+sudo apt install openexr
+```
+Then, download the MS COCO 2014 [Val](http://images.cocodataset.org/zips/val2014.zip) and [Test](http://images.cocodataset.org/zips/test2014.zip) images, and unzip them into `data/raw/coco/test2014` and `data/raw/coco/val2014`. These directories should contain the `.jpg` files. Note: you can put them anywhere and adjust the `.yml` configuration files.
+
+Last, run
+```
+python main.py --generate_data --config configs/data_generator/coco.yml
+python main.py --generate_data --config configs/data_generator/coco_test.yml
+```
+to generate the training and test datasets. By default, these will be saved into `data/interim/coco/train` and `data/interim/coco/test`.
 # Running
 All code is run through a single entry mode, the `main.py` file.
 
