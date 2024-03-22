@@ -96,8 +96,8 @@ optics:
     attenuation_enabled: false # Enables Attenuation (f-number, lens transmission coefficient)
     vignetting_enabled: false # Enables Vignetting (radial attenuation)
     distortion_enabled: false # Optical distortion (barrel distortion)
-    max_illuminance_lux: 500.0 # Illuminance for photometry (lux). Value in range: [0.001; 100000.0]
-    min_illuminance_lux: 15.0 # Illuminance for photometry (lux) 30000/32 looking at DAVIS biases. Value in range: [0.001; 100000.0]
+    max_illuminance_lux: 12000.0 # Illuminance for photometry (lux). Value in range: [0.001; 100000.0]
+    min_illuminance_lux: 650.0 # Illuminance for photometry (lux) 30000/32 looking at DAVIS biases. Value in range: [0.001; 100000.0]
     f_number: 2.6 # F-number. Value in range: [1.0; 5.0]
     lens_transm_coeff: 1.0 # Lens transmission coefficient. Value in range: [0.0; 1.0]
     lens_to_screen_dist_m: 0.3 # Lens to screen distance. Value in range: [0.0 1.0]
