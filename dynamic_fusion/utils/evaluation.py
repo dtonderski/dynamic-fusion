@@ -79,7 +79,8 @@ def get_reconstructions_and_gt(
     grid = get_grid(input_shape, gt_output_shape, ((0, eps_lst[0].shape[-2]), (0, eps_lst[0].shape[-1]))).to(device)  # type: ignore
 
     crop_definition = CropDefinition(0, Ts_to_evaluate, eps.shape[0], grid)
-    gt_taus = taus if gt_taus_to_evaluate is None else einops.repeat(np.arange(0, 1, 1 / gt_taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
+    gt_taus_to_evaluate = taus_to_evaluate if gt_taus_to_evaluate is None else gt_taus_to_evaluate
+    gt_taus = einops.repeat(np.arange(0, 1, 1 / gt_taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
     gt = get_ground_truth(
         gt_taus[:, 0:Ts_to_evaluate], [image] * gt_taus_to_evaluate, [transform] * gt_taus_to_evaluate, [crop_definition] * gt_taus_to_evaluate, False, eps.device  # type: ignore
     )
