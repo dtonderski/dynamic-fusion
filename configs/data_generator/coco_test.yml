@@ -15,7 +15,7 @@ image_loader:
 image_preprocessor:
   max_image_size: null
   exponentiate: True
-  exponentiattion_range: [0.7, 2.5]
+  exponentiation_range: [0.7, 2.5]
 
 video_generator:
   # A knot is a defined value for a transformation. We generate up to max_knots knots,
