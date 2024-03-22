@@ -65,10 +65,14 @@ class EventGenerator:
         )  # pyright: ignore
         self.logger = logging.getLogger("EventGenerator")
 
-    def run(self, video: GrayVideoFloat, regenerate_luminance: bool = True) -> Dict[float, Events]:
+    def run(self, video: GrayVideoFloat, regenerate_luminance: bool = True) -> Tuple[Dict[float, Events], Tuple[float, float]]:
         self.logger.info("Generating events...")
         if regenerate_luminance:
-            self._update_config()
+            illuminance_range = self._generate_luminance()
+            # Must be in this order or evs complains about max < min
+            self.evs_config.optics.max_illuminance_lux = illuminance_range[1]
+            self.evs_config.optics.min_illuminance_lux = illuminance_range[0]
+
         sensor_data = {}
 
         video = video * 255
@@ -80,13 +84,7 @@ class EventGenerator:
         for threshold in self.config.thresholds:
             self.logger.info(f"Generating events for threshold {threshold}...")
             sensor_data[threshold] = self._run_one_threshold(threshold)
-        return sensor_data
-
-    def _update_config(self) -> None:
-        min_illuminance_lux, max_illuminance_lux = self._generate_luminance()
-        # Must be in this order or evs complains about max < min
-        self.evs_config.optics.max_illuminance_lux = max_illuminance_lux
-        self.evs_config.optics.min_illuminance_lux = min_illuminance_lux
+        return sensor_data, illuminance_range
 
     def _generate_luminance(self) -> Tuple[float, float]:
         while True:

@@ -65,7 +65,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                         i_image += 1
                         continue
                 try:
-                    preprocessed_image = self.image_preprocessor.run(image)
+                    preprocessed_image, exponentiation_multiplier = self.image_preprocessor.run(image)
                 except ValueError as e:
                     self.logger.warning(e)
                     continue
@@ -76,10 +76,10 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
 
                 video, downscaled_video, transform_definition = self.video_generator.run(preprocessed_image, downscaled_resolution)  # type: ignore
 
-                unscaled_event_dict = self.event_generator.run(video)
+                unscaled_event_dict, illuminance_range = self.event_generator.run(video)
                 unscaled_discretized_event_dict = self.event_discretizer.run(unscaled_event_dict, video.shape[1:])
 
-                downscaled_event_dict = self.event_generator.run(downscaled_video, regenerate_luminance=False)
+                downscaled_event_dict, _ = self.event_generator.run(downscaled_video, regenerate_luminance=False)
                 downscaled_discretized_event_dict = self.event_discretizer.run(downscaled_event_dict, downscaled_video.shape[1:])
 
                 self.data_saver.run(
@@ -93,6 +93,8 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     downscaled_event_dict,
                     unscaled_discretized_event_dict,
                     downscaled_discretized_event_dict,
+                    exponentiation_multiplier,
+                    illuminance_range,
                 )
                 i_image += 1
                 print("-------------------------------------")

@@ -1,18 +1,11 @@
-from dataclasses import asdict
 import logging
 import shutil
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Tuple
 
 import h5py
 
-from dynamic_fusion.utils.datatypes import (
-    Events,
-    GrayImageFloat,
-    GrayVideoFloat,
-    GrayVideoInt,
-    Image,
-)
+from dynamic_fusion.utils.datatypes import Events, GrayImageFloat, GrayVideoFloat, Image
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.transform import TransformDefinition
 
@@ -39,6 +32,8 @@ class DataSaver:
         downscaled_event_dict: Dict[float, Events],
         discretized_events_dict: Dict[float, DiscretizedEvents],
         downscaled_discretized_events_dict: Dict[float, DiscretizedEvents],
+        exponentiation_multiplier: float,
+        illuminance_range: Tuple[float, float]
     ) -> None:
         self.logger.info("Saving data...")
         output_dir = self.config.output_dir / image_path.stem
@@ -61,6 +56,8 @@ class DataSaver:
                     file.create_dataset("/generated_video", data=video, compression="gzip", compression_opts=self.config.h5_compression)
 
                 file.create_dataset("/preprocessed_image", data=preprocessed_image)
+                file.create_dataset("/exponentiation_multiplier", data=exponentiation_multiplier)
+                file.create_dataset("/illuminance_range", data=illuminance_range)
 
                 transform_definition.save_to_file(file)
 
@@ -74,9 +71,7 @@ class DataSaver:
                     for threshold, event_df in event_dict.items():
                         event_df.to_hdf(output_dir / "events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
                 for threshold, downscaled_event_df in downscaled_event_dict.items():
-                    downscaled_event_df.to_hdf(
-                        output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib"
-                    )
+                    downscaled_event_df.to_hdf(output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
 
         except Exception:  # pylint: disable=broad-exception-caught
             logging.error("Exception in data saving - deleting files!")

@@ -14,13 +14,15 @@ image_loader:
 
 image_preprocessor:
   max_image_size: null
+  exponentiate: True
+  exponentiattion_range: [0.7, 2.5]
 
 video_generator:
   # A knot is a defined value for a transformation. We generate up to max_knots knots,
   # and then interpolate between to get a smooth transformation.
-  max_number_of_scale_knots: 10 # max_knots_scale
-  max_number_of_shift_knots: 10 # max_knots_shift
-  max_number_of_rotation_knots: 10 # max_knots_rot
+  max_number_of_scale_knots: 20 # max_knots_scale
+  max_number_of_shift_knots: 20 # max_knots_shift
+  max_number_of_rotation_knots: 20 # max_knots_rot
 
   max_scale_knot_value: 1 # max_val_scale
   max_shift_knot_multiplier_value: 1.5 # max_val_shift_mul

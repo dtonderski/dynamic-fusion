@@ -24,6 +24,8 @@ class ImageLoaderConfiguration(BaseModel):
 
 class ImagePreprocessorConfiguration(BaseModel):
     max_image_size: Optional[Tuple[int, int]]
+    exponentiate: bool = Field(...)
+    exponentiation_range: Optional[Tuple[float, float]] = Field(None)
 
 
 class VideoGeneratorConfiguration(BaseModel):

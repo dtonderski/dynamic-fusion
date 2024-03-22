@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 from numpy.random import uniform
@@ -23,7 +23,7 @@ class ImagePreprocessor:
         self.shared_config = shared_config
         self.logger = logging.getLogger("ImagePreprocessor")
 
-    def run(self, image: Image) -> GrayImageFloat:
+    def run(self, image: Image) -> Tuple[GrayImageFloat, float]:
         self.logger.info("Preprocessing image...")
 
         if self.config.max_image_size is not None:
@@ -43,7 +43,17 @@ class ImagePreprocessor:
         if not self._validate_contrast(image):
             raise ValueError("Skipping image - low contrast.")
         image = normalize(image)
-        return image
+
+        if self.config.exponentiate:
+            self.logger.debug("Exponentiating image")
+            assert self.config.exponentiation_range is not None
+            exponentiation_multiplier = float(uniform(low=self.config.exponentiation_range[0], high=self.config.exponentiation_range[1]))
+            image = np.exp(image * exponentiation_multiplier)
+            image = normalize(image)
+        else:
+            exponentiation_multiplier = 1.0
+
+        return image, exponentiation_multiplier
 
     def _rgb2gray(self, image: Image) -> GrayImage:
         if image.ndim > 2 and image.shape[2] > 1:
