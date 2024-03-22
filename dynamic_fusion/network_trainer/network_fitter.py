@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from dynamic_fusion.utils.dataset import CocoTestDataset, get_ground_truth, get_initial_aps_frames
 from dynamic_fusion.utils.datatypes import Batch
-from dynamic_fusion.utils.loss import UncertaintyLoss, get_reconstruction_loss
+from dynamic_fusion.utils.loss import UncertaintyLoss, get_reconstruction_loss, get_uncertainty_loss
 from dynamic_fusion.utils.network import (
     accumulate_gradients,
     apply_gradients,
@@ -47,7 +47,7 @@ class NetworkFitter:
         self.shared_config = shared_config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if self.shared_config.predict_uncertainty:
-            self.reconstruction_loss_function = UncertaintyLoss()
+            self.reconstruction_loss_function = get_uncertainty_loss(self.config.reconstruction_loss_name, self.device)
         else:
             self.reconstruction_loss_function = get_reconstruction_loss(self.config.reconstruction_loss_name, self.device)
         self.logger = logging.getLogger("NetworkFitter")
@@ -268,7 +268,6 @@ class NetworkFitter:
         first_aps_frames = get_initial_aps_frames(preprocessed_images, transforms, crops, False, self.device)
         current_frame_info = None
 
-
         for t in range(self.shared_config.sequence_length):  # pylint: disable=C0103
             if self.shared_config.feed_initial_aps_frame:
                 current_frame_info = first_aps_frames if t == 0 else torch.zeros_like(first_aps_frames)
@@ -278,7 +277,7 @@ class NetworkFitter:
                 timestamp_means[:, t] if self.shared_config.use_mean else None,
                 timestamp_stds[:, t] if self.shared_config.use_std else None,
                 event_counts[:, t] if self.shared_config.use_count else None,
-                current_frame_info
+                current_frame_info,
             )
 
             c_list.append(c_t.clone())
