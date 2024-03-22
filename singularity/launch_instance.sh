@@ -7,4 +7,4 @@ else
     INSTANCE_NAME="default_instance_name"
 fi
 echo Starting instance with name $INSTANCE_NAME
-singularity instance start --bind .:/mnt --nv singularity/python39.sif $INSTANCE_NAME
+singularity instance start --bind /cig/cig04b/students/chtonded/:/mnt --nv singularity/python39.sif $INSTANCE_NAME
