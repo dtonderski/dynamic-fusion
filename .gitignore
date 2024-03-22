@@ -1,5 +1,7 @@
 # project-specific:
 /data/
+/data
+/data_e2vid/
 output/
 /runs/
 .vscode/
