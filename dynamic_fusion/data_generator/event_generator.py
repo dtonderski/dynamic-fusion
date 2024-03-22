@@ -72,6 +72,8 @@ class EventGenerator:
             # Must be in this order or evs complains about max < min
             self.evs_config.optics.max_illuminance_lux = illuminance_range[1]
             self.evs_config.optics.min_illuminance_lux = illuminance_range[0]
+        else:
+            illuminance_range = (self.evs_config.optics.min_illuminance_lux, self.evs_config.optics.max_illuminance_lux)
 
         sensor_data = {}
 
