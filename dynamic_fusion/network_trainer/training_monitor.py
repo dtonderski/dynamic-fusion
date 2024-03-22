@@ -282,7 +282,7 @@ class TrainingMonitor:
         Float32[np.ndarray, "batch Time 3 X Y"],
         Optional[Float32[np.ndarray, "batch Time 3 X Y"]],
     ]:
-        colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums.sum(dim=2), create_red_blue_cmap(501))
+        colored_event_polarity_sums = img_to_colormap(fused_event_polarity_sums.sum(axis=2), create_red_blue_cmap(501))
         colored_event_polarity_sums = einops.rearrange(colored_event_polarity_sums, "B T X Y C -> B T C X Y")
 
         images = scale_to_quantiles(images, [1, 2, 3, 4], 0.005, 0.995)
