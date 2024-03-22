@@ -29,18 +29,20 @@ USE_VIDEO_TO_GENERATE_EVENTS = True
 INPUT_VIDEO = Path("./data/raw/e2vid/gnome_huawei_240fps.mp4")
 EVS_EXPLORER_CONFIG = "configs/data_generator/simulator/evs_explorer.yml"
 DAVIS_CONFIG = "configs/data_generator/simulator/davis_model.yml"
-
-THRESHOLD = 1.35
+NUM_FRAMES = 150
+THRESHOLD = 1.08
 MIN_ILLUMINANCE = 650
 MAX_ILLUMINANCE = 12500
+DESIRED_WIDTH = 640
 
-FRAME_SIZE = 0.2  # 200 ms
+FRAME_SIZE = 0.02  # 200 ms
 BINS_PER_FRAME = 2
 TAUS_TO_EVALUATE = 5
-MAX_HEIGHT = 200
-MAX_WIDTH = 300
-OUTPUT_VIDEO_PATH = Path("./output.mp4")
-OUTPUT_FPS = 10
+MAX_HEIGHT = None
+MAX_WIDTH = None
+NAME = "selfie"
+OUTPUT_FPS = 250
+OUTPUT_VIDEO_PATH = Path(f"./results/e2vid/{NAME}_simulated={USE_VIDEO_TO_GENERATE_EVENTS}_framesize={FRAME_SIZE}_fps={OUTPUT_FPS}_threshold={THRESHOLD}.mp4")
 
 
 def main() -> None:
@@ -62,7 +64,7 @@ def main() -> None:
     decoder = decoder.to(device)
 
     if USE_VIDEO_TO_GENERATE_EVENTS:
-        events, height, width = get_events_from_video(INPUT_VIDEO, MAX_HEIGHT, MAX_WIDTH)
+        events, height, width = get_events_from_video(INPUT_VIDEO, MAX_HEIGHT, MAX_WIDTH, NUM_FRAMES, DESIRED_WIDTH)
     else:
         # Load events
         events, height, width = get_events_from_txt(EVENT_DATA_FILE, MAX_HEIGHT, MAX_WIDTH)
@@ -74,6 +76,7 @@ def main() -> None:
     discretizer = EventDiscretizer(discretizer_config, max_timestamp=max_timestamp)
     discretized_events_dict = discretizer.run({1: events}, (height, width))
     discretized_events = discretized_events_dict[1]
+    print(discretized_events.event_polarity_sum.shape)
 
     # Get reconstruction
     reconstruction = run_reconstruction(encoder, decoder, discretized_events, device, config.shared, (height, width), TAUS_TO_EVALUATE)
@@ -85,7 +88,7 @@ def main() -> None:
 
     colored_event_polarity_sums = img_to_colormap(to_numpy(discretized_events.event_polarity_sum.sum(dim=1)), create_red_blue_cmap(501))
 
-    out = cv2.VideoWriter("output4.mp4", cv2.VideoWriter.fourcc(*"mp4v"), 10, size)
+    out = cv2.VideoWriter(str(OUTPUT_VIDEO_PATH), cv2.VideoWriter.fourcc(*"mp4v"), OUTPUT_FPS, size)
     ms_per_frame = max_timestamp / (TAUS_TO_EVALUATE * number_of_temporal_bins) * 1000
 
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -104,8 +107,16 @@ def main() -> None:
             frame_processed = cv2.cvtColor(frame_processed, cv2.COLOR_GRAY2BGR)
 
         i_event_frame = i // TAUS_TO_EVALUATE
+
+        events_per_pixel_per_frame = discretized_events.event_count[i_event_frame].sum(dim=0).mean()
+
         frame_with_events = np.concatenate(((colored_event_polarity_sums[i_event_frame, ::-1] * 255).astype(np.uint8), frame_processed), axis=1)
-        cv2.putText(frame_with_events, f"Event frame={i_event_frame}, time={ms_per_frame*i:.0f} ms", position, font, font_scale, font_color, line_type)
+
+        if USE_VIDEO_TO_GENERATE_EVENTS:
+            frame_with_events = np.flip(frame_with_events, 0)
+            frame_with_events = np.ascontiguousarray(frame_with_events)
+
+        cv2.putText(frame_with_events, f"Event frame={i_event_frame}, time={ms_per_frame*i:.0f} ms, events per pixel in frame: {events_per_pixel_per_frame: .2f}", position, font, font_scale, font_color, line_type)
 
         out.write(frame_with_events)
 
@@ -226,7 +237,7 @@ def get_events_from_txt(file: Path, max_height: Optional[int] = None, max_width:
     return pd.DataFrame(event_dict), height, width
 
 
-def get_events_from_video(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None) -> Tuple[Events, int, int]:
+def get_events_from_video(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None, num_frames: Optional[int] = None, desired_width: Optional[int] = None) -> Tuple[Events, int, int]:
     import evs_explorer
 
     scfg = evs_explorer.Configuration.from_yaml(
@@ -236,6 +247,11 @@ def get_events_from_video(file: Path, max_height: Optional[int] = None, max_widt
     )
 
     scfg.input.source = file
+    if num_frames:
+        scfg.input.num_frames = num_frames
+    if desired_width:
+        scfg.input.desired_width = desired_width
+
     scfg.optics.max_illuminance_lux = MAX_ILLUMINANCE
     scfg.optics.min_illuminance_lux = MIN_ILLUMINANCE
     scfg.sensor.ONth_mul = THRESHOLD

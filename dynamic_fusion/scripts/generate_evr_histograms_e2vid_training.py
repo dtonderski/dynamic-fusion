@@ -1,6 +1,7 @@
 from pathlib import Path
 from matplotlib import pyplot as plt
 import numpy as np
+import tqdm
 
 PATH = Path('data/raw/ecoco_depthmaps_test')
 OUTPUT_DIR = Path('results/ecoco_depthmaps_histograms')
@@ -16,7 +17,7 @@ def main() -> None:
     eppf_sequences = []
     epps_sequences = []
 
-    for sequence_dir in sequence_dirs:
+    for sequence_dir in tqdm.tqdm(sequence_dirs):
         voxel_grid_dir = sequence_dir / 'VoxelGrid-betweenframes-5'
         voxel_grid_paths = sorted(list(voxel_grid_dir.glob('*.npy')))
         voxel_grids = [np.load(path) for path in voxel_grid_paths]

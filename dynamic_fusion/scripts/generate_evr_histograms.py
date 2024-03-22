@@ -29,7 +29,7 @@ def main() -> None:
     dataset_names = ["train", "test"]
 
     for dataset_path, dataset_name in zip(dataset_paths, dataset_names):
-        dataset = CocoTestDataset(dataset_path, threshold=1.3)
+        dataset = CocoTestDataset(dataset_path, threshold=1.35)
 
         bin_size = 0.2  # CONFIRMED
 
@@ -66,25 +66,25 @@ def main() -> None:
 
 
         plt.figure()
-        plt.hist(per_frames, bins=50)
+        plt.hist(per_frames, bins=40, range=(0,40))
         plt.title('Events per pixel per second, mean over frames')
         plt.xlabel('Events per pixel per second')
         plt.savefig(output_dir / "per_frame.png")
 
         plt.figure()
-        plt.hist(per_sequences, bins=50)
+        plt.hist(per_sequences, bins=40, range=(0,40))
         plt.title('Events per pixel per second, mean over sequences')
         plt.xlabel('Events per pixel per second')
         plt.savefig(output_dir / "per_sequence.png")
 
         plt.figure()
-        plt.hist(downscaled_per_frames, bins=50)
+        plt.hist(downscaled_per_frames, bins=40, range=(0,40))
         plt.title('Events per pixel per second, mean over frames (downscaled)')
         plt.xlabel('Events per pixel per second')
         plt.savefig(output_dir / "downscaled_per_frame.png")
 
         plt.figure()
-        plt.hist(downscaled_per_sequences, bins=50)
+        plt.hist(downscaled_per_sequences, bins=40, range=(0,40))
         plt.title('Events per pixel per second, mean over sequences (downscaled)')
         plt.xlabel('Events per pixel per second')
         plt.savefig(output_dir / "downscaled_per_sequence.png")
