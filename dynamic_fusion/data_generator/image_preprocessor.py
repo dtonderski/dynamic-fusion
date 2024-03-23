@@ -48,11 +48,11 @@ class ImagePreprocessor:
             self.logger.debug("Exponentiating image")
             assert self.config.exponentiation_range is not None
             exponentiation_multiplier = float(uniform(low=self.config.exponentiation_range[0], high=self.config.exponentiation_range[1]))
-            exponentiated_image = np.exp(image * exponentiation_multiplier)
-            exponentiated_image = normalize(image)
+            exponentiated_image = np.exp(image.copy() * exponentiation_multiplier)
+            exponentiated_image = normalize(exponentiated_image)
         else:
             exponentiation_multiplier = 1.0
-            exponentiated_image = image
+            exponentiated_image = image.copy()
 
         return image, exponentiated_image, exponentiation_multiplier
 
