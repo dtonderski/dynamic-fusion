@@ -87,7 +87,6 @@ class NetworkFitterConfiguration(BaseModel):
 
 class TrainingMonitorConfiguration(BaseModel):
     run_directory: Optional[Path] = Field(...)
-    event_colors: List[List[float]] = Field(...)
     persistent_saving_frequency: int = Field(5000)
     Ts_to_visualize: int = Field(50)
     taus_to_visualize: int = Field(3)
