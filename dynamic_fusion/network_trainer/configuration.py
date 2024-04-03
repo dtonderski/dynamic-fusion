@@ -11,6 +11,7 @@ class SharedConfiguration(BaseModel):
         description="If set, resumes training from latest subrun in run directory.",
     )
 
+    use_events: bool = Field(True)
     use_mean: bool = Field(...)
     use_std: bool = Field(...)
     use_count: bool = Field(...)
@@ -22,7 +23,9 @@ class SharedConfiguration(BaseModel):
     spatial_upscaling: bool = Field(False)
 
     predict_uncertainty: bool = Field(False)
-    feed_initial_aps_frame: bool = Field(False)
+    
+    use_aps_for_all_frames: bool = Field(False)
+    use_initial_aps_frame: bool = Field(False)
 
     min_allowed_max_of_mean_polarities_over_times: float = Field(
         0.05, description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds."

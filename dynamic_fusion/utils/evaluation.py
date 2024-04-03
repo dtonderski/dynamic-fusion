@@ -8,18 +8,18 @@ from jaxtyping import Float
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from scipy.interpolate import interp1d
 from skimage.transform import resize
 from torch import nn
 from tqdm import tqdm
 
 from dynamic_fusion.network_trainer.configuration import SharedConfiguration
-from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, get_ground_truth, get_initial_aps_frames
+from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, get_edge_aps_frames, get_ground_truth, get_initial_aps_frames
 from dynamic_fusion.utils.datatypes import CropDefinition, TestBatch
 from dynamic_fusion.utils.loss import LPIPS, UncertaintyLoss
 from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list, to_numpy
 from dynamic_fusion.utils.superresolution import get_grid, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
-from scipy.interpolate import interp1d  # pyright: ignore
 
 
 class MSE:
@@ -82,7 +82,7 @@ def get_reconstructions_and_gt(
     gt_taus_to_evaluate = taus_to_evaluate if gt_taus_to_evaluate is None else gt_taus_to_evaluate
     gt_taus = einops.repeat(np.arange(0, 1, 1 / gt_taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
     gt = get_ground_truth(
-        gt_taus[:, 0:Ts_to_evaluate], [image] * gt_taus_to_evaluate, [transform] * gt_taus_to_evaluate, [crop_definition] * gt_taus_to_evaluate, False, eps.device  # type: ignore
+        gt_taus[:, 0:Ts_to_evaluate], [image] * gt_taus_to_evaluate, [transform] * gt_taus_to_evaluate, [crop_definition] * gt_taus_to_evaluate, False, eps.device
     )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
@@ -90,15 +90,22 @@ def get_reconstructions_and_gt(
     first_aps_frames = get_initial_aps_frames([image], [transform], [crop_definition], False, device)
     current_frame_info = None
 
+    if config.use_aps_for_all_frames:
+        aps_frames = get_edge_aps_frames([image], [transform], [crop_definition], False, device)
+    elif config.use_initial_aps_frame:
+        first_aps_frames = get_initial_aps_frames([image], [transform], [crop_definition], False, device)
+
     for t in range(Ts_to_evaluate):  # pylint: disable=C0103
-        if config.feed_initial_aps_frame:
+        if config.use_aps_for_all_frames:
+            current_frame_info = aps_frames[:, t : t + 2]
+        elif config.use_initial_aps_frame:
             current_frame_info = first_aps_frames if t == 0 else torch.zeros_like(first_aps_frames)
 
         c_t = encoder(
-            eps[t][None],
-            means[t][None] if config.use_mean else None,
-            stds[t][None] if config.use_std else None,
-            counts[t][None] if config.use_count else None,
+            eps[t][None] if config.use_events else None,
+            means[t][None] if config.use_mean and config.use_events else None,
+            stds[t][None] if config.use_std and config.use_events else None,
+            counts[t][None] if config.use_count and config.use_events else None,
             current_frame_info,
         )
         c_list.append(c_t.clone())
@@ -295,7 +302,7 @@ def get_metrics(
 
     sequences_to_evaluate = sequences_to_evaluate if sequences_to_evaluate is not None else len(test_dataset)
 
-    for i, sample in enumerate(tqdm(test_dataset, total=sequences_to_evaluate)):  # type: ignore
+    for i, sample in enumerate(tqdm(test_dataset, total=sequences_to_evaluate)):
         if i >= sequences_to_evaluate:
             break
 
@@ -327,11 +334,11 @@ def get_metrics(
 
             # recon is T C X Y, we only care about first dim
             interpolate = interp1d(recon_timestamps, recon, kind="cubic", axis=0, fill_value="extrapolate")
-            recon = interpolate(gt_timestamps).astype(recon.dtype)          
+            recon = interpolate(gt_timestamps).astype(recon.dtype)
 
         recon = torch.tensor(recon).to(device)
         if gt_scale:
-            recon = torch.nn.functional.interpolate(recon, gt.shape[-2:], mode='bicubic', align_corners=True, antialias=True)
+            recon = torch.nn.functional.interpolate(recon, gt.shape[-2:], mode="bicubic", align_corners=True, antialias=True)
 
         gt = torch.tensor(gt[:, None]).to(device)
 

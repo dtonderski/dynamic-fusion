@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Tuple
 
 import torch
@@ -12,31 +13,44 @@ from .configuration import NetworkLoaderConfiguration, SharedConfiguration
 class NetworkLoader:
     config: NetworkLoaderConfiguration
     shared_config: SharedConfiguration
+    logger: logging.Logger
 
     def __init__(self, config: NetworkLoaderConfiguration, shared_config: SharedConfiguration) -> None:
         self.config = config
         self.shared_config = shared_config
+        self.logger = logging.getLogger("DataGenerator")
 
     def run(self) -> Tuple[nn.Module, Optional[nn.Module]]:
         encoding_network, decoding_network = self._load_networks()
         return encoding_network, decoding_network
 
     def _load_networks(self) -> Tuple[nn.Module, Optional[nn.Module]]:
-        total_input_shape = (
-            self.config.encoding.input_size * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
-            + self.shared_config.feed_initial_aps_frame
-        )
+        total_input_size = 0
+        if self.shared_config.use_events:
+            total_input_size = self.config.encoding.input_size * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
+        if self.shared_config.use_aps_for_all_frames:
+            total_input_size += 2
+        elif self.shared_config.use_initial_aps_frame:
+            total_input_size += 1
+
+        if total_input_size == 0:
+            raise ValueError("We must use either events or APS data!")
+        if total_input_size == 1:
+            self.logger.warning("Only initial APS frame used!")
 
         if self.shared_config.implicit:
             output_size = self.config.encoding.output_size
+        elif self.shared_config.predict_uncertainty:
+            output_size = 2
         else:
-            output_size = 2 if self.shared_config.predict_uncertainty else 1
+            output_size = 1
 
         encoding_network = ConvGruNetV1(
-            input_size=total_input_shape,
+            input_size=total_input_size,
             hidden_size=self.config.encoding.hidden_size,
             out_size=output_size,
             kernel_size=self.config.encoding.kernel_size,
+            use_time_to_prev_ev=self.shared_config.use_events
         )
 
         if self.config.encoding_checkpoint_path:

@@ -15,15 +15,7 @@ from dynamic_fusion.networks.layers.normalizers import (
 
 
 class ConvGruNetV1(nn.Module):
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        out_size: int,
-        kernel_size: int,
-        ra_k: float = 0.95,
-        max_t: int = 8,
-    ) -> None:
+    def __init__(self, input_size: int, hidden_size: int, out_size: int, kernel_size: int, ra_k: float = 0.95, max_t: int = 8, use_time_to_prev_ev: bool = True) -> None:
         super().__init__()
 
         padding = kernel_size // 2
@@ -35,7 +27,7 @@ class ConvGruNetV1(nn.Module):
         self.input_normalizer = RunningAverageNNZnormalizer(k=ra_k)
         self.time_to_prev_ev = utils.TimeToPrevCounter(max_t=max_t)
 
-        self.head = nn.Conv2d(input_size + 1, hidden_size, kernel_size, 1, padding)
+        self.head = nn.Conv2d(input_size + use_time_to_prev_ev, hidden_size, kernel_size, 1, padding)
         self.nrm_head = InstanceNorm2dPlus(hidden_size)
 
         self.conv11 = nn.Conv2d(hidden_size, hidden_size, kernel_size, 1, padding)
@@ -63,20 +55,29 @@ class ConvGruNetV1(nn.Module):
         self.state1 = None
         self.state2 = None
 
-    def forward(self, d: torch.Tensor, *args: Optional[torch.Tensor]) -> torch.Tensor:
+    def forward(self, d: Optional[torch.Tensor], *args: Optional[torch.Tensor]) -> torch.Tensor:
         """
         d: B C X Y
         args: [B C X Y]
         """
-        batch_size, _, imsz0, imsz1 = d.shape
-        if self.state1 is None:
-            self.state1 = torch.zeros([batch_size, self.hidden_size, imsz0, imsz1]).to(d)
+        # Tricks here to make sure that the network is compatible with only events, only aps, and aps+events
+        # Just need to make sure input_size is correct and everything else should work.
+        if d is not None:
+            batch_size, _, imsz0, imsz1 = d.shape
+            d_nrm = self.input_normalizer(d)
+            time_to_prev = self.time_to_prev_ev(d)
+            tensor_like = d
+        else:
+            tensor_like = [tensor for tensor in args if tensor is not None][0]
+            batch_size, _, imsz0, imsz1 = tensor_like.shape
+            d_nrm = None
+            time_to_prev = None
 
-        d_nrm = self.input_normalizer(d)
-        time_to_prev = self.time_to_prev_ev(d)
+        if self.state1 is None:
+            self.state1 = torch.zeros([batch_size, self.hidden_size, imsz0, imsz1]).to(tensor_like)
 
         x_input = torch.concat(
-            [d_nrm, time_to_prev, *[tensor for tensor in args if tensor is not None]],
+            [tensor for tensor in [d_nrm, time_to_prev, *args] if tensor is not None],
             dim=1,
         )
 

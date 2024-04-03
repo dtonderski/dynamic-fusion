@@ -61,7 +61,7 @@ class CocoTestDataset(Dataset):  # type: ignore
     # This is not used by this class, just a helper
     scales: Float[np.ndarray, " N"]
 
-    def __init__(self, dataset_directory: Path, scales_range: Tuple[float, float] = (1,1), threshold: float = 1.4) -> None:
+    def __init__(self, dataset_directory: Path, scales_range: Tuple[float, float] = (1, 1), threshold: float = 1.4) -> None:
         self.directory_list = sorted([path for path in dataset_directory.glob("**/*") if path.is_dir()])
         self.logger = logging.getLogger("CocoDataset")
         self.threshold = threshold
@@ -99,6 +99,13 @@ class CocoTestDataset(Dataset):  # type: ignore
             preprocessed_image,
             transform_definition,
         )
+
+    def get_metadata(self, index: int) -> Tuple[float, Tuple[float, float]]:
+        input_path = self.directory_list[index] / "input.h5"
+        with h5py.File(input_path, "r") as file:
+            exponentiation_multiplier = float(np.array(file["exponentiation_multiplier"]))
+            illuminance_range = tuple(file["illuminance_range"])
+        return exponentiation_multiplier, illuminance_range
 
 
 def collate_test_items(
@@ -147,7 +154,7 @@ def get_initial_aps_frames(
     crops: List[CropDefinition],
     try_center_crop: bool,
     device: torch.device,
-) -> Float[torch.Tensor, "B 1 X Y"]:
+) -> Float[torch.Tensor, "B 1 XDownscaled YDownscaled"]:
     T_starts = einops.rearrange(np.array([crop.T_start for crop in crops] if crops else np.array([0] * len(transforms))), "B -> B 1")
     Ts_normalized_batch = T_starts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
 
@@ -157,3 +164,29 @@ def get_initial_aps_frames(
         initial_aps_frames.append(crops[i].crop_input_spatial(video) if crops[i].x_start is not None else video)
 
     return torch.stack(initial_aps_frames, dim=0)
+
+
+def get_edge_aps_frames(
+    preprocessed_images: List[GrayImageFloat],
+    transforms: List[TransformDefinition],
+    crops: List[CropDefinition],
+    try_center_crop: bool,
+    device: torch.device,
+) -> Float[torch.Tensor, "B T+1 XDownscaled YDownscaled"]:
+    """ Returns T+1 frames because we have T event frames, and we want start and end APS image of each
+
+    Returns:
+        _type_: _description_
+    """
+    T_starts = einops.rearrange(np.array([crop.T_start for crop in crops]), "B -> B 1") if crops else 0
+    sequence_length = crops[0].T_end - crops[0].T_start
+
+    Ts = einops.rearrange(np.arange(sequence_length + 1), "T -> 1 T") + T_starts  # type: ignore
+    Ts_normalized_batch = Ts / crops[0].total_number_of_bins  # Normalize from [0,sequence_length] to [0,1]
+
+    edge_frames = []
+    for i, (image, transform, Ts_normalized) in enumerate(zip(preprocessed_images, transforms, Ts_normalized_batch)):
+        video = get_video(image, transform, Ts_normalized, True, try_center_crop, device)
+        edge_frames.append(crops[i].crop_input_spatial(video) if crops[i].x_start is not None else video)
+
+    return torch.stack(edge_frames, dim=0)
