@@ -103,11 +103,11 @@ def run_decoder_with_spatial_upscaling(
         c_next = None
         if temporal_unfolding:
             c = unfold_temporally(cs, t)
-            if temporal_interpolation and t < cs.shape[0]:
+            if temporal_interpolation and t < cs.shape[0] - 1:
                 c_next = unfold_temporally(cs, t + 1)
         else:
             c = cs[t]  # B X Y C
-            if temporal_interpolation and t < cs.shape[0]:
+            if temporal_interpolation and t < cs.shape[0] - 1:
                 c_next = cs[t + 1]
 
         yield t, get_spatial_upscaling_output(decoder, c, taus[t], c_next, nearest_pixels, start_to_end_vectors)
