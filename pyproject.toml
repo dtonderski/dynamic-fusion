@@ -41,12 +41,12 @@ extend-select = ['B950']
 
 [tool.black]
 # 80 or 86 is not suitable for scientific code IMO
-line-length = 172
+line-length = 160
 target-version = ['py39']
 preview = true
 
 [tool.pylint.'MESSAGES CONTROL']
-max-line-length = 172
+max-line-length = 160
 disable = """
     invalid-name,
     not-callable

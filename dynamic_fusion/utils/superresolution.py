@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import einops
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Float, Int
 from torch import nn
 
 
@@ -73,22 +73,22 @@ def get_spatial_upscaling_output(
     only_use_first_corner = False
     # Special case when upscaling factor = 1/n, where n is an integer in [1:]. Here, all end points are on a corner, so
     # we only use the first corner, and we can skip computation for the other corners.
-    if np.all(corner_to_point_vectors[:,0] == 0):
+    if np.all(corner_to_point_vectors[:, 0] == 0):
         only_use_first_corner = True
         corner_pixels = corner_pixels[0:1]
         corner_to_point_vectors = corner_to_point_vectors[0:1]
-
 
     corner_pixels = corner_pixels.to(c).long()
     corner_c = c[:, corner_pixels[..., 0], corner_pixels[..., 1], :]  # B 4 X Y C
     b, n, x, y, _ = corner_c.shape
 
     corner_to_point_vectors_expanded = einops.rearrange(corner_to_point_vectors, "N X Y Dims -> 1 N X Y Dims")
-    corner_to_point_vectors_normalized = corner_to_point_vectors_expanded * einops.repeat(torch.tensor(original_resolution) - 1, "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y)
+    corner_to_point_vectors_normalized = corner_to_point_vectors_expanded * einops.repeat(
+        torch.tensor(original_resolution) - 1, "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y
+    )
     corner_to_point_vectors_normalized = corner_to_point_vectors_normalized.to(c)
 
     tau_expanded = einops.repeat(tau, "B -> B N X Y 1", N=n, X=x, Y=y)
-
 
     r_t = decoding_network(torch.concat([corner_c, corner_to_point_vectors_normalized, tau_expanded], dim=-1))
     if c_next is not None:
@@ -99,7 +99,7 @@ def get_spatial_upscaling_output(
     if not only_use_first_corner:
         r_t = spatial_bilinear_interpolate(r_t, corner_to_point_vectors_normalized)
     else:
-        r_t = r_t[:,0]
+        r_t = r_t[:, 0]
 
     r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
 

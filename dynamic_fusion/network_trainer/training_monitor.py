@@ -53,7 +53,9 @@ class TrainingMonitor:
         self.logger = logging.getLogger("TrainingMonitor")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def initialize(self, test_dataset: CocoTestDataset, reconstruction_network: nn.Module, optimizer: torch.optim.Optimizer, decoding_network: Optional[nn.Module]) -> int:
+    def initialize(
+        self, test_dataset: CocoTestDataset, reconstruction_network: nn.Module, optimizer: torch.optim.Optimizer, decoding_network: Optional[nn.Module]
+    ) -> int:
         plt.ioff()
         previous_subrun_directory, self.subrun_directory = self._get_previous_and_current_subrun_directories()
         self.subrun_directory.mkdir(parents=True, exist_ok=True)
@@ -135,7 +137,14 @@ class TrainingMonitor:
         if iteration > self.last_metrics_iteration:
             time_start = time.time()
             self.metrics = get_metrics(
-                self.test_dataset, encoder, decoder, self.shared_config, self.device, self.config.lpips_batch, self.config.Ts_to_evaluate, self.config.taus_to_evaluate
+                self.test_dataset,
+                encoder,
+                decoder,
+                self.shared_config,
+                self.device,
+                self.config.lpips_batch,
+                self.config.Ts_to_evaluate,
+                self.config.taus_to_evaluate,
             )
             self.logger.info(f"Calculated metrics, took {(time.time() - time_start):.2f} seconds.")
             self.last_metrics_iteration = iteration
@@ -242,7 +251,9 @@ class TrainingMonitor:
         upscaled_size = images.shape[-2:]
 
         video_for_downscaling = einops.rearrange(video_images, "B T C X Y -> (B T) X Y C")
-        downscaled_frames = [skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True) for video_frame in video_for_downscaling]
+        downscaled_frames = [
+            skimage.transform.resize(video_frame, output_shape=dowscaled_size, order=3, anti_aliasing=True) for video_frame in video_for_downscaling
+        ]
         upscaled_frames = [skimage.transform.resize(video_frame, upscaled_size, order=0) for video_frame in downscaled_frames]
         upscaled_video = np.stack(upscaled_frames, axis=0)
         upscaled_video = einops.rearrange(upscaled_video, "(B T) X Y C -> B T C X Y", B=video_event_polarity_sums.shape[0])

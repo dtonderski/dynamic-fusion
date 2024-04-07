@@ -17,7 +17,9 @@ DATASET_NAMES = ["train", "test"]
 OUTPUT_DIR = Path("results", "evr_histograms")
 
 
-def get_per_frames_and_per_sequences(event_counts: Float[torch.Tensor, "T B X Y"], bin_size: float) -> Tuple[Float[torch.Tensor, "T"], Float[torch.Tensor, "1"]]:
+def get_per_frames_and_per_sequences(
+    event_counts: Float[torch.Tensor, "T B X Y"], bin_size: float
+) -> Tuple[Float[torch.Tensor, "T"], Float[torch.Tensor, "1"]]:
     event_count_per_frame = einops.reduce(event_counts, "T B X Y -> T X Y", "sum")
     event_count_per_pixel_per_frame = einops.reduce(event_count_per_frame, "T X Y -> T", "mean")
     event_count_per_pixel_per_second = event_count_per_pixel_per_frame / bin_size
@@ -54,7 +56,6 @@ def main() -> None:
             downscaled_event_count_per_pixel_per_second_frames.append(downscaled_frame_mean)
             downscaled_event_count_per_pixel_per_second_sequences.append(downscaled_sequence_mean)
 
-
         per_frames = torch.concat(event_count_per_pixel_per_second_frames, dim=0)
         per_sequences = torch.concat(event_count_per_pixel_per_second_sequences, dim=0)
 
@@ -64,29 +65,28 @@ def main() -> None:
         output_dir = OUTPUT_DIR / dataset_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
-
         plt.figure()
-        plt.hist(per_frames, bins=40, range=(0,40))
-        plt.title('Events per pixel per second, mean over frames')
-        plt.xlabel('Events per pixel per second')
+        plt.hist(per_frames, bins=40, range=(0, 40))
+        plt.title("Events per pixel per second, mean over frames")
+        plt.xlabel("Events per pixel per second")
         plt.savefig(output_dir / "per_frame.png")
 
         plt.figure()
-        plt.hist(per_sequences, bins=40, range=(0,40))
-        plt.title('Events per pixel per second, mean over sequences')
-        plt.xlabel('Events per pixel per second')
+        plt.hist(per_sequences, bins=40, range=(0, 40))
+        plt.title("Events per pixel per second, mean over sequences")
+        plt.xlabel("Events per pixel per second")
         plt.savefig(output_dir / "per_sequence.png")
 
         plt.figure()
-        plt.hist(downscaled_per_frames, bins=40, range=(0,40))
-        plt.title('Events per pixel per second, mean over frames (downscaled)')
-        plt.xlabel('Events per pixel per second')
+        plt.hist(downscaled_per_frames, bins=40, range=(0, 40))
+        plt.title("Events per pixel per second, mean over frames (downscaled)")
+        plt.xlabel("Events per pixel per second")
         plt.savefig(output_dir / "downscaled_per_frame.png")
 
         plt.figure()
-        plt.hist(downscaled_per_sequences, bins=40, range=(0,40))
-        plt.title('Events per pixel per second, mean over sequences (downscaled)')
-        plt.xlabel('Events per pixel per second')
+        plt.hist(downscaled_per_sequences, bins=40, range=(0, 40))
+        plt.title("Events per pixel per second, mean over sequences (downscaled)")
+        plt.xlabel("Events per pixel per second")
         plt.savefig(output_dir / "downscaled_per_sequence.png")
 
 

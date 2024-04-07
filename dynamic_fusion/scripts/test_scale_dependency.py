@@ -19,6 +19,7 @@ SPATIAL_SCALES = np.linspace(1, 3, 2)
 TEMPORAL_SCALES = range(1, 10, 4)
 BOTH_SCALES = range(1, 3)
 
+
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda")

@@ -50,7 +50,7 @@ class NetworkLoader:
             hidden_size=self.config.encoding.hidden_size,
             out_size=output_size,
             kernel_size=self.config.encoding.kernel_size,
-            use_time_to_prev_ev=self.shared_config.use_events
+            use_time_to_prev_ev=self.shared_config.use_events,
         )
 
         if self.config.encoding_checkpoint_path:

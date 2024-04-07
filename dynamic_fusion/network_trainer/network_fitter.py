@@ -311,7 +311,9 @@ class NetworkFitter:
         image_loss = torch.tensor(0.0).to(event_polarity_sums)
         taus = einops.rearrange(torch.tensor(taus).to(cs), "B T -> T B")
 
-        for t, r_t in run_decoder_with_spatial_upscaling(decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start):
+        for t, r_t in run_decoder_with_spatial_upscaling(
+            decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start
+        ):
             image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()
 
             if visualize:

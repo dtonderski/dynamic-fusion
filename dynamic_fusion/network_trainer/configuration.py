@@ -23,7 +23,7 @@ class SharedConfiguration(BaseModel):
     spatial_upscaling: bool = Field(False)
 
     predict_uncertainty: bool = Field(False)
-    
+
     use_aps_for_all_frames: bool = Field(False)
     use_initial_aps_frame: bool = Field(False)
 

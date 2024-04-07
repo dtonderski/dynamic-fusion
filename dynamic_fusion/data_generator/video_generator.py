@@ -41,7 +41,14 @@ class VideoGenerator:
         shift_knots, rotation_knots, scale_knots = self._generate_knots()
         shift_interp, rotation_interp, scale_interp = _generate_interpolation_type(), _generate_interpolation_type(), _generate_interpolation_type()
         return TransformDefinition(
-            shift_knots, rotation_knots, scale_knots, shift_interp, rotation_interp, scale_interp, self.shared_config.target_unscaled_image_size, down_resolution
+            shift_knots,
+            rotation_knots,
+            scale_knots,
+            shift_interp,
+            rotation_interp,
+            scale_interp,
+            self.shared_config.target_unscaled_image_size,
+            down_resolution,
         )
 
     def _generate_knots(self) -> Tuple[Float[np.ndarray, "NShiftKnots 2"], Float[np.ndarray, "NRotKnots 1"], Float[np.ndarray, "NScaleKnots 2"]]:

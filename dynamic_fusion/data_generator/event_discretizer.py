@@ -64,7 +64,9 @@ class EventDiscretizer:
         normalized_timestamps = timestamps / self.max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
 
         # Normalize so events in each sub-bin lie between [0, 1]
-        timestamps_in_sub_bins = (normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin).float()
+        timestamps_in_sub_bins = (
+            normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
+        ).float()
 
         resolution = (
             self.config.number_of_temporal_bins,
@@ -90,8 +92,8 @@ class EventDiscretizer:
 
         return DiscretizedEvents(event_polarity_sum, timestamp_mean, timestamp_std, event_count)
 
+    @staticmethod
     def _calculate_statistics(
-        self,
         events_torch: EventTensors,
         timestamps_in_sub_bins: TimeStamps,
         temporal_bin_indices: TemporalBinIndices,
@@ -135,13 +137,14 @@ class EventDiscretizer:
         indices_with_events = event_count > 0
         timestamp_mean[indices_with_events] = timestamp_sum[indices_with_events] / event_count[indices_with_events]
         timestamp_std[indices_with_events] = torch.sqrt(
-            (timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events])) / event_count[indices_with_events]
+            (timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events]))
+            / event_count[indices_with_events]
         )
 
         return timestamp_mean, timestamp_std, event_count
 
+    @staticmethod
     def _calculate_event_polarity_sum(
-        self,
         events_torch: EventTensors,
         temporal_bin_indices: TemporalBinIndices,
         temporal_sub_bin_indices: TemporalSubBinIndices,

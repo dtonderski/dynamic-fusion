@@ -15,7 +15,9 @@ from dynamic_fusion.networks.layers.normalizers import (
 
 
 class ConvGruNetV1(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int, out_size: int, kernel_size: int, ra_k: float = 0.95, max_t: int = 8, use_time_to_prev_ev: bool = True) -> None:
+    def __init__(
+        self, input_size: int, hidden_size: int, out_size: int, kernel_size: int, ra_k: float = 0.95, max_t: int = 8, use_time_to_prev_ev: bool = True
+    ) -> None:
         super().__init__()
 
         padding = kernel_size // 2

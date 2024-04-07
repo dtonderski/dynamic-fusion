@@ -73,7 +73,7 @@ class CropDefinition:
         return sampled[:, 0]
 
     def crop_input_spatial(self, video: Shaped[torch.Tensor, "T X Y"]) -> Shaped[torch.Tensor, "T X Y"]:
-        if (self.x_start is None or self.y_start is None or self.x_stop is None or self.y_stop is None):
+        if self.x_start is None or self.y_start is None or self.x_stop is None or self.y_stop is None:
             raise ValueError("Input cropping is not defined for this CropDefinition!")
         return video[:, self.x_start : self.x_stop, self.y_start : self.y_stop]
 

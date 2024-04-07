@@ -33,7 +33,7 @@ class DataSaver:
         discretized_events_dict: Dict[float, DiscretizedEvents],
         downscaled_discretized_events_dict: Dict[float, DiscretizedEvents],
         exponentiation_multiplier: float,
-        illuminance_range: Tuple[float, float]
+        illuminance_range: Tuple[float, float],
     ) -> None:
         self.logger.info("Saving data...")
         output_dir = self.config.output_dir / image_path.stem
@@ -71,7 +71,9 @@ class DataSaver:
                     for threshold, event_df in event_dict.items():
                         event_df.to_hdf(output_dir / "events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
                 for threshold, downscaled_event_df in downscaled_event_dict.items():
-                    downscaled_event_df.to_hdf(output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib")
+                    downscaled_event_df.to_hdf(
+                        output_dir / "downscaled_events.h5", f"threshold{threshold}", "a", complevel=self.config.h5_compression, complib="zlib"
+                    )
 
         except Exception:  # pylint: disable=broad-exception-caught
             logging.error("Exception in data saving - deleting files!")

@@ -64,7 +64,9 @@ def get_reconstructions_and_gt(
 ) -> Tuple[Float[np.ndarray, "T C X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T X Y"], Float[np.ndarray, "T SubBins X Y"]]:
     encoder.reset_states()
 
-    _, _, _, _, eps_lst, means_lst, stds_lst, counts_lst, images, transforms = network_test_data_to_device(batch, device, config.use_mean, config.use_std, config.use_count)
+    _, _, _, _, eps_lst, means_lst, stds_lst, counts_lst, images, transforms = network_test_data_to_device(
+        batch, device, config.use_mean, config.use_std, config.use_count
+    )
     eps, means, stds, counts, image, transform = eps_lst[0], means_lst[0], stds_lst[0], counts_lst[0], images[0], transforms[0]
 
     c_list = []
@@ -82,7 +84,12 @@ def get_reconstructions_and_gt(
     gt_taus_to_evaluate = taus_to_evaluate if gt_taus_to_evaluate is None else gt_taus_to_evaluate
     gt_taus = einops.repeat(np.arange(0, 1, 1 / gt_taus_to_evaluate), "tau -> tau T", T=Ts_to_evaluate)
     gt = get_ground_truth(
-        gt_taus[:, 0:Ts_to_evaluate], [image] * gt_taus_to_evaluate, [transform] * gt_taus_to_evaluate, [crop_definition] * gt_taus_to_evaluate, False, eps.device
+        gt_taus[:, 0:Ts_to_evaluate],
+        [image] * gt_taus_to_evaluate,
+        [transform] * gt_taus_to_evaluate,
+        [crop_definition] * gt_taus_to_evaluate,
+        False,
+        eps.device,
     )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 

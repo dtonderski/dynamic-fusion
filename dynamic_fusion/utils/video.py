@@ -20,6 +20,7 @@ def normalize(data: Shaped[np.ndarray, "..."]) -> Shaped[np.ndarray, "..."]:
     data = data - data.min()
     return data / data.max()
 
+
 def get_video(
     image: GrayImage,
     transform_definition: TransformDefinition,
@@ -32,8 +33,8 @@ def get_video(
     """Used to generate images at arbitrary timestamps given an initial image and a transform definition. Note that the timestamps have to be in [0, 1].
 
     Notes:
-    1. Grid downscaling happens before cropping. So if image.shape = (512, 512), transform_definition.down_resolution=(256, 128), and 
-        transform_definition.target_image_size=(96, 96), downscale=True, try_center_crop=True, then the generated video will have shape 
+    1. Grid downscaling happens before cropping. So if image.shape = (512, 512), transform_definition.down_resolution=(256, 128), and
+        transform_definition.target_image_size=(96, 96), downscale=True, try_center_crop=True, then the generated video will have shape
         (256,128) and will then be centrally cropped to (96, 96). This is so that no part of the initial image is lost when generating the
         video.
 
@@ -85,7 +86,7 @@ def get_video(
     video = torch.nn.functional.grid_sample(image_tensor, grid, "bicubic", fill_mode, align_corners=True)
     video = normalize(video.squeeze())
     # Make sure shape is T X Y even if only one frame!
-    if (len(video.shape) == 2):
+    if len(video.shape) == 2:
         video = video[None]
     return video
 
@@ -143,7 +144,9 @@ def _upsample_knot_values(
     return interpolation(points_to_interpolate)
 
 
-def _transforms_to_matrices(shifts: Float[np.ndarray, "T 2"], rotations: Float[np.ndarray, "T 1"], scales: Float[np.ndarray, "T 2"]) -> Float[np.ndarray, "T 3 3"]:
+def _transforms_to_matrices(
+    shifts: Float[np.ndarray, "T 2"], rotations: Float[np.ndarray, "T 1"], scales: Float[np.ndarray, "T 2"]
+) -> Float[np.ndarray, "T 3 3"]:
     transformation_matrices = np.zeros((shifts.shape[0], 3, 3), dtype=np.float32)
 
     for step, (shift, rotation, scale) in enumerate(zip(shifts, rotations, scales)):

@@ -173,7 +173,7 @@ def get_edge_aps_frames(
     try_center_crop: bool,
     device: torch.device,
 ) -> Float[torch.Tensor, "B T+1 XDownscaled YDownscaled"]:
-    """ Returns T+1 frames because we have T event frames, and we want start and end APS image of each
+    """Returns T+1 frames because we have T event frames, and we want start and end APS image of each
 
     Returns:
         _type_: _description_
