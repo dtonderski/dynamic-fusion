@@ -76,7 +76,8 @@ SPEED = 0.2
 OUTPUT_FPS = int(TAUS_TO_EVALUATE / FRAME_SIZE * SPEED)
 OUTPUT_VIDEO_PATH = Path(f"./results/upscaled/{MODEL}/{NAME}_simulated={USE_VIDEO_TO_GENERATE_EVENTS}_framesize={FRAME_SIZE}_scale={SCALE}.mp4")
 
-OUTPUT_VIDEO_PATH.parent.mkdir(parents=True,exist_ok=True)
+OUTPUT_VIDEO_PATH.parent.mkdir(parents=True, exist_ok=True)
+
 
 def main() -> None:
     device = torch.device("cuda")
@@ -97,10 +98,11 @@ def main() -> None:
     decoder = decoder.to(device)
 
     if USE_VIDEO_TO_GENERATE_EVENTS:
+        assert INPUT_VIDEO is not None
         events, height, width = get_events_from_video(INPUT_VIDEO, MAX_HEIGHT, MAX_WIDTH, NUM_FRAMES, DESIRED_WIDTH)
     else:
         # Load events
-        events, height, width = get_events_from_txt(EVENT_DATA_FILE, MIN_HEIGHT, MAX_HEIGHT, MIN_WIDTH, MAX_WIDTH, max_t = MAX_T)
+        events, height, width = get_events_from_txt(EVENT_DATA_FILE, MIN_HEIGHT, MAX_HEIGHT, MIN_WIDTH, MAX_WIDTH, max_t=MAX_T)
 
     print(events, height, width)
     # Discretize events
@@ -112,7 +114,7 @@ def main() -> None:
     discretized_events = discretized_events_dict[THRESHOLD]
     print(discretized_events.event_polarity_sum.shape)
 
-    out_height, out_width = (int(height*SCALE), int(width*SCALE))
+    out_height, out_width = (int(height * SCALE), int(width * SCALE))
 
     # Get reconstruction
     reconstruction = run_reconstruction(encoder, decoder, discretized_events, device, config.shared, (out_height, out_width), TAUS_TO_EVALUATE)
@@ -144,7 +146,7 @@ def main() -> None:
             frame = np.concatenate([frame[0, :, :, np.newaxis], np.exp(frame[1, :, :, np.newaxis])], axis=1)
         else:
             frame = frame[0, :, :, np.newaxis]
-        
+
         frame = np.clip(frame, 0, 1)
 
         # Flip vertically and rescale to 0-255
@@ -159,11 +161,19 @@ def main() -> None:
 
         frame_with_events = np.concatenate(((colored_event_polarity_sums[i_event_frame, ::-1] * 255).astype(np.uint8), frame_processed), axis=1)
 
-        if USE_VIDEO_TO_GENERATE_EVENTS or NAME in ['dynamic']:
+        if USE_VIDEO_TO_GENERATE_EVENTS or NAME in ["dynamic"]:
             frame_with_events = np.flip(frame_with_events, 0)
             frame_with_events = np.ascontiguousarray(frame_with_events)
 
-        cv2.putText(frame_with_events, f"Event frame={i_event_frame}, t={ms_per_frame*i:.0f} ms, EPPF: {events_per_pixel_per_frame: .2f}", position, font, font_scale, font_color, line_type)
+        cv2.putText(
+            frame_with_events,
+            f"Event frame={i_event_frame}, t={ms_per_frame*i:.0f} ms, EPPF: {events_per_pixel_per_frame: .2f}",
+            position,
+            font,
+            font_scale,
+            font_color,
+            line_type,
+        )
 
         out.write(frame_with_events)
 
@@ -185,7 +195,7 @@ def run_reconstruction(
         eps, means, stds, counts = event_polarity_sum.to(device)[None], timestamp_mean.to(device)[None], timestamp_std.to(device)[None], event_count.to(device)[None]
 
         encoder.reset_states()
-        nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), output_shape)
+        corner_pixels, corner_to_point_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), output_shape)
 
         taus_to_evaluate = 5
         taus = np.arange(0, 1, 1 / taus_to_evaluate)
@@ -222,7 +232,7 @@ def run_reconstruction(
 
                 for i_tau in range(len(taus)):
                     if config.spatial_upscaling:
-                        r_t = get_spatial_upscaling_output(decoder, c, taus[i_tau : i_tau + 1].to(c), c_next, nearest_pixels, start_to_end_vectors)
+                        r_t = get_spatial_upscaling_output(decoder, c, taus[i_tau : i_tau + 1].to(c), c_next, corner_pixels, corner_to_point_vectors)
                     else:
                         tau = einops.repeat(taus[i_tau : i_tau + 1].to(c), "1 -> T X Y 1", X=c.shape[-3], Y=c.shape[-2])
                         r_t = decoder(torch.concat([c, tau], dim=-1))
@@ -241,15 +251,22 @@ def run_reconstruction(
         reconstruction_flat = einops.rearrange(reconstruction_stacked, "tau T C D X Y -> (tau T) (C D) X Y")  # D=1
         return reconstruction_flat
 
+
 # TODO: just load this as a pd dataframe
-def get_events_from_txt(file: Path, min_height: Optional[int] = None, max_height: Optional[int] = None, min_width: Optional[int] = None,
-                         max_width: Optional[int] = None, min_t: Optional[int] = None, max_t: Optional[int] = None) -> Tuple[Events, int, int]:
+def get_events_from_txt(
+    file: Path,
+    min_height: Optional[int] = None,
+    max_height: Optional[int] = None,
+    min_width: Optional[int] = None,
+    max_width: Optional[int] = None,
+    min_t: Optional[int] = None,
+    max_t: Optional[int] = None,
+) -> Tuple[Events, int, int]:
     lines = file.read_text()
     lines_split = lines.split("\n")
 
     event_dict = {"timestamp": [], "x": [], "y": [], "polarity": []}
 
-    
     max_height = max_height if max_height is not None else np.inf  # type: ignore
     max_width = max_width if max_width is not None else np.inf  # type: ignore
     min_height = min_height if min_height is not None else 0
@@ -275,10 +292,10 @@ def get_events_from_txt(file: Path, min_height: Optional[int] = None, max_height
                 event_dict["polarity"].append(int(p) > 0)
 
         if len(line.split(" ")) == 2:
-            width, height = [int(x) for x in line.split(" ")]      
+            width, height = [int(x) for x in line.split(" ")]
 
-    width = min(width, max_width)
-    height = min(height, max_height)
+    width = min(width, max_width)  # type: ignore
+    height = min(height, max_height)  # type: ignore
 
     width = width - min_width
     height = height - min_height
@@ -286,7 +303,9 @@ def get_events_from_txt(file: Path, min_height: Optional[int] = None, max_height
     return pd.DataFrame(event_dict), height, width
 
 
-def get_events_from_video(file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None, num_frames: Optional[int] = None, desired_width: Optional[int] = None) -> Tuple[Events, int, int]:
+def get_events_from_video(
+    file: Path, max_height: Optional[int] = None, max_width: Optional[int] = None, num_frames: Optional[int] = None, desired_width: Optional[int] = None
+) -> Tuple[Events, int, int]:
     import evs_explorer
 
     scfg = evs_explorer.Configuration.from_yaml(
@@ -311,14 +330,14 @@ def get_events_from_video(file: Path, max_height: Optional[int] = None, max_widt
 
     filtered_events = events
     if max_width:
-        filtered_events = filtered_events.loc[filtered_events["x"] < max_width]
+        filtered_events = filtered_events.loc[filtered_events["x"] < max_width]  # type: ignore [misc]
     if max_height:
-        filtered_events = filtered_events.loc[filtered_events["y"] < max_height]
+        filtered_events = filtered_events.loc[filtered_events["y"] < max_height]  # type: ignore [misc]
 
-    height = filtered_events.y.max() + 1
-    width = filtered_events.x.max() + 1
+    height = filtered_events.y.max() + 1  # type: ignore [misc]
+    width = filtered_events.x.max() + 1  # type: ignore [misc]
 
-    return filtered_events, height, width
+    return filtered_events, height, width  # type: ignore [misc]
 
 
 if __name__ == "__main__":
