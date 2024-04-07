@@ -68,9 +68,11 @@ FRAME_SIZE = 0.02  # 200 ms
 SCALE = 8
 BINS_PER_FRAME = 2
 TAUS_TO_EVALUATE = 5
+
 MIN_HEIGHT = None
-MIN_WIDTH = 550
 MAX_HEIGHT = 200
+
+MIN_WIDTH = 550
 MAX_WIDTH = None
 
 SPEED = 0.2
@@ -193,7 +195,12 @@ def run_reconstruction(
     with torch.no_grad():
         event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
         number_of_temporal_bins = event_polarity_sum.shape[0]
-        eps, means, stds, counts = event_polarity_sum.to(device)[None], timestamp_mean.to(device)[None], timestamp_std.to(device)[None], event_count.to(device)[None]
+        eps, means, stds, counts = (
+            event_polarity_sum.to(device)[None],
+            timestamp_mean.to(device)[None],
+            timestamp_std.to(device)[None],
+            event_count.to(device)[None],
+        )
 
         encoder.reset_states()
         corner_pixels, corner_to_point_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), output_shape)
@@ -212,7 +219,9 @@ def run_reconstruction(
             print(f"{t} / {number_of_temporal_bins + 2}", end="\r")
             reconstructions_t = []
             if t < int(number_of_temporal_bins):
-                c_t = encoder(eps[:, t], means[:, t] if config.use_mean else None, stds[:, t] if config.use_std else None, counts[:, t] if config.use_count else None)
+                c_t = encoder(
+                    eps[:, t], means[:, t] if config.use_mean else None, stds[:, t] if config.use_std else None, counts[:, t] if config.use_count else None
+                )
                 cs_queue.append(stack_and_maybe_unfold_c_list([c_t], config.spatial_unfolding)[0])
 
                 if t == 0:
@@ -253,8 +262,59 @@ def run_reconstruction(
         return reconstruction_flat
 
 
-# TODO: just load this as a pd dataframe
 def get_events_from_txt(
+    file: Path,
+    min_height: Optional[int] = None,
+    max_height: Optional[int] = None,
+    min_width: Optional[int] = None,
+    max_width: Optional[int] = None,
+    min_t: Optional[float] = None,
+    max_t: Optional[float] = None,
+) -> Tuple[Events, int, int]:
+
+    max_height = max_height if max_height is not None else np.inf  # type: ignore
+    max_width = max_width if max_width is not None else np.inf  # type: ignore
+    min_height = min_height if min_height is not None else 0
+    min_width = min_width if min_width is not None else 0
+    min_t = min_t if min_t is not None else 0
+    max_t = max_t if max_t is not None else 0
+
+    events = pd.read_csv(
+        file,
+        sep=" ",
+        header=None,
+        skiprows=[0],
+        names=["timestamp", "x", "y", "polarity"],
+        dtype={"a": np.float64, "x": np.int64, "y": np.int64, "polarity": np.int64},
+    )
+    events.timestamp -= events.timestamp[0]
+    events.polarity = events.polarity > 0
+
+    events = events[
+        (events.timestamp >= min_t)
+        & (events.timestamp < max_t)
+        & (events.x >= min_width)
+        & (events.x < max_width)
+        & (events.y >= min_height)
+        & (events.y < max_height)
+    ]
+
+    with open(file, encoding="utf8") as f:
+        metadata = f.readline().split(" ")
+        assert len(metadata) == 2
+        width, height = [int(x) for x in metadata]
+
+    width = min(width, max_width)  # type: ignore
+    height = min(height, max_height)  # type: ignore
+
+    width = width - min_width
+    height = height - min_height
+
+    return events, height, width
+
+
+# TODO: just load this as a pd dataframe
+def get_events_from_txt_legacy(
     file: Path,
     min_height: Optional[int] = None,
     max_height: Optional[int] = None,
