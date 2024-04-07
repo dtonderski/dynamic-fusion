@@ -298,6 +298,8 @@ def get_events_from_txt(
         & (events.y >= min_height)
         & (events.y < max_height)
     ]
+    events.x = events.x - min_width
+    events.y = events.y - min_height
 
     with open(file, encoding="utf8") as f:
         metadata = f.readline().split(" ")
@@ -391,15 +393,14 @@ def get_events_from_video(
 
     filtered_events = events
     if max_width:
-        filtered_events = filtered_events.loc[filtered_events["x"] < max_width]  # type: ignore [misc]
+        filtered_events = filtered_events.loc[filtered_events["x"] < max_width]
     if max_height:
-        filtered_events = filtered_events.loc[filtered_events["y"] < max_height]  # type: ignore [misc]
+        filtered_events = filtered_events.loc[filtered_events["y"] < max_height]
 
-    height = filtered_events.y.max() + 1  # type: ignore [misc]
-    width = filtered_events.x.max() + 1  # type: ignore [misc]
+    height = filtered_events.y.max() + 1
+    width = filtered_events.x.max() + 1
 
-    return filtered_events, height, width  # type: ignore [misc]
-
+    return filtered_events, height, width
 
 if __name__ == "__main__":
     main()
