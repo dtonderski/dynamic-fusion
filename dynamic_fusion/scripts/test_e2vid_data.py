@@ -21,24 +21,25 @@ from dynamic_fusion.utils.network import stack_and_maybe_unfold_c_list, to_numpy
 from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
-MODEL = 'e2vid_exp'
-MODEL = 'e2vid_exp_uncertainty'
+MODEL = "e2vid_exp"
+MODEL = "e2vid_exp_uncertainty"
 
-if MODEL == 'e2vid_exp':
+if MODEL == "e2vid_exp":
     CHECKPOINT_DIR = Path("./runs/0323-new-dataset/01_st-un_st-interp_st-up/subrun_00")
-elif MODEL == 'e2vid_exp_uncertainty':
+elif MODEL == "e2vid_exp_uncertainty":
     CHECKPOINT_DIR = Path("./runs/0323-new-dataset/00_st-un_st-interp_st-up_uncertainty-lpips/subrun_00")
 
 CHECKPOINT_NAME = "latest_checkpoint.pt"
 
 NAME = "selfie"
+E2VID_PATH = Path("./data_e2vid/raw/e2vid")
 
 if NAME == "dynamic":
-    EVENT_DATA_FILE = Path("./data_e2vid/raw/e2vid/dynamic_6dof.txt")
+    EVENT_DATA_FILE = E2VID_PATH / "dynamic_6dof.txt"
 elif NAME == "gnome":
-    EVENT_DATA_FILE = Path("./data_e2vid/raw/e2vid/gun_bullet_gnome.txt")
+    EVENT_DATA_FILE = E2VID_PATH / "gun_bullet_gnome.txt"
 elif NAME == "selfie":
-    EVENT_DATA_FILE = Path("./data_e2vid/raw/e2vid/hdr_selfie.txt")
+    EVENT_DATA_FILE = E2VID_PATH / "hdr_selfie.txt"
 
 MAX_T = 5
 
@@ -48,9 +49,9 @@ USE_VIDEO_TO_GENERATE_EVENTS = False
 if NAME == "dynamic":
     INPUT_VIDEO = None
 elif NAME == "gnome":
-    INPUT_VIDEO = Path("./data_e2vid/raw/e2vid/gnome_huawei_240fps.mp4")
+    INPUT_VIDEO = E2VID_PATH / "gnome_huawei_240fps.mp4"
 elif NAME == "selfie":
-    INPUT_VIDEO = Path("./data_e2vid/raw/e2vid/selfie_huawei_30fps.mp4")
+    INPUT_VIDEO = E2VID_PATH / "selfie_huawei_30fps.mp4"
 
 EVS_EXPLORER_CONFIG = "configs/data_generator/simulator/evs_explorer.yml"
 DAVIS_CONFIG = "configs/data_generator/simulator/davis_model.yml"
