@@ -16,7 +16,7 @@ def generate_coords_2d(resolution: Tuple[int, int]) -> Float[np.ndarray, "X Y 2"
     return np.array([A, B]).T
 
 
-def find_nearest_pixels(
+def find_corner_pixels(
     start_resolution: Int[np.ndarray, " 2"],
     end_resolution: Tuple[int, int],
     end_coords: Float[np.ndarray, "X Y 2"],
@@ -41,18 +41,18 @@ def get_upscaling_pixel_indices_and_distances(
     start_coords = generate_coords_2d(start_resolution)
     end_coords = generate_coords_2d(end_resolution)
 
-    corner_pixels = find_nearest_pixels(np.array(start_resolution), end_resolution, end_coords)
+    corner_pixels = find_corner_pixels(np.array(start_resolution), end_resolution, end_coords)
 
     corner_start_coords = start_coords[corner_pixels[..., 0], corner_pixels[..., 1]]
-    start_to_end_vectors = end_coords[None, :] - corner_start_coords
+    corner_to_point_vectors = end_coords[None, :] - corner_start_coords
 
-    return torch.tensor(corner_pixels), torch.tensor(start_to_end_vectors)
+    return torch.tensor(corner_pixels), torch.tensor(corner_to_point_vectors)
 
 
 def spatial_bilinear_interpolate(
-    r_t: Float[torch.Tensor, "B 4 X Y C"], start_to_end_vectors_normalized: Float[torch.Tensor, "B 4 X Y 2"]
-) -> Float[torch.Tensor, "B X Y 1"]:
-    distances = 1 - torch.abs(start_to_end_vectors_normalized)
+    r_t: Float[torch.Tensor, "B 4 X Y C"], corner_to_point_vectors_normalized: Float[torch.Tensor, "B 4 X Y 2"]
+) -> Float[torch.Tensor, "B X Y C"]:
+    distances = 1 - torch.abs(corner_to_point_vectors_normalized)
     weights = distances[..., 0] * distances[..., 1]  # B 4 X Y
     expanded_weights = einops.rearrange(weights, "B N X Y -> B N X Y 1")
     weighted_output = expanded_weights * r_t
@@ -65,28 +65,42 @@ def get_spatial_upscaling_output(
     c: Float[torch.Tensor, "B X Y C"],
     tau: Float[torch.Tensor, " B"],
     c_next: Optional[Float[torch.Tensor, "B X Y C"]],
-    nearest_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
-    start_to_end_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
-) -> Float[torch.Tensor, "B 1 XUpscaled YUpscaled"]:
+    corner_pixels: Int[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+    corner_to_point_vectors: Float[torch.Tensor, "4 XUpscaled YUpscaled 2"],
+) -> Float[torch.Tensor, "B C XUpscaled YUpscaled"]:
     original_resolution = c.shape[-3:-1]
 
-    nearest_pixels = nearest_pixels.to(c).long()
-    nearest_c = c[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]  # B 4 X Y C
-    b, n, x, y, _ = nearest_c.shape
+    only_use_first_corner = False
+    # Special case when upscaling factor = 1/n, where n is an integer in [1:]. Here, all end points are on a corner, so
+    # we only use the first corner, and we can skip computation for the other corners.
+    if np.all(corner_to_point_vectors[:,0] == 0):
+        only_use_first_corner = True
+        corner_pixels = corner_pixels[0:1]
+        corner_to_point_vectors = corner_to_point_vectors[0:1]
 
-    start_to_end_vectors_expanded = einops.rearrange(start_to_end_vectors, "N X Y Dims -> 1 N X Y Dims")
-    start_to_end_vectors_normalized = start_to_end_vectors_expanded * einops.repeat(torch.tensor(original_resolution) - 1, "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y)
-    start_to_end_vectors_normalized = start_to_end_vectors_normalized.to(c)
+
+    corner_pixels = corner_pixels.to(c).long()
+    corner_c = c[:, corner_pixels[..., 0], corner_pixels[..., 1], :]  # B 4 X Y C
+    b, n, x, y, _ = corner_c.shape
+
+    corner_to_point_vectors_expanded = einops.rearrange(corner_to_point_vectors, "N X Y Dims -> 1 N X Y Dims")
+    corner_to_point_vectors_normalized = corner_to_point_vectors_expanded * einops.repeat(torch.tensor(original_resolution) - 1, "Dims -> B N X Y Dims", B=b, N=n, X=x, Y=y)
+    corner_to_point_vectors_normalized = corner_to_point_vectors_normalized.to(c)
 
     tau_expanded = einops.repeat(tau, "B -> B N X Y 1", N=n, X=x, Y=y)
 
-    r_t = decoding_network(torch.concat([nearest_c, start_to_end_vectors_normalized, tau_expanded], dim=-1))
+
+    r_t = decoding_network(torch.concat([corner_c, corner_to_point_vectors_normalized, tau_expanded], dim=-1))
     if c_next is not None:
-        nearest_c_next = c_next[:, nearest_pixels[..., 0], nearest_pixels[..., 1], :]
-        r_tnext = decoding_network(torch.concat([nearest_c_next, start_to_end_vectors_normalized, tau_expanded - 1], dim=-1))
+        corner_c_next = c_next[:, corner_pixels[..., 0], corner_pixels[..., 1], :]
+        r_tnext = decoding_network(torch.concat([corner_c_next, corner_to_point_vectors_normalized, tau_expanded - 1], dim=-1))
         r_t = r_t * (1 - tau_expanded) + r_tnext * (tau_expanded)
 
-    r_t = spatial_bilinear_interpolate(r_t, start_to_end_vectors_normalized)
+    if not only_use_first_corner:
+        r_t = spatial_bilinear_interpolate(r_t, corner_to_point_vectors_normalized)
+    else:
+        r_t = r_t[:,0]
+
     r_t = einops.rearrange(r_t, "B X Y C -> B C X Y")
 
     return r_t

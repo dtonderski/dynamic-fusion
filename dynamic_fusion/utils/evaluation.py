@@ -86,7 +86,7 @@ def get_reconstructions_and_gt(
     )
     gt_flat = einops.rearrange(gt, "tau T X Y -> (T tau) X Y")
 
-    nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), recon_output_shape)  # type: ignore
+    corner_pixels, corner_to_point_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), recon_output_shape)  # type: ignore
     first_aps_frames = get_initial_aps_frames([image], [transform], [crop_definition], False, device)
     current_frame_info = None
 
@@ -121,7 +121,7 @@ def get_reconstructions_and_gt(
         if config.spatial_upscaling:
             taus_tau = einops.rearrange(torch.tensor(taus_tau).to(cs), "tau T -> T tau")
             for _, r_t in run_decoder_with_spatial_upscaling(
-                decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, nearest_pixels, start_to_end_vectors
+                decoder, cs_tau, taus_tau, config.temporal_interpolation, config.temporal_unfolding, corner_pixels, corner_to_point_vectors
             ):
                 reconstructions_tau.append(to_numpy(r_t))
 
