@@ -52,10 +52,15 @@ class EventGeneratorConfiguration(BaseModel):
 
 
 class EventDiscretizerConfiguration(BaseModel):
+    discretization_type: str = Field(..., description="Type of discretization, must be one of 'fixed_bin_num' or 'fixed_event_num'.")
     number_of_temporal_bins: int = Field(..., description="Number of temporal bins to use in discretizer.")
     number_of_temporal_sub_bins_per_bin: int = Field(
         ..., description="Number of sub-bins to use per temporal bin. If one discretized event statistic has shape T D H W, then this is the D dimension."
     )
+    number_of_events_per_bin: int = Field(
+        ..., description="Number of events per bin in discretizer, will be used only if discretization_type='fixed_event_num'."
+    )
+    approximation_type: str = Field(..., description="Type of approximation in sub bin calculation, must be one of 'nearest'.")
 
 
 class DataSaverConfiguration(BaseModel):

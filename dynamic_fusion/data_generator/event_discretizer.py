@@ -1,4 +1,5 @@
 import logging
+from abc import ABC, abstractmethod
 from typing import Dict, Optional, Tuple
 
 import torch
@@ -57,8 +58,19 @@ class EventDiscretizer:
             torch.tensor(events.polarity.values.astype(bool)),
         )
 
-        temporal_bin_indices = self._calculate_temporal_bin_indices(timestamps, self.max_timestamp)
-        temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(timestamps, self.max_timestamp)
+        discretization_type = self.config.discretization_type
+        if discretization_type == 'fixed_bin_num':
+            temporal_bin_indices = self._calculate_temporal_bin_indices(timestamps, self.max_timestamp)
+            temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(timestamps, self.max_timestamp)
+        elif discretization_type == 'fixed_evexitent_num':
+            events_torch, temporal_bin_indices, temporal_sub_bin_indices = self._prepare_inputs_fixed_event_num(
+                events_torch,
+                self.config.number_of_temporal_bins,
+                self.config.number_of_events_per_bin,
+                self.config.number_of_temporal_sub_bins_per_bin,
+                )
+        else:
+            self.logger.warning(f"Invalid parameter discretization_type = {discretization_type}.")
 
         # Normalize so they lie between [0, n_bins*sub_bins_per_bin]
         normalized_timestamps = timestamps / self.max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin
@@ -153,30 +165,27 @@ class EventDiscretizer:
     ) -> DiscretizedEventsStatistics:
         _, x_s, y_s, polarities = events_torch
 
+        approximation_type = self.config.approximation_type
+
+        # TODO: add support for spatio-temporal voxel grid approximation (as in e2vid paper)
+        if approximation_type == 'nearest':
+            p_s = polarities * threshold + ~polarities * (-threshold)
+        else:
+            self.logger.warning(f"Invalid parameter approximation_type = {approximation_type}.")
+
         event_polarity_sum: DiscretizedEventsStatistics = torch.zeros(resolution)
         event_polarity_sum.index_put_(
             (
-                temporal_bin_indices[polarities],
-                temporal_sub_bin_indices[polarities],
-                y_s[polarities],
-                x_s[polarities],
+                temporal_bin_indices,
+                temporal_sub_bin_indices,
+                y_s,
+                x_s,
             ),
-            ONE,
+            p_s,
             accumulate=True,
         )
 
-        event_polarity_sum.index_put_(
-            (
-                temporal_bin_indices[~polarities],
-                temporal_sub_bin_indices[~polarities],
-                y_s[~polarities],
-                x_s[~polarities],
-            ),
-            -ONE,
-            accumulate=True,
-        )
-
-        return event_polarity_sum * threshold
+        return event_polarity_sum
 
     def _calculate_temporal_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> TemporalBinIndices:
         temporal_bin_indices = torch.floor(timestamps / max_timestamp * self.config.number_of_temporal_bins)
@@ -196,3 +205,38 @@ class EventDiscretizer:
         )
         sub_bin_indices_in_bins = sub_bin_indices_in_bins.long()
         return sub_bin_indices_in_bins
+
+    def _prepare_inputs_fixed_event_num(
+            self,
+            events_torch,
+            number_of_bins,
+            number_of_events_per_bin,
+            number_of_sub_bins_per_bin,
+            ):
+        timestamps, x_s, y_s, polarities = events_torch
+
+        required_num_events = number_of_events_per_bin * number_of_bins
+        if required_num_events > self.max_timestamp:
+            self.logger.warning(
+                f"Not enough number of generated events, need {required_num_events}, got max {self.max_timestamp}."
+                )
+
+        # Ensure correct number of events
+        if timestamps.shape[0] < required_num_events:
+            timestamps = timestamps[:required_num_events]
+            x_s = x_s[:required_num_events]
+            y_s = y_s[:required_num_events]
+            polarities = polarities[:required_num_events]
+
+        # Create temporal bin indices
+        temporal_bin_indices = torch.arange(number_of_bins).repeat_interleave(number_of_events_per_bin)
+
+        # Calculate sub-bin indices in bins
+        time_bin_matrix = timestamps.view(number_of_bins, number_of_events_per_bin)
+        t_start = time_bin_matrix[:, 0]
+        t_finish = time_bin_matrix[:, -1]
+        interval_lens = (t_finish - t_start).view(number_of_bins, 1)
+        normilized_time = (time_bin_matrix - t_start.view(number_of_bins, 1)) / interval_lens * (number_of_sub_bins_per_bin - 1)
+        sub_bin_indices_in_bins = torch.round(normilized_time).long().flatten()
+
+        return (timestamps, x_s, y_s, polarities), temporal_bin_indices, sub_bin_indices_in_bins
