@@ -40,8 +40,11 @@ event_generator:
   max_illuminance_lux_range: [10_000., 15_000.] # lum_max_range
 
 event_discretizer:
+discretization_type: 'fixed_bin_num'
   number_of_temporal_bins: 150 # N_low
   number_of_temporal_sub_bins_per_bin: 2
+  number_of_events_per_bin: 1000
+  approximation_type: 'nearest'
 
 data_saver:
   output_dir: "./data/interim/coco/test/2subbins_new"
