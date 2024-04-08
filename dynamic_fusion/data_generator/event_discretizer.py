@@ -86,12 +86,14 @@ class EventDiscretizer:
             *image_resolution,
         )
 
+        
         event_polarity_sum: DiscretizedEventsStatistics = self._calculate_event_polarity_sum(
             events_torch,
             temporal_bin_indices,
             temporal_sub_bin_indices,
             threshold,
             resolution,
+            self.config.approximation_type,
         )
 
         timestamp_mean, timestamp_std, event_count = self._calculate_statistics(
@@ -162,16 +164,15 @@ class EventDiscretizer:
         temporal_sub_bin_indices: TemporalSubBinIndices,
         threshold: float,
         resolution: Tuple[int, int, int, int],  # T D H W
+        approximation_type: str,
     ) -> DiscretizedEventsStatistics:
         _, x_s, y_s, polarities = events_torch
-
-        approximation_type = self.config.approximation_type
 
         # TODO: add support for spatio-temporal voxel grid approximation (as in e2vid paper)
         if approximation_type == 'nearest':
             p_s = polarities * threshold + ~polarities * (-threshold)
         else:
-            self.logger.warning(f"Invalid parameter approximation_type = {approximation_type}.")
+            raise Exception(f"Invalid parameter approximation_type = {approximation_type}.")
 
         event_polarity_sum: DiscretizedEventsStatistics = torch.zeros(resolution)
         event_polarity_sum.index_put_(
