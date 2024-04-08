@@ -270,20 +270,21 @@ def get_events_from_txt(
     max_width: Optional[int] = None,
     min_t: Optional[float] = None,
     max_t: Optional[float] = None,
+    first_row_is_image_shape: bool = True,
 ) -> Tuple[Events, int, int]:
 
-    max_height = max_height if max_height is not None else np.inf  # type: ignore
-    max_width = max_width if max_width is not None else np.inf  # type: ignore
     min_height = min_height if min_height is not None else 0
     min_width = min_width if min_width is not None else 0
+    max_height = max_height if max_height is not None else np.inf  # type: ignore
+    max_width = max_width if max_width is not None else np.inf  # type: ignore
     min_t = min_t if min_t is not None else 0
-    max_t = max_t if max_t is not None else 0
+    max_t = max_t if max_t is not None else np.inf
 
     events = pd.read_csv(
         file,
         sep=" ",
         header=None,
-        skiprows=[0],
+        skiprows=[0] if first_row_is_image_shape else [],
         names=["timestamp", "x", "y", "polarity"],
         dtype={"a": np.float64, "x": np.int64, "y": np.int64, "polarity": np.int64},
     )
@@ -301,16 +302,19 @@ def get_events_from_txt(
     events.x = events.x - min_width
     events.y = events.y - min_height
 
-    with open(file, encoding="utf8") as f:
-        metadata = f.readline().split(" ")
-        assert len(metadata) == 2
-        width, height = [int(x) for x in metadata]
+    if first_row_is_image_shape:
+        with open(file, encoding="utf8") as f:
+            metadata = f.readline().split(" ")
+            assert len(metadata) == 2
+            width, height = [int(x) for x in metadata]
 
-    width = min(width, max_width)  # type: ignore
-    height = min(height, max_height)  # type: ignore
+        width = min(width, max_width)  # type: ignore
+        height = min(height, max_height)  # type: ignore
 
-    width = width - min_width
-    height = height - min_height
+        width = width - min_width
+        height = height - min_height
+    else:
+        width, height = -1, -1
 
     return events, height, width
 
