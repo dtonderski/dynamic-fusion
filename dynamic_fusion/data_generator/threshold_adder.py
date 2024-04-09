@@ -37,8 +37,12 @@ class ThresholdAdder:
         existing_output_dirs = self.original_config.data_saver.output_dir.glob("*/**")
 
         for output_dir in tqdm(existing_output_dirs):
-            if (output_dir / f"events_{threshold}.h5").exists() and (output_dir / f"downscaled_events_{threshold}.h5").exists():
-                continue
+            skip_current = False
+            for threshold in self.original_config.event_generator.thresholds:
+                if (output_dir / f"events_{threshold}.h5").exists() and (output_dir / f"downscaled_events_{threshold}.h5").exists():
+                    skip_current = True
+            if skip_current:
+                continue        
 
             with h5py.File(output_dir / "input.h5", "r") as file:
                 preprocessed_image: GrayImageFloat = np.array(file["preprocessed_image"])
