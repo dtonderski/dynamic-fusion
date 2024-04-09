@@ -6,15 +6,14 @@ from typing import Any, List, Tuple
 from pydantic import BaseModel
 from ruamel.yaml import YAML
 
+from dynamic_fusion.data_generator import DataGenerator, DataGeneratorConfiguration
+from dynamic_fusion.data_generator.threshold_adder import ThresholdAdder
 from dynamic_fusion.interactive_visualizer import Visualizer, VisualizerConfiguration
 from dynamic_fusion.network_trainer import Trainer, TrainerConfiguration
 from dynamic_fusion.utils.seeds import set_seeds
 
 
 def generate_data_reconstruction(arguments: argparse.Namespace, unknown_args: List[str]) -> None:
-    # pylint: disable-next=import-outside-toplevel
-    from dynamic_fusion.data_generator import DataGenerator, DataGeneratorConfiguration
-
     with open(arguments.config, encoding="utf8") as infile:
         yaml = YAML().load(infile)
         config = DataGeneratorConfiguration.parse_obj(yaml)
@@ -39,6 +38,15 @@ def visualize_interactive(arguments: argparse.Namespace, unknown_args: List[str]
         update_config(config, unknown_args)
     network_trainer = Visualizer(config)
     network_trainer.run()
+
+
+def add_thresholds(arguments: argparse.Namespace, unknown_args: List[str]) -> None:
+    with open(arguments.config, encoding="utf8") as infile:
+        yaml = YAML().load(infile)
+        config = DataGeneratorConfiguration.parse_obj(yaml)
+        update_config(config, unknown_args)
+    threshold_adder = ThresholdAdder(arguments.thresholds, config)
+    threshold_adder.run()
 
 
 def update_config(config: BaseModel, unknown_args: List[str]) -> None:
@@ -68,13 +76,14 @@ def update_nested_config(config: BaseModel, key_list: List[str], value: Any) -> 
 
 def main(arguments: argparse.Namespace, unknown_args: List[str]) -> None:
     logging.basicConfig(level=logging.INFO)
-
     if arguments.generate_data:
         return generate_data_reconstruction(arguments, unknown_args)
     if arguments.train:
         return train_reconstruction(arguments, unknown_args)
     if arguments.visualize:
         return visualize_interactive(arguments, unknown_args)
+    if arguments.add_thresholds:
+        return add_thresholds(arguments, unknown_args)
     raise NotImplementedError()
 
 
@@ -86,10 +95,18 @@ def parse_arguments() -> Tuple[argparse.Namespace, List[str]]:
     mode_group.add_argument("--generate_data", action="store_true", help="generate data")
     mode_group.add_argument("--train", action="store_true", help="train the model")
     mode_group.add_argument("--visualize", action="store_true", help="interactively visualize model")
+    mode_group.add_argument("--add_thresholds", action="store_true", help="interactively visualize model")
 
-    return parser.parse_known_args()
+    parser.add_argument("--thresholds", type=float, nargs="+", help="List of thresholds", default=[])
+
+    parsed_args, unknown_args = parser.parse_known_args()
+
+    if parsed_args.add_thresholds and not parsed_args.thresholds:
+        parser.error("--add_thresholds requires --threshold to be set with a list of floats.")
+
+    return parsed_args, unknown_args
 
 
 if __name__ == "__main__":
-    args, unknown_args = parse_arguments()
-    main(args, unknown_args)
+    args, unknown = parse_arguments()
+    main(args, unknown)

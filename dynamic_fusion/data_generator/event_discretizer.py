@@ -68,11 +68,7 @@ class EventDiscretizer:
             normalized_timestamps - temporal_sub_bin_indices - temporal_bin_indices * self.config.number_of_temporal_sub_bins_per_bin
         ).float()
 
-        resolution = (
-            self.config.number_of_temporal_bins,
-            self.config.number_of_temporal_sub_bins_per_bin,
-            *image_resolution,
-        )
+        resolution = (self.config.number_of_temporal_bins, self.config.number_of_temporal_sub_bins_per_bin, *image_resolution)
 
         event_polarity_sum: DiscretizedEventsStatistics = self._calculate_event_polarity_sum(
             events_torch,
@@ -136,10 +132,14 @@ class EventDiscretizer:
 
         indices_with_events = event_count > 0
         timestamp_mean[indices_with_events] = timestamp_sum[indices_with_events] / event_count[indices_with_events]
-        timestamp_std[indices_with_events] = torch.sqrt(
-            (timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events]))
-            / event_count[indices_with_events]
-        )
+
+        numerator = timestamp_squared_sum[indices_with_events] - (timestamp_sum[indices_with_events] ** 2 / event_count[indices_with_events])
+        variance = numerator / event_count[indices_with_events]
+
+        # Can be negative for extremely close timestamps (for example in the case of dead pixels)
+        variance = torch.clamp(variance, min=0)
+
+        timestamp_std[indices_with_events] = torch.sqrt(variance)
 
         return timestamp_mean, timestamp_std, event_count
 
@@ -189,10 +189,6 @@ class EventDiscretizer:
         total_sub_bin_indices = torch.floor(timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin)
 
         sub_bin_indices_in_bins = torch.remainder(total_sub_bin_indices, self.config.number_of_temporal_sub_bins_per_bin)
-        sub_bin_indices_in_bins = torch.clip(
-            sub_bin_indices_in_bins,
-            0,
-            self.config.number_of_temporal_sub_bins_per_bin - 1,
-        )
+        sub_bin_indices_in_bins = torch.clip(sub_bin_indices_in_bins, 0, self.config.number_of_temporal_sub_bins_per_bin - 1)
         sub_bin_indices_in_bins = sub_bin_indices_in_bins.long()
         return sub_bin_indices_in_bins

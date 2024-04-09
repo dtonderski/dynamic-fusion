@@ -65,9 +65,14 @@ class EventGenerator:
         )  # pyright: ignore
         self.logger = logging.getLogger("EventGenerator")
 
-    def run(self, video: GrayVideoFloat, regenerate_luminance: bool = True) -> Tuple[Dict[float, Events], Tuple[float, float]]:
+    def run(
+        self, video: GrayVideoFloat, regenerate_luminance: bool = True, illuminance_range: Optional[Tuple[float, float]] = None
+    ) -> Tuple[Dict[float, Events], Tuple[float, float]]:
         self.logger.info("Generating events...")
-        if regenerate_luminance:
+        if illuminance_range is not None:
+            self.evs_config.optics.max_illuminance_lux = illuminance_range[1]
+            self.evs_config.optics.min_illuminance_lux = illuminance_range[0]
+        elif regenerate_luminance:
             illuminance_range = self._generate_luminance()
             # Must be in this order or evs complains about max < min
             self.evs_config.optics.max_illuminance_lux = illuminance_range[1]
