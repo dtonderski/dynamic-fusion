@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import h5py
 import numpy as np
@@ -59,4 +59,13 @@ class DiscretizedEvents:
             timestamp_mean=torch.from_numpy(np.array(file["timestamp_mean"][t_start:t_end, x_start:x_end, y_start:y_end])),
             timestamp_std=torch.from_numpy(np.array(file["timestamp_std"][t_start:t_end, x_start:x_end, y_start:y_end])),
             event_count=torch.from_numpy(np.array(file["event_count"][t_start:t_end, x_start:x_end, y_start:y_end])),
+        )
+
+    @classmethod
+    def stack_temporally(cls, discretized_frames: List[DiscretizedEvents]) -> DiscretizedEvents:
+        return DiscretizedEvents(
+            event_polarity_sum=torch.concat([x.event_polarity_sum for x in discretized_frames], dim=0),
+            timestamp_mean=torch.concat([x.timestamp_mean for x in discretized_frames], dim=0),
+            timestamp_std=torch.concat([x.timestamp_std for x in discretized_frames], dim=0),
+            event_count=torch.concat([x.event_count for x in discretized_frames], dim=0),
         )

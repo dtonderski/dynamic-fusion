@@ -260,7 +260,7 @@ class NetworkFitter:
             next(data_loader_iterator), self.device, self.shared_config.use_mean, self.shared_config.use_std, self.shared_config.use_count
         )
 
-        nearest_pixels, start_to_end_vectors = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(crops[0].grid.shape[-3:-1]))
+        corner_pixels, corner_to_point_vectors = get_upscaling_pixel_indices_and_distances(tuple(event_counts.shape[-2:]), tuple(crops[0].grid.shape[-3:-1]))
 
         time_batch = time.time() - batch_start
         # endregion
@@ -312,7 +312,7 @@ class NetworkFitter:
         taus = einops.rearrange(torch.tensor(taus).to(cs), "B T -> T B")
 
         for t, r_t in run_decoder_with_spatial_upscaling(
-            decoder, cs, taus, temporal_interpolation, temporal_unfolding, nearest_pixels, start_to_end_vectors, t_start
+            decoder, cs, taus, temporal_interpolation, temporal_unfolding, corner_pixels, corner_to_point_vectors, t_start
         ):
             image_loss = image_loss + self.reconstruction_loss_function(r_t, gt[t]).mean()
 

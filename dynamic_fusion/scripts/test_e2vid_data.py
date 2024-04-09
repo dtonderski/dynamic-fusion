@@ -205,7 +205,6 @@ def run_reconstruction(
         encoder.reset_states()
         corner_pixels, corner_to_point_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), output_shape)
 
-        taus_to_evaluate = 5
         taus = np.arange(0, 1, 1 / taus_to_evaluate)
         taus = torch.tensor(taus).to(device)
 
