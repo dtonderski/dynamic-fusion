@@ -26,6 +26,8 @@ def find_corner_pixels(
     start_resolution = start_resolution.astype(np.float64)
 
     first_corners = np.floor(end_coords * (start_resolution - 1))
+    # Note: the - 2 here is unintuitive, but it is so that edge cases don't have corner pixels outside
+    # of the image bounds.
     first_corners = np.clip(first_corners, two_zeros, start_resolution - 2)
     corner_pixels[0] = first_corners
     corner_pixels[1] = first_corners + np.array([1, 0])
@@ -70,13 +72,20 @@ def get_spatial_upscaling_output(
 ) -> Float[torch.Tensor, "B C XUpscaled YUpscaled"]:
     original_resolution = c.shape[-3:-1]
 
-    only_use_first_corner = False
-    # Special case when upscaling factor = 1/n, where n is an integer in [1:]. Here, all end points are on a corner, so
-    # we only use the first corner, and we can skip computation for the other corners.
-    if np.all(corner_to_point_vectors[:, 0] == 0):
-        only_use_first_corner = True
-        corner_pixels = corner_pixels[0:1]
-        corner_to_point_vectors = corner_to_point_vectors[0:1]
+    # Optimization!
+    # Check the special case when each output pixel falls exactly on a corner pixel. If it does,
+    # we can reduce the required computation by a factor 4.
+    vector_is_zero = torch.all(corner_to_point_vectors == 0, dim=-1)  # 4 X Y
+    point_is_on_corner = torch.any(vector_is_zero, dim=0)  # X Y
+    all_points_are_on_corners = torch.all(point_is_on_corner)
+
+    if all_points_are_on_corners:
+        corner_indices = torch.argmax(vector_is_zero.to(torch.int), dim=0)
+        corner_indices = einops.repeat(corner_indices, "X Y -> 1 X Y 2")
+        # TODO: test that if original resolution = new resolution, corner_pixels[0,x,y,:] = [x,y]
+        corner_pixels = torch.gather(corner_pixels, dim=0, index=corner_indices)
+        corner_to_point_vectors = torch.gather(corner_to_point_vectors, dim=0, index=corner_indices)
+        assert torch.all(corner_to_point_vectors == 0)
 
     corner_pixels = corner_pixels.to(c).long()
     corner_c = c[:, corner_pixels[..., 0], corner_pixels[..., 1], :]  # B 4 X Y C
@@ -96,7 +105,7 @@ def get_spatial_upscaling_output(
         r_tnext = decoding_network(torch.concat([corner_c_next, corner_to_point_vectors_normalized, tau_expanded - 1], dim=-1))
         r_t = r_t * (1 - tau_expanded) + r_tnext * (tau_expanded)
 
-    if not only_use_first_corner:
+    if not all_points_are_on_corners:
         r_t = spatial_bilinear_interpolate(r_t, corner_to_point_vectors_normalized)
     else:
         r_t = r_t[:, 0]
