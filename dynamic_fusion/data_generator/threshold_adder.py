@@ -34,7 +34,7 @@ class ThresholdAdder:
         self.event_generator = EventGenerator(original_config.event_generator, original_config.shared)
 
     def run(self) -> None:
-        existing_output_dirs = self.original_config.data_saver.output_dir.glob("*/**")
+        existing_output_dirs = list(self.original_config.data_saver.output_dir.glob("*/**"))
 
         for output_dir in tqdm(existing_output_dirs):
             skip_current = False
