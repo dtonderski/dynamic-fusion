@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from dynamic_fusion.data_generator.video_generator import VideoGenerator
 from dynamic_fusion.utils.datatypes import GrayImageFloat
-from dynamic_fusion.utils.network import to_numpy
+from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.transform import TransformDefinition
 from dynamic_fusion.utils.video import get_video, normalize
 

@@ -5,7 +5,7 @@ import numpy as np
 from jaxtyping import Float, UInt8
 from matplotlib.axes import Axes
 
-from dynamic_fusion.utils.network import to_numpy
+from dynamic_fusion.utils.array import to_numpy
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.4

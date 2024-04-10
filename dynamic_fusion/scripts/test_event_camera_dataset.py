@@ -15,8 +15,9 @@ from dynamic_fusion.network_trainer.network_loader import NetworkLoader
 from dynamic_fusion.scripts.test_e2vid_data import get_events_from_txt
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 from dynamic_fusion.utils.loss import LPIPS
-from dynamic_fusion.utils.network import run_reconstruction, to_numpy
+from dynamic_fusion.utils.network import run_reconstruction
 from dynamic_fusion.utils.plotting import add_text_at_row, discretized_events_to_cv2_frame, log_std_to_cv2_frame
+from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 MODEL = "e2vid_exp"
@@ -30,7 +31,7 @@ NAMES = ["dynamic_6dof"]
 # Only used in discretization
 THRESHOLD = 1
 OUTPUT_DIR = Path("results/event_camera_dataset_test/")
-DATA_DIR = Path(f"./data/raw/event_camera_dataset")
+DATA_DIR = Path("./data/raw/event_camera_dataset")
 
 # Model
 if MODEL == "e2vid_exp":

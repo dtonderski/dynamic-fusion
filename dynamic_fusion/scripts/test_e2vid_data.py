@@ -2,23 +2,18 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import cv2
-import einops
 import numpy as np
 import pandas as pd
 import torch
-from jaxtyping import Float
-from torch import nn
 from skimage.transform import resize
 
 from dynamic_fusion.data_generator.configuration import EventDiscretizerConfiguration
 from dynamic_fusion.data_generator.event_discretizer import EventDiscretizer
-from dynamic_fusion.network_trainer.configuration import SharedConfiguration, TrainerConfiguration
+from dynamic_fusion.network_trainer.configuration import TrainerConfiguration
 from dynamic_fusion.network_trainer.network_loader import NetworkLoader
-from dynamic_fusion.utils.dataset import discretized_events_to_tensors
+from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.datatypes import Events
-from dynamic_fusion.utils.discretized_events import DiscretizedEvents
-from dynamic_fusion.utils.network import run_reconstruction, stack_and_maybe_unfold_c_list, to_numpy, unfold_temporally
-from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output, get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.network import run_reconstruction
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 MODEL = "e2vid_exp"

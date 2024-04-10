@@ -6,11 +6,12 @@ import torch
 from jaxtyping import Float, Int
 from torch import nn
 
-from dynamic_fusion.network_trainer.configuration import SharedConfiguration
 from dynamic_fusion.utils.dataset import discretized_events_to_tensors
 from dynamic_fusion.utils.datatypes import Batch, TestBatch
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
+from dynamic_fusion.utils.inference_configuration import InferenceConfiguration
 from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output, get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.array import to_numpy
 
 
 def network_data_to_device(
@@ -59,12 +60,6 @@ def network_test_data_to_device(
         down_counts = [x.to(device) for x in down_counts]
 
     return (eps, means, stds, counts, down_eps, down_means, down_stds, down_counts, preprocessed_image, transform)
-
-
-def to_numpy(tensor: Union[torch.Tensor, np.ndarray]) -> np.ndarray:  # type: ignore[type-arg]
-    if isinstance(tensor, np.ndarray):
-        return tensor
-    return tensor.detach().cpu().numpy()  # type: ignore[no-any-return]
 
 
 def run_decoder(
@@ -164,7 +159,7 @@ def run_reconstruction(
     decoder: nn.Module,
     discretized_events: DiscretizedEvents,
     device: torch.device,
-    config: SharedConfiguration,
+    config: InferenceConfiguration,
     output_shape: Optional[Tuple[int, int]] = None,
     taus_to_evaluate: int = 1,
 ) -> Float[torch.Tensor, "T C X Y"]:

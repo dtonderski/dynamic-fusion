@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from jaxtyping import Float
 
-from dynamic_fusion.utils.network import to_numpy
+from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 

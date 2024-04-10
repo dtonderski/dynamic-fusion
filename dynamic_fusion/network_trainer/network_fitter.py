@@ -20,9 +20,9 @@ from dynamic_fusion.utils.network import (
     run_decoder,
     run_decoder_with_spatial_upscaling,
     stack_and_maybe_unfold_c_list,
-    to_numpy,
 )
 from dynamic_fusion.utils.superresolution import get_upscaling_pixel_indices_and_distances
+from dynamic_fusion.utils.array import to_numpy
 
 from .configuration import NetworkFitterConfiguration, SharedConfiguration
 from .training_monitor import TrainingMonitor

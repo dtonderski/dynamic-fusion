@@ -3,8 +3,10 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from dynamic_fusion.utils.inference_configuration import InferenceConfiguration
 
-class SharedConfiguration(BaseModel):
+
+class SharedConfiguration(InferenceConfiguration, BaseModel):
     sequence_length: int = Field(..., description="Length of the sequence used in training.")
     resume: bool = Field(
         ...,
