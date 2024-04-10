@@ -83,6 +83,7 @@ class NetworkFitterConfiguration(BaseModel):
     network_saving_frequency: int = Field(...)
     visualization_frequency: int = Field(...)
     gradient_application_period: int = Field(1)
+    uncertainty_weight: float = Field(1)
 
 
 class TrainingMonitorConfiguration(BaseModel):

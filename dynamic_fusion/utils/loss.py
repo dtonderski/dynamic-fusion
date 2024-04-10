@@ -9,12 +9,14 @@ from torch import nn
 
 class UncertaintyLossWithLPIPS(nn.Module):
     loss_function_vgg: lpips.LPIPS
+    uncertainty_weight: float
     values: List[float] = []
     weights: List[int] = []
 
-    def __init__(self) -> None:
+    def __init__(self, uncertainty_weight: float = 1) -> None:
         super().__init__()
         self.loss_function_vgg = lpips.LPIPS(net="vgg")
+        self.uncertainty_weight = uncertainty_weight
 
     def forward(self, x: Float32[torch.Tensor, "B 2 X Y"], y: Float32[torch.Tensor, "B 1 X Y"], epsilon: float = 1e-6) -> Float32[torch.Tensor, " 1"]:
         """x[:,0] is mean, x[:, 1] is log std"""
@@ -25,7 +27,7 @@ class UncertaintyLossWithLPIPS(nn.Module):
         y = einops.repeat(y, "B C X Y -> B (C three) X Y", three=3)
         lpips_loss = self.loss_function_vgg(2 * (x - 0.5), 2 * (y - 0.5))
 
-        return per_pixel_loss.mean() + lpips_loss.mean()
+        return per_pixel_loss.mean()*self.uncertainty_weight + lpips_loss.mean()
 
     @torch.no_grad()
     def update(self, x: Float32[torch.Tensor, "B C X Y"], y: Float32[torch.Tensor, "B C X Y"]) -> None:
@@ -109,9 +111,9 @@ def get_reconstruction_loss(loss_name: str, device: torch.device) -> nn.Module:
         raise ValueError(f"Unknown image loss name: {loss_name}")
 
 
-def get_uncertainty_loss(loss_name: str, device: torch.device) -> nn.Module:
+def get_uncertainty_loss(loss_name: str, device: torch.device, uncertainty_weight: float = 1) -> nn.Module:
     if loss_name.upper() == "UNCERTAINTY":
         return UncertaintyLoss()
     if loss_name.upper() == "UNCERTAINTY_WITH_LPIPS":
-        return UncertaintyLossWithLPIPS().to(device)
+        return UncertaintyLossWithLPIPS(uncertainty_weight).to(device)
     raise ValueError(f"Unknown uncertainty loss name: {loss_name}")

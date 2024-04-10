@@ -47,7 +47,7 @@ class NetworkFitter:
         self.shared_config = shared_config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if self.shared_config.predict_uncertainty:
-            self.reconstruction_loss_function = get_uncertainty_loss(self.config.reconstruction_loss_name, self.device)
+            self.reconstruction_loss_function = get_uncertainty_loss(self.config.reconstruction_loss_name, self.device, self.config.uncertainty_weight)
         else:
             self.reconstruction_loss_function = get_reconstruction_loss(self.config.reconstruction_loss_name, self.device)
         self.logger = logging.getLogger("NetworkFitter")
