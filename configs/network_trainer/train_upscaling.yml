@@ -1,0 +1,61 @@
+shared:
+  sequence_length: 8
+  resume: true
+  use_mean: true
+  use_std: true
+  use_count: true
+  implicit: true
+  spatial_unfolding: true
+  temporal_unfolding: true
+  temporal_interpolation: true
+  spatial_upscaling: true
+  min_allowed_max_of_mean_polarities_over_times: 0.05
+
+data_handler:
+  batch_size: 1
+  num_workers: 1
+  test_dataset_directory: "data/interim/coco/test/2subbins"
+  test_scale_range: [1, 4]
+  augmentation:
+    network_image_size: [48, 48]
+
+  dataset:
+    dataset_directory: "data/interim/coco/train/2subbins"
+    threshold: 1.3 # 1.4
+    augmentation_tries: 2
+    video_tries: 5
+    max_upscaling: 4
+
+network_loader:
+  encoding:
+    input_size: 2 # should equal to be subbins
+    hidden_size: 24
+    output_size: 16 # only used if implicit
+    kernel_size: 3
+  encoding_checkpoint_path: null
+  decoding:
+    hidden_size: 128
+    hidden_layers: 4
+  decoding_checkpoint_path: null
+
+network_fitter:
+  lr_reconstruction: 0.0005
+  number_of_training_iterations: 80_000
+  reconstruction_loss_name: "LPIPS"
+  skip_first_timesteps: 2
+  network_saving_frequency: 100
+  visualization_frequency: 200
+  upscaling_region_size: [96, 96]
+
+# TODO: validate that len(event_colors) == len(thresholds)
+training_monitor:
+  run_directory: "runs/new_code/test"
+  event_colors: [[255, 0, 0], [0, 255, 0]]
+  persistent_saving_frequency: 10000
+  Ts_to_visualize: 20
+  taus_to_visualize: 5
+  Ts_to_evaluate: 100
+  taus_to_evaluate: 5
+  test_samples_to_visualize: [0, 1, 2]
+
+seed: 0
