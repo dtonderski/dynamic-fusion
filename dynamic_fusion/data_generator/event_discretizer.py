@@ -39,7 +39,7 @@ class EventDiscretizer:
         if image_resolution is None:
             self.logger.warning("Image resolution not given! Infering from events.")
             smallest_threshold_events = min(events_dict.items(), key=lambda x: x[0])[1]
-            image_resolution = (smallest_threshold_events.y.max(), smallest_threshold_events.x.max())
+            image_resolution = (smallest_threshold_events.y.max() + 1, smallest_threshold_events.x.max() + 1)
 
         discretized_events_dict = {}
         for threshold, events in events_dict.items():
