@@ -62,7 +62,7 @@ class EventDiscretizer:
         if discretization_type == 'fixed_bin_num':
             temporal_bin_indices = self._calculate_temporal_bin_indices(timestamps, self.max_timestamp)
             temporal_sub_bin_indices = self._calculate_temporal_sub_bin_indices(timestamps, self.max_timestamp)
-        elif discretization_type == 'fixed_evexitent_num':
+        elif discretization_type == 'fixed_event_num':
             events_torch, temporal_bin_indices, temporal_sub_bin_indices = self._prepare_inputs_fixed_event_num(
                 events_torch,
                 self.config.number_of_temporal_bins,
