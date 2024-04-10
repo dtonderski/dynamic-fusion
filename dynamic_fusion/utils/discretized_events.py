@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from jaxtyping import Float
 
+from dynamic_fusion.utils.network import to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 
@@ -45,7 +46,7 @@ class DiscretizedEvents:
         )
 
     def get_colored_polarity(self) -> Float[torch.Tensor, "T X Y 3"]:
-        return img_to_colormap(self.event_polarity_sum, create_red_blue_cmap(501))
+        return img_to_colormap(to_numpy(self.event_polarity_sum.sum(dim=1)), create_red_blue_cmap(501))
 
     @classmethod
     def load_from_file(

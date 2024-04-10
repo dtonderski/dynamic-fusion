@@ -17,7 +17,7 @@ from dynamic_fusion.network_trainer.network_loader import NetworkLoader
 from dynamic_fusion.utils.dataset import discretized_events_to_tensors
 from dynamic_fusion.utils.datatypes import Events
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
-from dynamic_fusion.utils.network import stack_and_maybe_unfold_c_list, to_numpy, unfold_temporally
+from dynamic_fusion.utils.network import run_reconstruction, stack_and_maybe_unfold_c_list, to_numpy, unfold_temporally
 from dynamic_fusion.utils.superresolution import get_spatial_upscaling_output, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
@@ -32,7 +32,7 @@ elif MODEL == "e2vid_exp_uncertainty":
 CHECKPOINT_NAME = "latest_checkpoint.pt"
 
 NAME = "selfie"
-E2VID_PATH = Path("./data_e2vid/raw/e2vid")
+E2VID_PATH = Path("./data/raw/e2vid")
 
 if NAME == "dynamic":
     EVENT_DATA_FILE = E2VID_PATH / "dynamic_6dof.txt"
@@ -65,7 +65,7 @@ DESIRED_WIDTH = 640
 FRAME_SIZE = 0.06  # 200 ms
 FRAME_SIZE = 0.02  # 200 ms
 
-SCALE = 8
+SCALE = 4
 BINS_PER_FRAME = 2
 TAUS_TO_EVALUATE = 5
 
@@ -181,84 +181,6 @@ def main() -> None:
         out.write(frame_with_events)
 
     out.release()
-
-
-def run_reconstruction(
-    encoder: nn.Module,
-    decoder: nn.Module,
-    discretized_events: DiscretizedEvents,
-    device: torch.device,
-    config: SharedConfiguration,
-    output_shape: Tuple[int, int],
-    taus_to_evaluate: int,
-) -> Float[torch.Tensor, "T C X Y"]:
-    with torch.no_grad():
-        event_polarity_sum, timestamp_mean, timestamp_std, event_count = discretized_events_to_tensors(discretized_events)
-        number_of_temporal_bins = event_polarity_sum.shape[0]
-        eps, means, stds, counts = (
-            event_polarity_sum.to(device)[None],
-            timestamp_mean.to(device)[None],
-            timestamp_std.to(device)[None],
-            event_count.to(device)[None],
-        )
-
-        encoder.reset_states()
-        corner_pixels, corner_to_point_vectors = get_upscaling_pixel_indices_and_distances(tuple(eps.shape[-2:]), output_shape)
-
-        taus = np.arange(0, 1, 1 / taus_to_evaluate)
-        taus = torch.tensor(taus).to(device)
-
-        reconstructions = []
-
-        # For unfolding, we need 3, for interpolation also, we need 4
-        cs_queue = []
-
-        reconstructions = []
-        for t in range(number_of_temporal_bins + 2):
-            print(f"{t} / {number_of_temporal_bins + 2}", end="\r")
-            reconstructions_t = []
-            if t < int(number_of_temporal_bins):
-                c_t = encoder(
-                    eps[:, t], means[:, t] if config.use_mean else None, stds[:, t] if config.use_std else None, counts[:, t] if config.use_count else None
-                )
-                cs_queue.append(stack_and_maybe_unfold_c_list([c_t], config.spatial_unfolding)[0])
-
-                if t == 0:
-                    # Makes code easier if we do it this way
-                    cs_queue.insert(0, torch.zeros_like(cs_queue[0]))
-
-            if t > 1:
-                # We usually have 4 items in the queue, near the end we have 3 or 2
-                c_next = None
-                if config.temporal_unfolding:
-                    c = unfold_temporally(cs_queue, 1)
-                    if config.temporal_interpolation and len(cs_queue) > 2:
-                        c_next = unfold_temporally(cs_queue, 2)
-                else:
-                    c = cs_queue[1]  # B X Y C
-                    if config.temporal_interpolation and len(cs_queue) > 2:
-                        c_next = cs_queue[2]
-
-                for i_tau in range(len(taus)):
-                    if config.spatial_upscaling:
-                        r_t = get_spatial_upscaling_output(decoder, c, taus[i_tau : i_tau + 1].to(c), c_next, corner_pixels, corner_to_point_vectors)
-                    else:
-                        tau = einops.repeat(taus[i_tau : i_tau + 1].to(c), "1 -> T X Y 1", X=c.shape[-3], Y=c.shape[-2])
-                        r_t = decoder(torch.concat([c, tau], dim=-1))
-                        if c_next is not None:
-                            r_tnext = decoder(torch.concat([c_next, tau - 1], dim=-1))
-                            r_t = r_t * (1 - tau) + r_tnext * (tau)
-
-                    reconstructions_t.append(to_numpy(r_t))
-
-                reconstructions.append(np.stack(reconstructions_t, axis=0))
-
-            if len(cs_queue) > 3:
-                del cs_queue[0]
-
-        reconstruction_stacked = np.stack(reconstructions, axis=0)  # T tau C X Y
-        reconstruction_flat = einops.rearrange(reconstruction_stacked, "tau T C D X Y -> (tau T) (C D) X Y")  # D=1
-        return reconstruction_flat
 
 
 def get_events_from_txt(
@@ -404,6 +326,7 @@ def get_events_from_video(
     width = filtered_events.x.max() + 1
 
     return filtered_events, height, width
+
 
 if __name__ == "__main__":
     main()
