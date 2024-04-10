@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=shared
-#SBATCH --exclude=destc0strapp02
-#SBATCH --gres=gpu:1,gpu_mem:16000
+#SBATCH --gres=gpu:1,gpu_mem:10000
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --job-name=generate_data
@@ -17,4 +16,4 @@ nvidia-smi
 
 echo $CUDA_VISIBLE_DEVICES
 
-singularity exec --bind /cig/cig04b/students/chtonded/data:/mnt --nv singularity/python39.sif sh scripts/slurm/data_generation/generate_data_singularity.sh
+singularity exec --bind /cig/cig04b/students/chtonded/data:/mnt --nv singularity/python39.sif sh scripts/slurm/data_generation/rediscretize_singularity.sh --test

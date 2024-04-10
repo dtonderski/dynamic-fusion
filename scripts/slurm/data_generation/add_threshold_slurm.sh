@@ -17,4 +17,4 @@ nvidia-smi
 
 echo $CUDA_VISIBLE_DEVICES
 
-singularity exec --bind /cig/cig04b/students/chtonded/data:/mnt --nv singularity/python39.sif sh scripts/slurm/data_generation/generate_data_singularity.sh
+singularity exec --bind /cig/cig04b/students/chtonded/data:/mnt --nv singularity/python39.sif sh scripts/slurm/data_generation/add_threshold_singularity.sh

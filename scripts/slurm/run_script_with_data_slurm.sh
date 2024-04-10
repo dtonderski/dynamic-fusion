@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --partition=shared
-#SBATCH --exclude=destc0strapp02
 #SBATCH --gres=gpu:1,gpu_mem:16000
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
@@ -22,7 +21,7 @@ echo "Data folder is "$DATA_FOLDER
 echo "Copying dataset"
 mkdir -p $DATA_FOLDER                                                    # Create the folder where the data will be stored
 
-rsync -ah --info=progress2 /cig/cig04b/students/chtonded/data/interim/coco/ $DATA_FOLDER
+rsync -ah --exclude '**/events*' --info=progress2 /cig/cig04b/students/chtonded/data/interim/coco/ $DATA_FOLDER
 echo "Dataset copied!"
 
 #cp -r ~/data/interim/coco/2subbins_new/ $DATA_FOLDER                  # Copy the source data tarball (recommended) to the data folder on /disk1 partition
