@@ -34,8 +34,8 @@ class StandaloneDiscretizer:
         self.allow_overwrite = allow_overwrite
 
     def run(self) -> None:
-        existing_output_dirs = self.original_config.data_saver.output_dir.glob("*/**")
-
+        existing_output_dirs = list(self.original_config.data_saver.output_dir.glob("*/**"))
+        print(f"Found {len(existing_output_dirs)=}")
         for output_dir in tqdm(existing_output_dirs):
             for threshold in self.thresholds:
                 files = [output_dir / f"discretized_events_{threshold}.h5", output_dir / f"downscaled_discretized_events_{threshold}.h5"]
