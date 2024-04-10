@@ -30,6 +30,7 @@ NAMES = ["dynamic_6dof"]
 # Only used in discretization
 THRESHOLD = 1
 OUTPUT_DIR = Path("results/event_camera_dataset_test/")
+DATA_DIR = Path(f"./data/raw/event_camera_dataset")
 
 # Model
 if MODEL == "e2vid_exp":
@@ -45,7 +46,7 @@ CHECKPOINT_NAME = "latest_checkpoint.pt"
 def main() -> None:
     results = {}
     for NAME in NAMES:
-        DIRECTORY = Path(f"./data/raw/event_camera_dataset/{NAME}")
+        DIRECTORY = DATA_DIR / NAME
 
         # -- Load events
         print(NAME, "Loading events")
@@ -137,15 +138,20 @@ def main() -> None:
         )
         colored_event_polarity_sums = img_to_colormap(to_numpy(discretized_events.event_polarity_sum.sum(dim=1)), create_red_blue_cmap(501))
         for I in range(len(reconstruction_norm)):
+            frames = []
             event_frame = discretized_events_to_cv2_frame(colored_event_polarity_sums[I], discretized_events.event_count[I])
             recon_frame = cv2.cvtColor((reconstruction_norm[I, 0] * 255).astype(np.uint8), cv2.COLOR_GRAY2RGB)
             gt_frame = cv2.cvtColor((images[I] * 255).astype(np.uint8), cv2.COLOR_GRAY2RGB)
-            std_frame = log_std_to_cv2_frame(reconstruction_norm[I, 1])
-
             add_text_at_row(recon_frame, f"LPIPS={lpips_vals[I]:.2f}", 0)
             add_text_at_row(recon_frame, f"SSIM={ssim_vals[I]:.2f}", 1)
 
-            frame = np.concatenate([event_frame, recon_frame, gt_frame, std_frame], axis=1)
+            frames = [event_frame, recon_frame, gt_frame]
+            if reconstruction.shape[1] > 1:
+                std_frame = log_std_to_cv2_frame(reconstruction_norm[I, 1])
+                frames.append(std_frame)
+
+
+            frame = np.concatenate(frames, axis=1)
 
             out.write(frame)
 
