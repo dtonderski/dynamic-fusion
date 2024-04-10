@@ -30,16 +30,11 @@ class EventSchema(pa.DataFrameModel):
 
 
 Events: TypeAlias = DataFrame[EventSchema]
-TimeStamps: TypeAlias = Float[torch.Tensor, " N"]
-Indices: TypeAlias = Int[torch.Tensor, " N"]
-Polarities: TypeAlias = Bool[torch.Tensor, " N"]
 
-EventTensors = Tuple[TimeStamps, Indices, Indices, Polarities]
+EventTensors = Tuple[Float[torch.Tensor, " N"], Int[torch.Tensor, " N"], Int[torch.Tensor, " N"], Bool[torch.Tensor, " N"]]
 
 SensorState: TypeAlias = Dict[str, Any]
 VideoSensorData: TypeAlias = Tuple[List[Events], List[GrayImage]]
-
-DiscretizedEventsStatistics: TypeAlias = Float[torch.Tensor, "T D X Y"]
 
 EventMask: TypeAlias = Bool[torch.Tensor, " N"]
 TemporalBinIndices: TypeAlias = Int64[torch.Tensor, " N"]

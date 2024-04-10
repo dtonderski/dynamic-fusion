@@ -2,9 +2,9 @@ import logging
 from typing import Dict, Optional, Tuple
 
 import torch
-from jaxtyping import Float64
+from jaxtyping import Float, Float64, Int
 
-from dynamic_fusion.utils.datatypes import DiscretizedEventsStatistics, Events, EventTensors, TemporalBinIndices, TemporalSubBinIndices, TimeStamps
+from dynamic_fusion.utils.datatypes import Events, EventTensors
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
 
 from .configuration import EventDiscretizerConfiguration, SharedConfiguration
@@ -53,7 +53,7 @@ class EventDiscretizer:
         threshold: float,
         image_resolution: Tuple[int, int],
     ) -> DiscretizedEvents:
-        timestamps: TimeStamps = torch.tensor(events.timestamp.values.astype(float))
+        timestamps: Float[torch.Tensor, " N"] = torch.tensor(events.timestamp.values.astype(float))
 
         events_torch: EventTensors = (
             timestamps,
@@ -75,7 +75,7 @@ class EventDiscretizer:
 
         resolution = (self.config.number_of_temporal_bins, self.config.number_of_temporal_sub_bins_per_bin, *image_resolution)
 
-        event_polarity_sum: DiscretizedEventsStatistics = self._calculate_event_polarity_sum(
+        event_polarity_sum: Float[torch.Tensor, "T D X Y"] = self._calculate_event_polarity_sum(
             events_torch,
             temporal_bin_indices,
             temporal_sub_bin_indices,
@@ -96,23 +96,23 @@ class EventDiscretizer:
     @staticmethod
     def _calculate_statistics(
         events_torch: EventTensors,
-        timestamps_in_sub_bins: TimeStamps,
-        temporal_bin_indices: TemporalBinIndices,
-        temporal_sub_bin_indices: TemporalSubBinIndices,
+        timestamps_in_sub_bins: Float[torch.Tensor, " N"],
+        temporal_bin_indices: Int[torch.Tensor, " N"],
+        temporal_sub_bin_indices: Int[torch.Tensor, " N"],
         resolution: Tuple[int, int, int, int],
     ) -> Tuple[
-        DiscretizedEventsStatistics,
-        DiscretizedEventsStatistics,
-        DiscretizedEventsStatistics,
+        Float[torch.Tensor, "T D X Y"],
+        Float[torch.Tensor, "T D X Y"],
+        Float[torch.Tensor, "T D X Y"],
     ]:
         _, x_s, y_s, _ = events_torch
 
-        timestamp_sum: DiscretizedEventsStatistics = torch.zeros(resolution)
-        timestamp_squared_sum: DiscretizedEventsStatistics = torch.zeros(resolution)
-        timestamp_count: DiscretizedEventsStatistics = torch.zeros(resolution)
-        event_count: DiscretizedEventsStatistics = torch.zeros(resolution)
-        timestamp_mean: DiscretizedEventsStatistics = torch.zeros(resolution)
-        timestamp_std: DiscretizedEventsStatistics = torch.zeros(resolution)
+        timestamp_sum: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
+        timestamp_squared_sum: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
+        timestamp_count: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
+        event_count: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
+        timestamp_mean: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
+        timestamp_std: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
 
         timestamp_sum.index_put_(
             (temporal_bin_indices, temporal_sub_bin_indices, y_s, x_s),
@@ -151,14 +151,14 @@ class EventDiscretizer:
     @staticmethod
     def _calculate_event_polarity_sum(
         events_torch: EventTensors,
-        temporal_bin_indices: TemporalBinIndices,
-        temporal_sub_bin_indices: TemporalSubBinIndices,
+        temporal_bin_indices: Int[torch.Tensor, " N"],
+        temporal_sub_bin_indices: Int[torch.Tensor, " N"],
         threshold: float,
         resolution: Tuple[int, int, int, int],  # T D H W
-    ) -> DiscretizedEventsStatistics:
+    ) -> Float[torch.Tensor, "T D X Y"]:
         _, x_s, y_s, polarities = events_torch
 
-        event_polarity_sum: DiscretizedEventsStatistics = torch.zeros(resolution)
+        event_polarity_sum: Float[torch.Tensor, "T D X Y"] = torch.zeros(resolution)
         event_polarity_sum.index_put_(
             (
                 temporal_bin_indices[polarities],
@@ -183,14 +183,14 @@ class EventDiscretizer:
 
         return event_polarity_sum * threshold
 
-    def _calculate_temporal_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> TemporalBinIndices:
+    def _calculate_temporal_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> Float[torch.Tensor, " N"]:
         temporal_bin_indices = torch.floor(timestamps / max_timestamp * self.config.number_of_temporal_bins)
 
         temporal_bin_indices = torch.clip(temporal_bin_indices, 0, self.config.number_of_temporal_bins - 1)
         temporal_bin_indices = temporal_bin_indices.long()
         return temporal_bin_indices
 
-    def _calculate_temporal_sub_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> TemporalBinIndices:
+    def _calculate_temporal_sub_bin_indices(self, timestamps: Float64[torch.Tensor, " N"], max_timestamp: float) -> Float[torch.Tensor, " N"]:
         total_sub_bin_indices = torch.floor(timestamps / max_timestamp * self.config.number_of_temporal_bins * self.config.number_of_temporal_sub_bins_per_bin)
 
         sub_bin_indices_in_bins = torch.remainder(total_sub_bin_indices, self.config.number_of_temporal_sub_bins_per_bin)

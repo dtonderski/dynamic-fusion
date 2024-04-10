@@ -6,16 +6,17 @@ from typing import List, Optional
 import h5py
 import numpy as np
 import torch
+from jaxtyping import Float
 
-from dynamic_fusion.utils.datatypes import DiscretizedEventsStatistics
+from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 
 @dataclass
 class DiscretizedEvents:
-    event_polarity_sum: DiscretizedEventsStatistics
-    timestamp_mean: DiscretizedEventsStatistics
-    timestamp_std: DiscretizedEventsStatistics
-    event_count: DiscretizedEventsStatistics
+    event_polarity_sum: Float[torch.Tensor, "T D X Y"]
+    timestamp_mean: Float[torch.Tensor, "T D X Y"]
+    timestamp_std: Float[torch.Tensor, "T D X Y"]
+    event_count: Float[torch.Tensor, "T D X Y"]
 
     def save_to_file(self, file: h5py.File, h5_compression: int) -> None:
         file.create_dataset(
@@ -42,6 +43,9 @@ class DiscretizedEvents:
             compression="gzip",
             compression_opts=h5_compression,
         )
+
+    def get_colored_polarity(self) -> Float[torch.Tensor, "T X Y 3"]:
+        return img_to_colormap(self.event_polarity_sum, create_red_blue_cmap(501))
 
     @classmethod
     def load_from_file(
