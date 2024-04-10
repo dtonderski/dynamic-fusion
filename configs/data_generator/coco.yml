@@ -8,7 +8,7 @@ shared: # used by more than one step in the pipeline
   downscaling_factor: 4
 
 image_loader:
-  dataset_dir: "./data/raw/coco/val2014/"
+  dataset_dir: "/mnt/raw/coco/train/val2014/"
   file_extension: "jpg"
   number_of_input_images: 500 # Nimgs: 500 # number of images to use for generation
 
@@ -44,7 +44,7 @@ event_discretizer:
   number_of_temporal_sub_bins_per_bin: 2
 
 data_saver:
-  output_dir: "./data/interim/coco/train/2subbins_new"
+  output_dir: "/mnt/interim/coco/train/2subbins"
   save_events: True
   save_video: False
   h5_compression: 3

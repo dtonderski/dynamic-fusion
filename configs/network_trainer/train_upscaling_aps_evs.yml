@@ -1,6 +1,7 @@
 shared:
-  sequence_length: 48
+  sequence_length: 16
   resume: true
+  use_events: true
   use_mean: true
   use_std: true
   use_count: true
@@ -8,21 +9,26 @@ shared:
   spatial_unfolding: true
   temporal_unfolding: true
   temporal_interpolation: true
-  spatial_upsampling: true
-  min_allowed_max_of_mean_polarities_over_times: 0.01
+  spatial_upscaling: true
+  predict_uncertainty: false
+  use_aps_for_all_frames: true
+  use_initial_aps_frame: false
+  min_allowed_max_of_mean_polarities_over_times: 0.05
 
 data_handler:
-  batch_size: 1
+  batch_size: 2
   num_workers: 1
-  test_dataset_directory: "data/interim/coco/2subbins/test"
+  test_dataset_directory: "/mnt/test/2subbins"
+  test_scale_range: [1, 4]
   augmentation:
-    network_image_size: [96, 96]
+    network_image_size: [56, 56]
 
   dataset:
-    dataset_directory: "data/interim/coco/2subbins_downscaled"
-    threshold: 1.4 # 1.4
+    dataset_directory: "/mnt/train/2subbins"
+    threshold: 1.35 # 1.4
     augmentation_tries: 2
     video_tries: 5
+    max_upscaling: 4
 
 network_loader:
   encoding:
@@ -38,22 +44,23 @@ network_loader:
 
 network_fitter:
   lr_reconstruction: 0.0005
-  number_of_training_iterations: 80_000
+  number_of_training_iterations: 500_000
   reconstruction_loss_name: "LPIPS"
   skip_first_timesteps: 4
   network_saving_frequency: 100
   visualization_frequency: 200
-  data_generator_target_image_size: [180, 240]
-  upscaling_region_size: [0,0]
+  gradient_application_period: 1
 
 # TODO: validate that len(event_colors) == len(thresholds)
 training_monitor:
-  run_directory: "runs/continuous/refactored"
-  event_colors: [[255, 0, 0], [0, 255, 0]]
+  run_directory: "/runs/0403-aps_comp/04_evs_aps"
   persistent_saving_frequency: 10000
   Ts_to_visualize: 20
   taus_to_visualize: 5
-  Ts_to_evaluate: 100
+  Ts_to_evaluate: 40
   taus_to_evaluate: 5
+  test_samples_to_visualize: [0, 1, 2, 3, 5]
+  lpips_batch: 20
+  evaluation_period: 2000
 
 seed: 0
