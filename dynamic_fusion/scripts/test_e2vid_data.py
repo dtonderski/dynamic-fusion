@@ -187,6 +187,7 @@ def get_events_from_txt(
     min_t: Optional[float] = None,
     max_t: Optional[float] = None,
     first_row_is_image_shape: bool = True,
+    start_at_t_0: bool = True
 ) -> Tuple[Events, int, int]:
 
     min_height = min_height if min_height is not None else 0
@@ -204,7 +205,8 @@ def get_events_from_txt(
         names=["timestamp", "x", "y", "polarity"],
         dtype={"a": np.float64, "x": np.int64, "y": np.int64, "polarity": np.int64},
     )
-    events.timestamp -= events.timestamp[0]
+    if start_at_t_0:
+        events.timestamp -= events.timestamp[0]
     events.polarity = events.polarity > 0
 
     events = events[

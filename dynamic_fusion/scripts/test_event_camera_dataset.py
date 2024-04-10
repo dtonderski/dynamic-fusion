@@ -27,7 +27,7 @@ SPEED = 0.5
 
 # Data
 # NAMES = ["dynamic_6dof", "boxes_6dof", "calibration", "office_zigzag", "poster_6dof", "shapes_6dof", "slider_depth"]
-NAMES = ["dynamic_6dof"]
+NAMES = ["boxes_6dof"]
 # Only used in discretization
 THRESHOLD = 1
 OUTPUT_DIR = Path("results/event_camera_dataset_test/")
@@ -51,7 +51,7 @@ def main() -> None:
 
         # -- Load events
         print(NAME, "Loading events")
-        events, _, _ = get_events_from_txt(DIRECTORY / "events.txt", first_row_is_image_shape=False, max_t=MAX_T)
+        events, _, _ = get_events_from_txt(DIRECTORY / "events.txt", first_row_is_image_shape=False, max_t=MAX_T, start_at_t_0=False)
         image_metadata = pd.read_csv(
             DIRECTORY / "images.txt", delimiter=" ", header=None, names=["timestamp", "path"], dtype={"timestamp": np.float64, "path": str}
         )
