@@ -56,7 +56,7 @@ def discretize_thresholds(arguments: argparse.Namespace, unknown_args: List[str]
         config = DataGeneratorConfiguration.parse_obj(yaml)
         update_config(config, unknown_args)
 
-    if arguments.new_discretizer_config == "original":
+    if arguments.discretizer_config == "original":
         discretizer_config = None
     else:
         with open(arguments.config, encoding="utf8") as infile:
@@ -120,7 +120,7 @@ def parse_arguments() -> Tuple[argparse.Namespace, List[str]]:
 
     parser.add_argument("--thresholds", type=float, nargs="+", help="List of thresholds", default=[])
     parser.add_argument(
-        "--new_discretizer_config", required=False, type=str, help="path to new discretizer configuration, set to 'original' to use original config"
+        "--discretizer_config", required=False, type=str, help="path to new discretizer configuration, set to 'original' to use original config"
     )
     parser.add_argument(
         "--allow_overwrite", required=False, type=bool, default=False, help="used with --discretize_thresholds to set OK to overwrite discretized events"
