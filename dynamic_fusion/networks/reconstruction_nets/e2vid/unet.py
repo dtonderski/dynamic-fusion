@@ -56,7 +56,7 @@ class BaseUNet(nn.Module):
 
         self.encoder_output_sizes = [self.base_num_channels * pow(2, i + 1) for i in range(self.num_encoders)]
 
-        self.activation = getattr(torch, self.activation, "sigmoid")
+        self.activation = getattr(torch, self.activation, "sigmoid") if self.activation is not None else lambda x: x
 
     def build_resblocks(self):
         self.resblocks = nn.ModuleList()

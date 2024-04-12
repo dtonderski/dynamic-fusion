@@ -27,12 +27,12 @@ class E2VIDRecurrent(nn.Module):
             num_input_channels=input_size,
             num_output_channels=output_size,
             recurrent_block_type="convlstm",
-            activation="sigmoid",
+            activation=None,
             num_encoders=num_encoders,
             base_num_channels=32,
             num_residual_blocks=2,
             norm=None,
-            use_upsample_conv=True,
+            use_upsample_conv=False,
         )
 
     def forward(self, d: Optional[torch.Tensor], *args: Optional[torch.Tensor]) -> torch.Tensor:
