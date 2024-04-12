@@ -3,6 +3,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
+import pyiqa
 import torch
 from skimage.color import rgb2gray
 from skimage.metrics import structural_similarity as ssim
@@ -13,16 +14,17 @@ from dynamic_fusion.data_generator.event_discretizer import EventDiscretizer
 from dynamic_fusion.network_trainer.configuration import TrainerConfiguration
 from dynamic_fusion.network_trainer.network_loader import NetworkLoader
 from dynamic_fusion.scripts.test_e2vid_data import get_events_from_txt
+from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.discretized_events import DiscretizedEvents
+from dynamic_fusion.utils.evaluation import get_pyiqa_value
 from dynamic_fusion.utils.loss import LPIPS
 from dynamic_fusion.utils.network import run_reconstruction
 from dynamic_fusion.utils.plotting import add_text_at_row, discretized_events_to_cv2_frame, log_std_to_cv2_frame
-from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 MODEL = "e2vid_exp"
 MODEL = "e2vid_exp_uncertainty"
-MAX_T = 10
+MAX_T = None
 SPEED = 0.5
 
 # Data
@@ -112,12 +114,12 @@ def main() -> None:
         # plt.show()
 
         lpips_vals = []
-        lpips = LPIPS().to(device)
+        lpips = pyiqa.create_metric("lpips", device=device)
 
         for i in tqdm(range(len(reconstruction_norm))):
             recon_tensor = torch.tensor(reconstruction_norm[i, 0:1][None]).to(device).float()
             image_tensor = torch.tensor(images[i][None, None]).to(device).float()
-            lpips_vals.append(lpips(recon_tensor, image_tensor).item())
+            lpips_vals.append(get_pyiqa_value(lpips, recon_tensor, image_tensor))
 
         ssim_val = sum(ssim_vals) / len(ssim_vals)
         lpips_val = sum(lpips_vals) / len(lpips_vals)
@@ -150,7 +152,6 @@ def main() -> None:
             if reconstruction.shape[1] > 1:
                 std_frame = log_std_to_cv2_frame(reconstruction_norm[I, 1])
                 frames.append(std_frame)
-
 
             frame = np.concatenate(frames, axis=1)
 

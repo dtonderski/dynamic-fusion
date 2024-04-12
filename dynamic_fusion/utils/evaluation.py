@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, TypedDict
 
 import einops
 import numpy as np
+import pyiqa
 import torch
 from ignite.metrics import PSNR, SSIM
 from jaxtyping import Float
@@ -14,12 +15,12 @@ from torch import nn
 from tqdm import tqdm
 
 from dynamic_fusion.network_trainer.configuration import SharedConfiguration
+from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, get_edge_aps_frames, get_ground_truth, get_initial_aps_frames
 from dynamic_fusion.utils.datatypes import CropDefinition, TestBatch
 from dynamic_fusion.utils.loss import LPIPS, UncertaintyLoss
 from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list
 from dynamic_fusion.utils.superresolution import get_grid, get_upscaling_pixel_indices_and_distances
-from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
 
 
@@ -374,3 +375,10 @@ def get_metrics(
         "LPIPS": (np.mean(lpipss), np.std(lpipss)),  # type: ignore
         "uncertainty_loss": (np.mean(uncertainty_losses), np.std(uncertainty_losses)) if uncertainty_losses else None,  # type: ignore
     }
+
+
+def get_pyiqa_value(pyiqa_metric: pyiqa, x: Float[torch.Tensor, "B C X Y"], y: Float[torch.Tensor, "B C X Y"]) -> float:
+    x = einops.repeat(x, "B C X Y -> B (C three) X Y", three=3)
+    y = einops.repeat(y, "B C X Y -> B (C three) X Y", three=3)
+
+    return pyiqa_metric(x, y)  # type: ignore
