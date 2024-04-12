@@ -6,6 +6,7 @@ from torch import nn
 
 from dynamic_fusion.networks.decoding_nets.mlp import MLP
 from dynamic_fusion.networks.reconstruction_nets import ConvGruNetV1
+from dynamic_fusion.networks.reconstruction_nets.e2vid_net import E2VIDRecurrent
 
 from .configuration import NetworkLoaderConfiguration, SharedConfiguration
 
@@ -45,13 +46,17 @@ class NetworkLoader:
         else:
             output_size = 1
 
-        encoding_network = ConvGruNetV1(
-            input_size=total_input_size,
-            hidden_size=self.config.encoding.hidden_size,
-            out_size=output_size,
-            kernel_size=self.config.encoding.kernel_size,
-            use_time_to_prev_ev=self.shared_config.use_events,
-        )
+        encoding_network: nn.Module
+        if self.config.encoding.architecture == "ConvGruNetV1":
+            encoding_network = ConvGruNetV1(
+                input_size=total_input_size,
+                hidden_size=self.config.encoding.hidden_size,
+                out_size=output_size,
+                kernel_size=self.config.encoding.kernel_size,
+                use_time_to_prev_ev=self.shared_config.use_events,
+            )
+        elif self.config.encoding.architecture == "E2VID":
+            encoding_network = E2VIDRecurrent(input_size=total_input_size, output_size=output_size)
 
         if self.config.encoding_checkpoint_path:
             checkpoint = torch.load(self.config.encoding_checkpoint_path)  # type: ignore
