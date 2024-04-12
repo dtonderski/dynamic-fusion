@@ -54,7 +54,9 @@ class E2VIDRecurrent(nn.Module):
 
         x_input, (left, right, top, bottom) = pad_to_divisibility(x_input, 2**self.num_encoders)
 
-        img_pred, self.prev_states = self.unetrecurrent.forward(x_input, self.prev_states)  # type: ignore
+        img_pred, states = self.unetrecurrent.forward(x_input, self.prev_states)  # type: ignore
+
+        self.prev_states = [x.clone() for x in states]
 
         return img_pred[:, :, top:img_pred.shape[2]-bottom, left:img_pred.shape[3]-right]  # type: ignore
 
