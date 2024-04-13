@@ -32,7 +32,7 @@ class E2VIDRecurrent(nn.Module):
             base_num_channels=32,
             num_residual_blocks=2,
             norm=None,
-            use_upsample_conv=False,
+            use_upsample_conv=True,
         )
 
     def forward(self, d: Optional[torch.Tensor], *args: Optional[torch.Tensor]) -> torch.Tensor:
@@ -49,7 +49,12 @@ class E2VIDRecurrent(nn.Module):
 
         img_pred, states = self.unetrecurrent.forward(x_input, self.prev_states)  # type: ignore
 
-        self.prev_states = [x.clone() for x in states]
+        self.prev_states = []
+        for x in states:
+            if isinstance(x, tuple):
+                self.prev_states.append(tuple(y.clone() for y in x))
+            else:
+                self.prev_states.append(x.clone())
 
         return img_pred[:, :, top : img_pred.shape[2] - bottom, left : img_pred.shape[3] - right]  # type: ignore
 
