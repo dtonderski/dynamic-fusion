@@ -42,15 +42,8 @@ class E2VIDRecurrent(nn.Module):
         """
         # Tricks here to make sure that the network is compatible with only events, only aps, and aps+events
         # Just need to make sure input_size is correct and everything else should work.
-        if d is not None:
-            d_nrm = self.input_normalizer(d)
-        else:
-            d_nrm = None
-
-        x_input = torch.concat(
-            [tensor for tensor in [d_nrm, *args] if tensor is not None],
-            dim=1,
-        )
+        inputs = torch.concat([tensor for tensor in [d, *args] if tensor is not None], dim=1)
+        x_input = self.input_normalizer(inputs)
 
         x_input, (left, right, top, bottom) = pad_to_divisibility(x_input, 2**self.num_encoders)
 
@@ -58,7 +51,7 @@ class E2VIDRecurrent(nn.Module):
 
         self.prev_states = [x.clone() for x in states]
 
-        return img_pred[:, :, top:img_pred.shape[2]-bottom, left:img_pred.shape[3]-right]  # type: ignore
+        return img_pred[:, :, top : img_pred.shape[2] - bottom, left : img_pred.shape[3] - right]  # type: ignore
 
     @torch.jit.ignore  # type: ignore
     def reset_states(self) -> None:

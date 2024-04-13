@@ -66,22 +66,18 @@ class ConvGruNetV1(nn.Module):
         # Just need to make sure input_size is correct and everything else should work.
         if d is not None:
             batch_size, _, imsz0, imsz1 = d.shape
-            d_nrm = self.input_normalizer(d)
             time_to_prev = self.time_to_prev_ev(d)
             tensor_like = d
         else:
             tensor_like = [tensor for tensor in args if tensor is not None][0]
             batch_size, _, imsz0, imsz1 = tensor_like.shape
-            d_nrm = None
             time_to_prev = None
+
+        inputs = torch.concat([tensor for tensor in [d, time_to_prev, *args] if tensor is not None], dim=1)
+        x_input = self.input_normalizer(inputs)
 
         if self.state1 is None:
             self.state1 = torch.zeros([batch_size, self.hidden_size, imsz0, imsz1]).to(tensor_like)
-
-        x_input = torch.concat(
-            [tensor for tensor in [d_nrm, time_to_prev, *args] if tensor is not None],
-            dim=1,
-        )
 
         x0 = self.head(x_input)
         x0 = F.elu(self.nrm_head(x0))
