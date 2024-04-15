@@ -16,7 +16,7 @@ from dynamic_fusion.networks.layers.normalizers import (
 
 class ConvGruNetV1(nn.Module):
     def __init__(
-        self, input_size: int, hidden_size: int, out_size: int, kernel_size: int, ra_k: float = 0.95, max_t: int = 8, use_time_to_prev_ev: bool = True
+        self, input_size: int, hidden_size: int, out_size: int, kernel_size: int, ra_k: float = 0.95, max_t: int = 8, use_time_to_prev_ev: bool = True, old_norm: bool = True
     ) -> None:
         super().__init__()
 
@@ -48,6 +48,8 @@ class ConvGruNetV1(nn.Module):
 
         self.out_conv = nn.Conv2d(hidden_size, out_size, kernel_size, padding=padding)
 
+        self.old_norm = old_norm
+
         self.reset_states()
 
     @torch.jit.ignore  # type: ignore
@@ -73,8 +75,15 @@ class ConvGruNetV1(nn.Module):
             batch_size, _, imsz0, imsz1 = tensor_like.shape
             time_to_prev = None
 
-        inputs = torch.concat([tensor for tensor in [d, time_to_prev, *args] if tensor is not None], dim=1)
-        x_input = self.input_normalizer(inputs)
+        if self.old_norm:
+            d_nrm = self.input_normalizer(d) if d is not None else None
+            x_input = torch.concat(
+                [tensor for tensor in [d_nrm, time_to_prev, *args] if tensor is not None],
+                dim=1,
+            )
+        else:
+            inputs = torch.concat([tensor for tensor in [d, time_to_prev, *args] if tensor is not None], dim=1)
+            x_input = self.input_normalizer(inputs)
 
         if self.state1 is None:
             self.state1 = torch.zeros([batch_size, self.hidden_size, imsz0, imsz1]).to(tensor_like)
