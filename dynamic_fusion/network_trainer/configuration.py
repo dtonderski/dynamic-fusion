@@ -63,7 +63,7 @@ class EncodingNetworkConfiguration(BaseModel):
     output_size: int = Field(...)
     kernel_size: int = Field(...)
     architecture: str = Field("ConvGruNetV1", description="Defines architecture to be used, one of ConvGruNetV1 and E2VID")
-
+    old_norm: bool = Field(True)
 
 class DecodingNetworkConfiguration(BaseModel):
     hidden_size: int = Field(...)
