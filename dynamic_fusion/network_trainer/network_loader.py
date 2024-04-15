@@ -54,7 +54,7 @@ class NetworkLoader:
                 out_size=output_size,
                 kernel_size=self.config.encoding.kernel_size,
                 use_time_to_prev_ev=self.shared_config.use_events,
-                old_norm=self.config.old_norm
+                old_norm=self.config.encoding.old_norm
             )
         elif self.config.encoding.architecture == "E2VID":
             encoding_network = E2VIDRecurrent(input_size=total_input_size, output_size=output_size)
