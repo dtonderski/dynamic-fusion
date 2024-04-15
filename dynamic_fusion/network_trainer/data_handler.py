@@ -39,12 +39,9 @@ class CocoAugmentation:
         # Crop inputs
         event_polarity_sums = network_data.event_polarity_sums[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
 
-        if self.shared_config.use_mean:
-            timestamp_means = network_data.timestamp_means[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
-        if self.shared_config.use_std:
-            timestamp_stds = network_data.timestamp_stds[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
-        if self.shared_config.use_count:
-            event_counts = network_data.event_counts[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
+        timestamp_means = network_data.timestamp_means[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
+        timestamp_stds = network_data.timestamp_stds[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
+        event_counts = network_data.event_counts[t_start:t_end, :, x_start:x_stop, y_start:y_stop]
 
         # Don't modify network_data in-place in case we fail validation
         augmented_network_data = ReconstructionSample(
