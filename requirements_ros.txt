@@ -1,0 +1,9 @@
+embag
+--extra-index-url https://rospypi.github.io/simple/
+rospy
+cv-bridge
+sensor_msgs
+std_msgs
+geometry_msgs
+bagpy
+yolov7detect
