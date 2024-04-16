@@ -14,7 +14,6 @@ from skimage.transform import resize
 from torch import nn
 from tqdm import tqdm
 
-from dynamic_fusion.network_trainer.configuration import SharedConfiguration
 from dynamic_fusion.utils.array import to_numpy
 from dynamic_fusion.utils.dataset import CocoTestDataset, collate_test_items, get_edge_aps_frames, get_ground_truth, get_initial_aps_frames
 from dynamic_fusion.utils.datatypes import CropDefinition, TestBatch
@@ -22,6 +21,8 @@ from dynamic_fusion.utils.loss import LPIPS, UncertaintyLoss
 from dynamic_fusion.utils.network import network_test_data_to_device, run_decoder, run_decoder_with_spatial_upscaling, stack_and_maybe_unfold_c_list
 from dynamic_fusion.utils.superresolution import get_grid, get_upscaling_pixel_indices_and_distances
 from dynamic_fusion.utils.visualization import create_red_blue_cmap, img_to_colormap
+
+from .inference_configuration import InferenceConfiguration
 
 
 class MSE:
@@ -56,7 +57,7 @@ def get_reconstructions_and_gt(
     batch: TestBatch,
     encoder: nn.Module,
     decoder: nn.Module,
-    config: SharedConfiguration,
+    config: InferenceConfiguration,
     device: torch.device,
     scale: float,
     Ts_to_evaluate: int = 10,
@@ -297,7 +298,7 @@ def get_metrics(
     test_dataset: CocoTestDataset,
     encoder: nn.Module,
     decoder: nn.Module,
-    config: SharedConfiguration,
+    config: InferenceConfiguration,
     device: torch.device,
     lpips_batch: int = 5,
     Ts_to_evaluate: int = 10,
