@@ -28,7 +28,7 @@ class NetworkLoader:
     def _load_networks(self) -> Tuple[nn.Module, Optional[nn.Module]]:
         total_input_size = 0
         if self.shared_config.use_events:
-            total_input_size = self.config.encoding.input_size * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
+            total_input_size = self.shared_config.subbins * (1 + self.shared_config.use_mean + self.shared_config.use_std + self.shared_config.use_count)
         if self.shared_config.use_aps_for_all_frames:
             total_input_size += 2
         elif self.shared_config.use_initial_aps_frame:
@@ -54,7 +54,7 @@ class NetworkLoader:
                 out_size=output_size,
                 kernel_size=self.config.encoding.kernel_size,
                 use_time_to_prev_ev=self.shared_config.use_events,
-                old_norm=self.config.encoding.old_norm
+                old_norm=self.config.encoding.old_norm,
             )
         elif self.config.encoding.architecture == "E2VID":
             encoding_network = E2VIDRecurrent(input_size=total_input_size, output_size=output_size)

@@ -38,7 +38,10 @@ class StandaloneDiscretizer:
         print(f"Found {len(existing_output_dirs)=}")
         for output_dir in tqdm(existing_output_dirs):
             for threshold in self.thresholds:
-                files = [output_dir / f"discretized_events_{threshold}.h5", output_dir / f"downscaled_discretized_events_{threshold}.h5"]
+                files = [
+                    output_dir / f"discretized_events_{threshold}_{self.event_discretizer.config.number_of_temporal_sub_bins_per_bin}.h5",
+                    output_dir / f"downscaled_discretized_events_{threshold}_{self.event_discretizer.config.number_of_temporal_sub_bins_per_bin}.h5",
+                ]
                 for file in files:
                     if file.exists() and not self.allow_overwrite:
                         raise ValueError(f"Not allowed to overwrite file {file}!")
@@ -51,9 +54,13 @@ class StandaloneDiscretizer:
             downscaled_discretized_event_dict = self.event_discretizer.run(downscaled_event_dict, None)
 
             for threshold, discretized_events in unscaled_discretized_event_dict.items():
-                with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
+                with h5py.File(
+                    output_dir / f"discretized_events_{threshold}_{self.event_discretizer.config.number_of_temporal_sub_bins_per_bin}.h5", "w"
+                ) as file:
                     discretized_events.save_to_file(file, self.original_config.data_saver.h5_compression)
 
             for threshold, discretized_events in downscaled_discretized_event_dict.items():
-                with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}.h5", "w") as file:
+                with h5py.File(
+                    output_dir / f"downscaled_discretized_events_{threshold}_{self.event_discretizer.config.number_of_temporal_sub_bins_per_bin}.h5", "w"
+                ) as file:
                     discretized_events.save_to_file(file, self.original_config.data_saver.h5_compression)

@@ -32,6 +32,7 @@ class SharedConfiguration(InferenceConfiguration, BaseModel):
     min_allowed_max_of_mean_polarities_over_times: float = Field(
         0.05, description="Minimum allowed value of the maximum of mean polarities taken over times and thresholds."
     )
+    subbins: int = Field(2)
 
 
 class AugmentationConfiguration(BaseModel):
@@ -58,7 +59,6 @@ class DataHandlerConfiguration(BaseModel):
 
 
 class EncodingNetworkConfiguration(BaseModel):
-    input_size: int = Field(..., description="")
     hidden_size: int = Field(...)
     output_size: int = Field(...)
     kernel_size: int = Field(...)

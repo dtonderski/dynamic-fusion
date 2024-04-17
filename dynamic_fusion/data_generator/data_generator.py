@@ -2,8 +2,8 @@ import logging
 
 import numpy as np
 from jaxtyping import Int32
-from tqdm import tqdm
 from skimage.transform import resize
+from tqdm import tqdm
 
 from dynamic_fusion.utils.datatypes import GrayVideoFloat
 from dynamic_fusion.utils.seeds import set_seeds
@@ -95,6 +95,7 @@ class DataGenerator:  # pylint: disable=too-many-instance-attributes
                     downscaled_discretized_event_dict,
                     exponentiation_multiplier,
                     illuminance_range,
+                    self.config.event_discretizer.number_of_temporal_sub_bins_per_bin,
                 )
                 i_image += 1
                 print("-------------------------------------")

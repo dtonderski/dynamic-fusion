@@ -57,14 +57,16 @@ def generate_frames_at_continuous_timestamps(
 class CocoTestDataset(Dataset):  # type: ignore
     directory_list: List[Path]
     threshold: float
+    subbins: int
     logger: logging.Logger
     # This is not used by this class, just a helper
     scales: Float[np.ndarray, " N"]
 
-    def __init__(self, dataset_directory: Path, scales_range: Tuple[float, float] = (1, 1), threshold: float = 1.4) -> None:
+    def __init__(self, dataset_directory: Path, scales_range: Tuple[float, float] = (1, 1), threshold: float = 1.4, subbins: int = 2) -> None:
         self.directory_list = sorted([path for path in dataset_directory.glob("**/*") if path.is_dir()])
         self.logger = logging.getLogger("CocoDataset")
         self.threshold = threshold
+        self.subbins = subbins
         self.scales = np.random.random(len(self.directory_list)) * (scales_range[1] - scales_range[0]) + scales_range[0]
 
     def __len__(self) -> int:
@@ -82,10 +84,10 @@ class CocoTestDataset(Dataset):  # type: ignore
         GrayImageFloat,
         TransformDefinition,
     ]:
-        with h5py.File(self.directory_list[index] / f"discretized_events_{self.threshold}.h5", "r") as file:
+        with h5py.File(self.directory_list[index] / f"discretized_events_{self.threshold}_{self.subbins}.h5", "r") as file:
             discretized_events = DiscretizedEvents.load_from_file(file)
 
-        with h5py.File(self.directory_list[index] / f"downscaled_discretized_events_{self.threshold}.h5", "r") as file:
+        with h5py.File(self.directory_list[index] / f"downscaled_discretized_events_{self.threshold}_{self.subbins}.h5", "r") as file:
             downscaled_discretized_events = DiscretizedEvents.load_from_file(file)
 
         input_path = self.directory_list[index] / "input.h5"

@@ -66,7 +66,7 @@ class CocoIterableDataset(IterableDataset):  # type: ignore
         while True:
             index = np.random.randint(0, len(self.directory_list))
             name = "downscaled_discretized_events" if self.shared_config.spatial_upscaling else "discretized_events"
-            threshold_path = self.directory_list[index] / f"{name}_{self.config.threshold}.h5"
+            threshold_path = self.directory_list[index] / f"{name}_{self.config.threshold}_{self.shared_config.subbins}.h5"
             with h5py.File(threshold_path, "r") as file:
                 discretized_events = DiscretizedEvents.load_from_file(file)
 

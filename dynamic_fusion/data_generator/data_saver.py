@@ -34,6 +34,7 @@ class DataSaver:
         downscaled_discretized_events_dict: Dict[float, DiscretizedEvents],
         exponentiation_multiplier: float,
         illuminance_range: Tuple[float, float],
+        subbins: int
     ) -> None:
         self.logger.info("Saving data...")
         output_dir = self.config.output_dir / image_path.stem
@@ -42,11 +43,11 @@ class DataSaver:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             for threshold, discretized_events in discretized_events_dict.items():
-                with h5py.File(output_dir / f"discretized_events_{threshold}.h5", "w") as file:
+                with h5py.File(output_dir / f"discretized_events_{threshold}_{subbins}.h5", "w") as file:
                     discretized_events.save_to_file(file, self.config.h5_compression)
 
             for threshold, discretized_events in downscaled_discretized_events_dict.items():
-                with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}.h5", "w") as file:
+                with h5py.File(output_dir / f"downscaled_discretized_events_{threshold}_{subbins}.h5", "w") as file:
                     discretized_events.save_to_file(file, self.config.h5_compression)
 
             with h5py.File(output_dir / "input.h5", "w") as file:
