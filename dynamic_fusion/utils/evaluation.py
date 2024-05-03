@@ -49,7 +49,11 @@ class MetricsDictionary(TypedDict):
     SSIM: Tuple[float, float]
     MSE: Tuple[float, float]
     LPIPS: Tuple[float, float]
+    LPIPS_ALEX: Tuple[float, float]
     uncertainty_loss: Optional[Tuple[float, float]]
+    LSDCI: Optional[Tuple[float, float]]
+    LL: Optional[Tuple[float, float]]
+    PICP: Optional[Tuple[float, float]]
 
 
 @torch.no_grad()
@@ -306,9 +310,19 @@ def get_metrics(
     sequences_to_evaluate: Optional[int] = None,
     gt_taus_to_evaluate: Optional[int] = None,
     gt_scale: Optional[float] = None,
+    reduce: bool = True,
+    z: float = 1.96,
+    patch_size: int = 16,
 ) -> MetricsDictionary:
-    psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS().to(device), UncertaintyLoss()
-    psnrs, ssims, mses, lpipss, uncertainty_losses = [], [], [], [], []
+    psnr, ssim, mse, lpips, uncertainty_loss = PSNR(data_range=1), SSIM(data_range=1), MSE(), LPIPS(spatial=False).to(device), UncertaintyLoss()
+    lpips_alex = pyiqa.create_metric("lpips", device=device)
+
+    # for i in tqdm(range(len(reconstruction_norm))):
+    #     recon_tensor = torch.tensor(reconstruction_norm[i, 0:1][None]).to(device).float()
+    #     image_tensor = torch.tensor(images[i][None, None]).to(device).float()
+    #     lpips_vals.append(get_pyiqa_value(lpips_alex, recon_tensor, image_tensor))
+
+    psnrs, ssims, mses, lpipss, uncertainty_losses, lpipss_alex, lsdcis, lls, picps = [], [], [], [], [], [], [], [], []
 
     sequences_to_evaluate = sequences_to_evaluate if sequences_to_evaluate is not None else len(test_dataset)
 
@@ -359,22 +373,72 @@ def get_metrics(
         if recon.shape[1] > 1:
             uncertainty_loss.update(recon, gt)
 
+        lpipss_alex_sequence = []
         for i in range(0, len(gt), lpips_batch):
             lpips.update(recon[i : i + lpips_batch, 0:1], gt[i : i + lpips_batch])
+            # lpips.update(recon[i : i + lpips_batch, 0:1], gt[i : i + lpips_batch])
+            lpipss_alex_sequence.append(get_pyiqa_value(lpips_alex, recon[i : i + lpips_batch, 0:1], gt[i : i + lpips_batch]).mean().item())  # type: ignore
 
+        lpipss.append(lpips.compute())
+        lpipss_alex.append(np.mean(lpipss_alex_sequence))
         psnrs.append(psnr.compute())
         ssims.append(ssim.compute())
         mses.append(mse.compute())
-        lpipss.append(lpips.compute())
         if recon.shape[1] > 1:
+            lls.append((-np.log(2 * np.pi) / 2 - recon[:, 1] - 1 / 2 * torch.square((gt[:,0] - recon[:, 0]) / torch.exp(recon[:, 1]))).mean().item())
+            intervals = [recon[:, 0] - z * torch.exp(recon[:, 1]), recon[:, 0] + z * torch.exp(recon[:, 1])]
+            picps.append((torch.logical_and(gt[:,0] > intervals[0], gt[:,0] < intervals[1]).sum() / gt.numel()).item())
             uncertainty_losses.append(uncertainty_loss.compute())
+
+        # -- LSDCI calculation
+        height, width = recon.shape[2], recon.shape[3]
+        crop_height = height % patch_size
+        crop_width = width % patch_size
+
+        # Calculate the starting indices for cropping
+        start_crop_height = crop_height // 2
+        start_crop_width = crop_width // 2
+
+        # Crop to make the height and width divisible by PATCH_SIZE
+        cropped_recon = recon[:, :, start_crop_height : height - (crop_height - start_crop_height), start_crop_width : width - (crop_width - start_crop_width)]
+        cropped_gt = gt[:, :, start_crop_height : height - (crop_height - start_crop_height), start_crop_width : width - (crop_width - start_crop_width)]
+
+        patched_recon = einops.rearrange(cropped_recon, "B C (X PATCH_X) (Y PATCH_Y) -> (B X Y) C PATCH_X PATCH_Y", PATCH_X=patch_size, PATCH_Y=patch_size)
+        patched_gt = einops.rearrange(cropped_gt, "B C (X PATCH_X) (Y PATCH_Y) -> (B X Y) C PATCH_X PATCH_Y", PATCH_X=patch_size, PATCH_Y=patch_size)
+
+        patch_median_vals = np.median(np.exp(to_numpy(patched_recon[:, 1])), axis=(1, 2))
+
+        patch_lpips_values = []
+        for i in range(0, len(patched_recon), lpips_batch):
+            lpips_val = lpips(torch.tensor(patched_recon[i : i + lpips_batch, 0:1]).cuda(), torch.tensor(patched_gt[i : i + lpips_batch]).cuda())
+            patch_lpips_values.append(to_numpy(lpips_val).flatten())
+        patch_lpips_values = np.concatenate(patch_lpips_values, axis=0)
+
+        lsdcis.append(np.corrcoef(patch_median_vals, patch_lpips_values)[0, 1])
+
+    if not reduce:
+        return {
+            "PSNR": psnrs,  # type: ignore
+            "SSIM": ssims,  # type: ignore
+            "MSE": mses,  # type: ignore
+            "LPIPS": lpipss,  # type: ignore
+            "LPIPS_ALEX": lpipss_alex,  # type: ignore
+            "uncertainty_loss": uncertainty_losses if uncertainty_losses else None,  # type: ignore
+            "LSDCI": lsdcis if lsdcis else None,  # type: ignore
+            "LL": lls if lls else None,  # type: ignore
+            "PICP": picps if picps else None,  # type: ignore
+        }
 
     return {
         "PSNR": (np.mean(psnrs), np.std(psnrs)),
         "SSIM": (np.mean(ssims), np.std(ssims)),
         "MSE": (np.mean(mses), np.std(mses)),  # type: ignore
         "LPIPS": (np.mean(lpipss), np.std(lpipss)),  # type: ignore
+        "LPIPS_ALEX": (np.mean(lpipss_alex), np.std(lpipss_alex)),  # type: ignore
         "uncertainty_loss": (np.mean(uncertainty_losses), np.std(uncertainty_losses)) if uncertainty_losses else None,  # type: ignore
+        "LSDCI": (np.mean(lsdcis), np.std(lsdcis)) if lsdcis else None,  # type: ignore
+        "LL": (np.mean(lls), np.std(lls)) if lls else None,  # type: ignore
+        "PICP": (np.mean(picps), np.std(picps)) if picps else None,  # type: ignore
     }
 
 
